@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bg11" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3b82f6"/>
+      <stop offset="100%" stop-color="#1e3a8a"/>
+    </linearGradient>
+  </defs>
+  <rect width="120" height="120" rx="60" fill="url(#bg11)"/>
+  <!-- Owl Body -->
+  <ellipse cx="60" cy="65" rx="32" ry="36" fill="#78350f"/>
+  <ellipse cx="60" cy="72" rx="20" ry="22" fill="#fef3c7"/>
+  <!-- Owl Ears -->
+  <polygon points="34,40 44,22 52,38" fill="#78350f"/>
+  <polygon points="86,40 76,22 68,38" fill="#78350f"/>
+  <!-- Huge Eyes -->
+  <circle cx="46" cy="50" r="14" fill="#ffffff"/>
+  <circle cx="74" cy="50" r="14" fill="#ffffff"/>
+  <circle cx="46" cy="50" r="8" fill="#fbbf24"/>
+  <circle cx="74" cy="50" r="8" fill="#fbbf24"/>
+  <circle cx="46" cy="50" r="4" fill="#0f172a"/>
+  <circle cx="74" cy="50" r="4" fill="#0f172a"/>
+  <!-- Beak -->
+  <polygon points="60,56 54,64 66,64" fill="#f59e0b"/>
+  <!-- Small Grad Cap -->
+  <polygon points="60,18 78,25 60,30 42,25" fill="#0f172a"/>
+  <circle cx="60" cy="24" r="1.5" fill="#fbbf24"/>
+</svg>

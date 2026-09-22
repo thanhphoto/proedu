@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bg14" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#475569"/>
+      <stop offset="100%" stop-color="#1e293b"/>
+    </linearGradient>
+  </defs>
+  <rect width="120" height="120" rx="60" fill="url(#bg14)"/>
+  <!-- Suit -->
+  <path d="M25 120 C25 90, 45 80, 60 80 C75 80, 95 90, 95 120 Z" fill="#0f172a"/>
+  <path d="M48 80 L60 100 L72 80 Z" fill="#ffffff"/>
+  <polygon points="60,86 64,88 62,106 58,106 56,88" fill="#0284c7"/>
+  <!-- Face -->
+  <circle cx="60" cy="54" r="24" fill="#fed7aa"/>
+  <!-- Hair & Gray temples -->
+  <path d="M36 50 C36 28, 84 28, 84 50 C78 36, 42 36, 36 50 Z" fill="#334155"/>
+  <path d="M35 48 C35 40, 40 38, 44 42" stroke="#94a3b8" stroke-width="2" fill="none"/>
+  <path d="M85 48 C85 40, 80 38, 76 42" stroke="#94a3b8" stroke-width="2" fill="none"/>
+  <!-- Glasses -->
+  <circle cx="48" cy="52" r="7" fill="none" stroke="#64748b" stroke-width="2"/>
+  <circle cx="72" cy="52" r="7" fill="none" stroke="#64748b" stroke-width="2"/>
+  <line x1="55" y1="52" x2="65" y2="52" stroke="#64748b" stroke-width="2"/>
+  <circle cx="48" cy="52" r="2" fill="#0f172a"/>
+  <circle cx="72" cy="52" r="2" fill="#0f172a"/>
+  <path d="M53 66 Q60 70 67 66" stroke="#9a3412" stroke-width="2" fill="none" stroke-linecap="round"/>
+</svg>

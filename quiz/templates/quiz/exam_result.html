@@ -1,0 +1,164 @@
+{% extends 'quiz/base.html' %}
+
+{% block title %}Kết Quả Làm Bài - {{ quiz.title }} - SmartQuiz Pro{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <!-- Header kết quả -->
+    <div class="row justify-content-center mb-4">
+        <div class="col-lg-8 text-center">
+            <div class="card border-0 shadow-lg rounded-4 overflow-hidden">
+                <div class="p-4 text-white" style="background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);">
+                    <span class="badge bg-warning text-dark px-3 py-1 rounded-pill fw-bold mb-2">🎉 ĐÃ HOÀN THÀNH BÀI THI</span>
+                    <h2 class="fw-bold mb-1">{{ quiz.title }}</h2>
+                    <p class="mb-0 text-white-50">Môn: <strong>{{ quiz.subject.name }}</strong> | Mã đề: <strong>{{ quiz.exam_code|default:quiz.id }}</strong></p>
+                </div>
+                
+                <div class="card-body p-4 p-md-5 bg-white">
+                    <div class="row align-items-center justify-content-center g-4">
+                        <div class="col-md-5 text-center">
+                            <div class="p-4 bg-light rounded-4 border">
+                                <small class="text-muted fw-bold text-uppercase d-block mb-1">ĐIỂM SỐ CỦA BẠN</small>
+                                <div class="display-3 fw-extrabold {% if final_score >= 8.0 %}text-success{% elif final_score >= 5.0 %}text-primary{% else %}text-danger{% endif %} my-2">
+                                    {{ final_score }}
+                                </div>
+                                <span class="badge bg-white text-dark border px-3 py-1 rounded-pill fw-bold">Thang điểm 10.0</span>
+                            </div>
+                        </div>
+
+                        <div class="col-md-7 text-start">
+                            <div class="p-3 bg-light rounded-4 border">
+                                <div class="d-flex align-items-center gap-3 mb-3 pb-2 border-bottom">
+                                    <img src="{{ result.avatar_url }}" alt="Avatar" class="rounded-circle border shadow-xs" width="48" height="48" style="background: white; object-fit: contain;">
+                                    <div>
+                                        <div class="fw-bold text-dark fs-5">{{ candidate_name }}</div>
+                                        <small class="text-muted">Thí sinh làm bài thi</small>
+                                    </div>
+                                </div>
+                                <p class="mb-2">✅ Số câu đúng: <strong class="text-success">{{ correct_count }} / {{ total_questions }} câu</strong></p>
+                                <p class="mb-2">⏱️ Thời gian hoàn thành: <strong>{{ minutes_spent }} phút {{ seconds_spent }} giây</strong></p>
+                                <p class="mb-0">
+                                    🎯 Đánh giá: 
+                                    {% if final_score >= 9.0 %}
+                                        <span class="badge bg-success px-3 py-1 rounded-pill">Xuất Sắc 🏆</span>
+                                    {% elif final_score >= 8.0 %}
+                                        <span class="badge bg-primary px-3 py-1 rounded-pill">Giỏi ⭐</span>
+                                    {% elif final_score >= 6.5 %}
+                                        <span class="badge bg-info text-dark px-3 py-1 rounded-pill">Khá 👍</span>
+                                    {% elif final_score >= 5.0 %}
+                                        <span class="badge bg-warning text-dark px-3 py-1 rounded-pill">Trung Bình - Đạt 🎯</span>
+                                    {% else %}
+                                        <span class="badge bg-danger px-3 py-1 rounded-pill">Cần Cố Gắng Thêm 💪</span>
+                                    {% endif %}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-center gap-3 mt-4 pt-3 border-top">
+                        <a href="{% url 'take_exam' quiz.exam_code %}" class="btn btn-outline-primary rounded-pill px-4 fw-bold">
+                            🔄 Làm Lại Bài Thi
+                        </a>
+                        <a href="{% url 'home' %}" class="btn btn-primary rounded-pill px-5 fw-bold shadow-sm">
+                            🏠 Về Trang Chủ
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bảng xem chi tiết từng câu hỏi & đáp án -->
+    <div class="card border-0 shadow-sm rounded-4 overflow-hidden mb-4">
+        <div class="card-header bg-white py-3 border-bottom">
+            <h5 class="fw-bold text-dark mb-0">🔍 Chi Tiết Bài Làm & Đáp Án Chuẩn</h5>
+        </div>
+        <div class="card-body p-4">
+            {% for item in detailed_results %}
+            <div class="p-3 mb-3 rounded-3 border {% if item.is_correct %}bg-success-subtle border-success-subtle{% else %}bg-light{% endif %}">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="fw-bold text-dark">Câu {{ item.order }}:</span>
+                    <span>
+                        {% if item.is_correct %}
+                            <span class="badge bg-success rounded-pill px-3 py-1">✓ Đúng (+{{ item.score_earned|floatformat:2 }}đ)</span>
+                        {% else %}
+                            <span class="badge bg-danger rounded-pill px-3 py-1">✗ Chưa đạt (+{{ item.score_earned|floatformat:2 }}đ)</span>
+                        {% endif %}
+                    </span>
+                </div>
+                <div class="text-dark mb-2">{{ item.question.question_text|linebreaksbr }}</div>
+
+                {% if item.type == 'SINGLE' %}
+                    <div class="small">
+                        <span class="text-muted">Phương án bạn chọn: </span>
+                        <strong>{{ item.user_choice.choice_text|default:"(Chưa chọn)" }}</strong>
+                        {% if not item.is_correct and item.correct_choice %}
+                            <br><span class="text-success fw-bold">Đáp án đúng: </span>
+                            <span class="text-success">{{ item.correct_choice.choice_text }}</span>
+                        {% endif %}
+                    </div>
+                {% elif item.type == 'NUMERIC' %}
+                    <div class="small">
+                        <span class="text-muted">Đáp án bạn điền: </span>
+                        <strong>{{ item.user_num|default:"(Chưa điền)" }}</strong>
+                        {% if not item.is_correct %}
+                            <br><span class="text-success fw-bold">Đáp án đúng: </span>
+                            <span class="text-success">{{ item.exact_num }}</span>
+                        {% endif %}
+                    </div>
+                {% elif item.type == 'TF' %}
+                    <div class="small mt-2">
+                        <table class="table table-sm table-bordered bg-white mb-0">
+                            <thead>
+                                <tr class="table-light">
+                                    <th>Mệnh đề</th>
+                                    <th>Bạn chọn</th>
+                                    <th>Đáp án chuẩn</th>
+                                    <th>Kết quả</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for sub in item.choices_detail %}
+                                <tr>
+                                    <td>{{ sub.choice.choice_text }}</td>
+                                    <td>
+                                        {% if sub.user_ans == 'true' %}Đúng
+                                        {% elif sub.user_ans == 'false' %}Sai
+                                        {% else %}(Chưa chọn)
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-success fw-bold">
+                                        {% if sub.expected_ans == 'true' %}Đúng{% else %}Sai{% endif %}
+                                    </td>
+                                    <td>
+                                        {% if sub.is_correct %}
+                                            <span class="text-success fw-bold">✓ Đúng</span>
+                                        {% else %}
+                                            <span class="text-danger fw-bold">✗ Sai</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Tự động xóa bài làm lưu tạm trong localStorage sau khi đã hoàn thành và nộp bài thành công
+    try {
+        localStorage.removeItem("smartquiz_exam_{{ quiz.exam_code }}");
+    } catch(e) {
+        console.error("Không thể dọn dẹp localStorage:", e);
+    }
+});
+</script>
+{% endblock %}

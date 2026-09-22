@@ -1,0 +1,95 @@
+{% extends 'quiz/base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="card-title mb-0"><i class="fas fa-edit"></i> {{ title }}</h5>
+                </div>
+                <div class="card-body">
+                    <form method="post" enctype="multipart/form-data">
+                        {% csrf_token %}
+                        
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Tên kỳ thi <span class="text-danger">*</span></label>
+                            {{ form.title }}
+                            {% if form.title.errors %}
+                            <div class="text-danger small mt-1">{{ form.title.errors|striptags }}</div>
+                            {% endif %}
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Mô tả</label>
+                            {{ form.description }}
+                            {% if form.description.errors %}
+                            <div class="text-danger small mt-1">{{ form.description.errors|striptags }}</div>
+                            {% endif %}
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label fw-bold">Thời gian bắt đầu</label>
+                                {{ form.start_time }}
+                                <small class="text-muted d-block">Để trống nếu không giới hạn</small>
+                                {% if form.start_time.errors %}
+                                <div class="text-danger small mt-1">{{ form.start_time.errors|striptags }}</div>
+                                {% endif %}
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label fw-bold">Thời gian kết thúc</label>
+                                {{ form.end_time }}
+                                <small class="text-muted d-block">Để trống nếu không giới hạn</small>
+                                {% if form.end_time.errors %}
+                                <div class="text-danger small mt-1">{{ form.end_time.errors|striptags }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Thời gian làm bài (Phút)</label>
+                            {{ form.duration }}
+                            <small class="text-muted d-block">Nhập 0 nếu không giới hạn thời gian làm bài</small>
+                            {% if form.duration.errors %}
+                            <div class="text-danger small mt-1">{{ form.duration.errors|striptags }}</div>
+                            {% endif %}
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Loại kỳ thi</label>
+                            {{ form.exam_type }}
+                            <small class="text-muted d-block">Tự do hoặc có kiểm duyệt thí sinh</small>
+                            {% if form.exam_type.errors %}
+                            <div class="text-danger small mt-1">{{ form.exam_type.errors|striptags }}</div>
+                            {% endif %}
+                        </div>
+
+                        <div class="mb-3 form-check">
+                            {{ form.is_active }}
+                            <label class="form-check-label fw-bold">Kích hoạt kỳ thi</label>
+                        </div>
+
+                        <div class="d-flex justify-content-between mt-4">
+                            <div>
+                                <a href="{% url 'coding_exam_list' %}" class="btn btn-secondary">Hủy bỏ</a>
+                                {% if exam %}
+                                <button type="button" class="btn btn-danger ms-2" onclick="if(confirm('Bạn có chắc chắn muốn xóa kỳ thi này? Toàn bộ bài toán và bài làm của thí sinh sẽ BỊ XÓA THEO! Hành động này không thể hoàn tác.')) document.getElementById('delete-form').submit();">Xóa kỳ thi</button>
+                                {% endif %}
+                            </div>
+                            <button type="submit" class="btn btn-success"><i class="fas fa-save"></i> Lưu lại</button>
+                        </div>
+                    </form>
+                    
+                    {% if exam %}
+                    <form id="delete-form" method="post" action="{% url 'coding_exam_delete' exam.id %}" style="display: none;">
+                        {% csrf_token %}
+                    </form>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

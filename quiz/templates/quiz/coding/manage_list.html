@@ -1,0 +1,225 @@
+{% extends 'quiz/base.html' %}
+
+{% block title %}Quản lý Luyện Code - SmartQuiz Pro{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>💻 Quản lý Bài Tập Lập Trình</h2>
+        <div>
+            <a href="{% url 'coding_exam_list' %}" class="btn btn-warning me-2"><i class="fas fa-trophy"></i> Quản lý Kỳ thi</a>
+            <a href="javascript:void(0)" id="btnExportSelected" class="btn btn-outline-success me-2"><i class="fas fa-file-export"></i> Xuất JSON</a>
+            <button class="btn btn-outline-secondary me-2" data-bs-toggle="modal" data-bs-target="#importJsonModal"><i class="fas fa-file-import"></i> Nhập JSON</button>
+            <a href="{% url 'coding_create' %}" class="btn btn-primary"><i class="fas fa-plus"></i> Thêm Bài Tập</a>
+        </div>
+    </div>
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-body bg-light">
+            <form method="get" class="row g-3">
+                <div class="col-md-3">
+                    <label class="form-label fw-bold">Tìm kiếm tên bài</label>
+                    <input type="text" name="q" class="form-control" placeholder="Nhập tên bài..." value="{{ q_search }}">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label fw-bold">Mức độ khó</label>
+                    <select name="difficulty" class="form-select" onchange="this.form.submit()">
+                        <option value="">Tất cả</option>
+                        <option value="Dễ" {% if difficulty == 'Dễ' %}selected{% endif %}>Dễ</option>
+                        <option value="Trung bình" {% if difficulty == 'Trung bình' %}selected{% endif %}>Trung bình</option>
+                        <option value="Khó" {% if difficulty == 'Khó' %}selected{% endif %}>Khó</option>
+                        <option value="Rất khó" {% if difficulty == 'Rất khó' %}selected{% endif %}>Rất khó</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label fw-bold">Chủ đề</label>
+                    <select name="topic" class="form-select" onchange="this.form.submit()">
+                        <option value="">Tất cả chủ đề</option>
+                        {% for t in all_topics %}
+                        <option value="{{ t.id }}" {% if topic_id == t.id|stringformat:"s" %}selected{% endif %}>{{ t.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label fw-bold">Tác giả</label>
+                    <input type="text" name="author" class="form-control" placeholder="Tên tác giả..." value="{{ author_q }}">
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary w-100"><i class="fas fa-search"></i> Lọc</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th class="ps-3" width="5%"><input type="checkbox" id="selectAll" class="form-check-input"></th>
+                            <th>ID</th>
+                            <th>Tên bài toán</th>
+                            <th>Độ khó</th>
+                            <th>Ngày tạo</th>
+                            <th>Người tạo</th>
+                            <th class="text-end pe-3">Thao tác</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for question in page_obj %}
+                        <tr>
+                            <td class="ps-3"><input type="checkbox" class="export-checkbox form-check-input" value="{{ question.id }}"></td>
+                            <td>{{ question.id }}</td>
+                            <td class="fw-bold"><a href="{% url 'coding_detail' question.id %}">{{ question.title }}</a></td>
+                            <td>
+                                {% if question.difficulty == 'Dễ' %}<span class="badge bg-success">Dễ</span>
+                                {% elif question.difficulty == 'Trung bình' %}<span class="badge bg-warning text-dark">Trung bình</span>
+                                {% elif question.difficulty == 'Khó' %}<span class="badge bg-danger">Khó</span>
+                                {% elif question.difficulty == 'Rất khó' %}<span class="badge bg-dark">Rất khó</span>
+                                {% else %}<span class="badge bg-secondary">{{ question.difficulty }}</span>{% endif %}
+                            </td>
+                            <td>{{ question.created_at|date:"d/m/Y H:i" }}</td>
+                            <td>
+                                {% if question.created_by %}
+                                    {{ question.created_by.username }}
+                                {% else %}
+                                    <span class="text-muted fst-italic">Hệ thống</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-end pe-3">
+                                <a href="{% url 'coding_edit' question.id %}" class="btn btn-sm btn-outline-primary"><i class="fas fa-edit"></i> Sửa</a>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="7" class="text-center py-4 text-muted">Chưa có bài tập nào.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        {% if page_obj.has_other_pages %}
+        <div class="card-footer bg-white d-flex justify-content-center pt-3 pb-1">
+            <nav>
+                <ul class="pagination pagination-sm">
+                    {% if page_obj.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page=1{% if q_search %}&q={{ q_search }}{% endif %}{% if difficulty %}&difficulty={{ difficulty }}{% endif %}{% if topic_id %}&topic={{ topic_id }}{% endif %}{% if author_q %}&author={{ author_q }}{% endif %}">&laquo;</a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if q_search %}&q={{ q_search }}{% endif %}{% if difficulty %}&difficulty={{ difficulty }}{% endif %}{% if topic_id %}&topic={{ topic_id }}{% endif %}{% if author_q %}&author={{ author_q }}{% endif %}">Trước</a>
+                    </li>
+                    {% endif %}
+
+                    {% for num in page_obj.paginator.page_range %}
+                        {% if page_obj.number == num %}
+                            <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+                        {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                            <li class="page-item"><a class="page-link" href="?page={{ num }}{% if q_search %}&q={{ q_search }}{% endif %}{% if difficulty %}&difficulty={{ difficulty }}{% endif %}{% if topic_id %}&topic={{ topic_id }}{% endif %}{% if author_q %}&author={{ author_q }}{% endif %}">{{ num }}</a></li>
+                        {% endif %}
+                    {% endfor %}
+
+                    {% if page_obj.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if q_search %}&q={{ q_search }}{% endif %}{% if difficulty %}&difficulty={{ difficulty }}{% endif %}{% if topic_id %}&topic={{ topic_id }}{% endif %}{% if author_q %}&author={{ author_q }}{% endif %}">Sau</a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if q_search %}&q={{ q_search }}{% endif %}{% if difficulty %}&difficulty={{ difficulty }}{% endif %}{% if topic_id %}&topic={{ topic_id }}{% endif %}{% if author_q %}&author={{ author_q }}{% endif %}">&raquo;</a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </nav>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Modal Import JSON -->
+<div class="modal fade" id="importJsonModal" tabindex="-1" aria-labelledby="importJsonModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="importJsonModalLabel">Nhập bài toán từ file JSON</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form id="importJsonForm" enctype="multipart/form-data">
+          {% csrf_token %}
+          <div class="modal-body">
+            <div class="mb-3">
+              <label for="jsonFile" class="form-label">Chọn tệp JSON</label>
+              <input class="form-control" type="file" id="jsonFile" name="json_file" accept=".json" required>
+            </div>
+            <div class="alert alert-info small">
+                Tệp JSON phải tuân thủ đúng cấu trúc mảng các Object có chứa các trường như title, description, time_limit, testcases,...
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
+            <button type="submit" class="btn btn-primary" id="btnImportSubmit">Tải lên & Nhập</button>
+          </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.getElementById('selectAll').addEventListener('change', function() {
+    let checkboxes = document.querySelectorAll('.export-checkbox');
+    checkboxes.forEach(cb => cb.checked = this.checked);
+});
+
+document.getElementById('btnExportSelected').addEventListener('click', function(e) {
+    e.preventDefault();
+    let selected = Array.from(document.querySelectorAll('.export-checkbox:checked')).map(cb => cb.value);
+    
+    let url = "{% url 'coding_export_json' %}?{{ request.GET.urlencode|safe }}";
+    if (selected.length > 0) {
+        url += (url.includes('?') ? '&' : '?') + 'ids=' + selected.join(',');
+    } else {
+        if (!confirm("Bạn chưa chọn bài nào. Bạn có muốn xuất tất cả các bài theo bộ lọc hiện tại không?")) {
+            return;
+        }
+    }
+    window.location.href = url;
+});
+
+document.getElementById('importJsonForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    let btn = document.getElementById('btnImportSubmit');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang xử lý...';
+    
+    let formData = new FormData(this);
+    
+    fetch("{% url 'coding_import_json' %}", {
+        method: 'POST',
+        body: formData,
+        headers: {
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(data.message);
+            window.location.reload();
+        } else {
+            alert('Lỗi: ' + data.error);
+            btn.disabled = false;
+            btn.innerText = 'Tải lên & Nhập';
+        }
+    })
+    .catch(error => {
+        alert('Đã có lỗi xảy ra.');
+        btn.disabled = false;
+        btn.innerText = 'Tải lên & Nhập';
+    });
+});
+</script>
+{% endblock %}

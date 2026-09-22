@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bg7" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#1e1b4b"/>
+    </linearGradient>
+    <linearGradient id="visor" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f59e0b"/>
+      <stop offset="100%" stop-color="#d97706"/>
+    </linearGradient>
+  </defs>
+  <rect width="120" height="120" rx="60" fill="url(#bg7)"/>
+  <!-- Stars -->
+  <circle cx="25" cy="25" r="1.5" fill="#ffffff" opacity="0.8"/>
+  <circle cx="95" cy="30" r="1.5" fill="#ffffff" opacity="0.8"/>
+  <circle cx="85" cy="90" r="1" fill="#ffffff" opacity="0.6"/>
+  <!-- Spacesuit body -->
+  <path d="M25 120 C25 85, 45 78, 60 78 C75 78, 95 85, 95 120 Z" fill="#e2e8f0"/>
+  <rect x="52" y="90" width="16" height="14" rx="3" fill="#0284c7"/>
+  <!-- Helmet -->
+  <circle cx="60" cy="50" r="30" fill="#f8fafc" stroke="#cbd5e1" stroke-width="3"/>
+  <!-- Visor -->
+  <rect x="40" y="38" width="40" height="24" rx="12" fill="url(#visor)"/>
+  <path d="M45 42 Q60 38 75 42" stroke="#fef08a" stroke-width="2" fill="none" opacity="0.7"/>
+</svg>

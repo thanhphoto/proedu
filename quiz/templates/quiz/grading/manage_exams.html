@@ -1,0 +1,729 @@
+{% extends 'quiz/grading/layout.html' %}
+
+{% block grading_title %}Quản Lý Kỳ Thi & Môn Thi{% endblock %}
+
+{% block grading_content %}
+<div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
+    <div>
+        <h4 class="fw-bold mb-1 text-dark">🏛️ Danh Sách Kỳ Thi & Môn Thi</h4>
+        <p class="text-muted small mb-0">Quản lý các đợt thi, học kỳ và phân chia các môn thi để nhập bộ đáp án và chấm bài.</p>
+    </div>
+    <div class="d-flex gap-2">
+        <button class="btn btn-primary rounded-pill px-4 fw-bold shadow-sm" data-bs-toggle="modal" data-bs-target="#createPeriodModal">
+            ➕ Thêm Kỳ Thi Mới
+        </button>
+    </div>
+</div>
+
+<!-- PERIODS ACCORDION / LIST -->
+{% if periods %}
+<div class="row g-4">
+    {% for p in periods %}
+    <div class="col-12" id="period-card-{{ p.id }}">
+        <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
+            <!-- PERIOD HEADER -->
+            <div class="card-header bg-white p-4 border-bottom d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="stat-icon bg-primary bg-opacity-10 text-primary fs-3">
+                        🏛️
+                    </div>
+                    <div>
+                        <div class="d-flex align-items-center gap-2">
+                            <h5 class="fw-bold text-dark mb-0">{{ p.name }}</h5>
+                            <span class="badge bg-light text-secondary border rounded-pill">{{ p.subjects.count }} môn thi</span>
+                        </div>
+                        {% if p.description %}
+                        <p class="text-muted small mb-0 mt-1">{{ p.description }}</p>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="d-flex gap-2">
+                    <a href="{% url 'period_scorecard' p.id %}" class="btn btn-sm btn-outline-info rounded-pill px-3 fw-semibold">
+                        📊 Bảng Điểm
+                    </a>
+                    <button class="btn btn-sm btn-outline-success rounded-pill px-3 fw-semibold btn-add-subject" 
+                            data-period-id="{{ p.id }}" 
+                            data-period-name="{{ p.name }}"
+                            data-bs-toggle="modal" 
+                            data-bs-target="#createSubjectModal">
+                        ➕ Thêm Môn Thi
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger rounded-pill px-3 btn-delete-period" 
+                            data-period-id="{{ p.id }}" 
+                            data-period-name="{{ p.name }}">
+                        🗑️ Xóa Kỳ Thi
+                    </button>
+                </div>
+            </div>
+
+            <!-- SUBJECTS LIST INSIDE THIS PERIOD -->
+            <div class="card-body p-4 bg-light bg-opacity-50">
+                {% if p.subjects.all %}
+                <div class="row g-3">
+                    {% for s in p.subjects.all %}
+                    <div class="col-md-6 col-xl-4" id="subject-card-{{ s.id }}">
+                        <div class="card border-0 shadow-sm rounded-3 h-100 bg-white">
+                            <div class="card-body p-3 d-flex flex-column justify-content-between">
+                                <div>
+                                    <div class="d-flex justify-content-between align-items-start mb-2">
+                                        <span class="badge bg-primary bg-opacity-10 text-primary font-monospace fw-bold px-2 py-1">
+                                            Mã: {{ s.code }}
+                                        </span>
+                                        <div class="d-flex align-items-center gap-1">
+                                            <button class="btn btn-sm btn-outline-secondary border-0 p-1 btn-edit-subject" 
+                                                    data-subject-id="{{ s.id }}" 
+                                                    data-subject-name="{{ s.name }}" 
+                                                    data-subject-code="{{ s.code }}"
+                                                    data-period-id="{{ p.id }}"
+                                                    data-period-name="{{ p.name }}"
+                                                    data-num-single="{{ s.num_single }}"
+                                                    data-score-single="{{ s.score_per_single }}"
+                                                    data-num-tf="{{ s.num_tf }}"
+                                                    data-score-tf="{{ s.score_per_tf }}"
+                                                    data-num-numeric="{{ s.num_numeric }}"
+                                                    data-score-numeric="{{ s.score_per_numeric }}"
+                                                    data-assigned-classes='[{% for ac in s.assigned_classes.all %}{{ ac.id }}{% if not forloop.last %},{% endif %}{% endfor %}]'
+                                                    title="Sửa thông tin môn thi">
+                                                ✏️
+                                            </button>
+                                            <button class="btn btn-sm text-danger p-0 btn-delete-subject" 
+                                                    data-subject-id="{{ s.id }}" 
+                                                    data-subject-name="{{ s.name }}" 
+                                                    title="Xóa môn thi">
+                                                ✕
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <h6 class="fw-bold mb-1">
+                                        <a href="{% url 'subject_workspace_view' s.id %}" class="text-dark text-decoration-none">
+                                            📚 {{ s.name }}
+                                        </a>
+                                    </h6>
+                                    <div class="small text-muted mb-2">
+                                        Cấu hình: <strong class="text-primary">{{ s.num_single }} Single</strong> ({{ s.score_per_single }}đ/câu) &bull; <strong class="text-success">{{ s.num_tf }} TF</strong> ({{ s.score_per_tf }}đ/câu) &bull; <strong class="text-info text-dark">{{ s.num_numeric }} Số</strong> ({{ s.score_per_numeric }}đ/câu)
+                                    </div>
+                                    <div class="small mb-3">
+                                        🏫 <strong>Lớp chấm:</strong>
+                                        {% if s.assigned_classes.all %}
+                                            {% for ac in s.assigned_classes.all %}
+                                                <span class="badge bg-light text-primary border rounded-pill">{{ ac.name }}</span>
+                                            {% endfor %}
+                                        {% else %}
+                                            <span class="badge bg-light text-success border rounded-pill">Tất cả các lớp</span>
+                                        {% endif %}
+                                        &bull; Đã có: <strong class="text-primary">{{ s.grading_keys.count }}</strong> mã đề
+                                    </div>
+                                </div>
+                                <div class="d-flex gap-2 pt-2 border-top">
+                                    <a href="{% url 'subject_workspace_view' s.id %}" class="btn btn-sm btn-primary rounded-pill w-100 fw-bold">
+                                        📂 Quản Lý Bài Chấm
+                                    </a>
+                                    <a href="{% url 'grading_sheet_view' %}?subject_id={{ s.id }}" class="btn btn-sm btn-warning rounded-pill px-3 fw-bold">
+                                        ✍️ Chấm
+                                    </a>
+                                </div>
+
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="text-center py-4 bg-white rounded-3 border border-dashed">
+                    <p class="text-muted small mb-2">Kỳ thi này chưa có môn thi nào.</p>
+                    <button class="btn btn-sm btn-outline-success rounded-pill px-3 fw-semibold btn-add-subject" 
+                            data-period-id="{{ p.id }}" 
+                            data-period-name="{{ p.name }}"
+                            data-bs-toggle="modal" 
+                            data-bs-target="#createSubjectModal">
+                        ➕ Thêm Môn Thi Đầu Tiên
+                    </button>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="card border-0 shadow-sm rounded-4 text-center py-5">
+    <div class="fs-1 mb-2">🏛️</div>
+    <h5 class="fw-bold text-dark">Chưa có Kỳ Thi nào trong hệ thống</h5>
+    <p class="text-muted small mb-3">Tạo kỳ thi mới để bắt đầu thiết lập môn học và chấm trắc nghiệm.</p>
+    <div>
+        <button class="btn btn-primary rounded-pill px-4 fw-bold shadow-sm" data-bs-toggle="modal" data-bs-target="#createPeriodModal">
+            ➕ Tạo Kỳ Thi Ngay
+        </button>
+    </div>
+</div>
+{% endif %}
+
+<!-- MODAL TẠO KỲ THI -->
+<div class="modal fade" id="createPeriodModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rounded-4 border-0 shadow">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title fw-bold text-dark">🏛️ Thêm Kỳ Thi Mới</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <form id="formCreatePeriod">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Tên Kỳ Thi <span class="text-danger">*</span></label>
+                        <input type="text" name="name" class="form-control rounded-3" placeholder="Ví dụ: Thi Thử Tốt Nghiệp THPT 2025 - Đợt 1" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Mô tả / Ghi chú</label>
+                        <textarea name="description" class="form-control rounded-3" rows="2" placeholder="Ví dụ: Đợt khảo sát chất lượng tháng 10 dành cho khối 12..."></textarea>
+                    </div>
+                    <div class="d-flex justify-content-end gap-2 pt-2">
+                        <button type="button" class="btn btn-light rounded-pill px-3" data-bs-dismiss="modal">Hủy</button>
+                        <button type="submit" class="btn btn-primary rounded-pill px-4 fw-bold">Tạo Kỳ Thi</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL TẠO MÔN THI (CÓ CẤU HÌNH SỐ LƯỢNG CÂU) -->
+<div class="modal fade" id="createSubjectModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rounded-4 border-0 shadow">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title fw-bold text-dark">📚 Thêm Môn Thi Trong Kỳ Thi</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <form id="formCreateSubject">
+                    {% csrf_token %}
+                    <input type="hidden" name="exam_period_id" id="modalSubjectPeriodId">
+                    <div class="mb-3">
+                        <label class="form-label text-muted small mb-1">Thuộc kỳ thi:</label>
+                        <div class="fw-bold text-primary fs-6" id="modalSubjectPeriodName"></div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Tên Môn Thi <span class="text-danger">*</span></label>
+                        <input type="text" name="name" class="form-control rounded-3" placeholder="Ví dụ: Toán Học, Vật Lí, Hóa Học..." required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Mã Môn Thi <span class="text-danger">*</span></label>
+                        <input type="text" name="code" class="form-control rounded-3 text-uppercase font-monospace" placeholder="Ví dụ: TOAN, VATLI, HOA..." required>
+                    </div>
+
+                    <!-- CẤU HÌNH RÀNG BUỘC SỐ ĐIỂM / 1 CÂU TRONG MỖI PHẦN -->
+                    <div class="p-3 bg-light rounded-3 border mb-3">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <label class="form-label fw-bold text-dark mb-0">⚙️ Cấu Hình Ràng Buộc Điểm / 1 Câu:</label>
+                            <span class="badge bg-primary rounded-pill px-2 py-1" id="lblTotalCalculatedScore">Tổng: 10.0đ</span>
+                        </div>
+                        
+                        <!-- PHẦN I -->
+                        <div class="row g-2 mb-2 bg-white p-2 rounded border">
+                            <div class="col-7">
+                                <label class="form-label small fw-semibold text-primary mb-1">Phần I: Số câu SingleChoose</label>
+                                <input type="number" min="0" max="100" id="inpNumSingle" name="num_single" class="form-control form-control-sm rounded-3 fw-bold" value="24" oninput="calculateSubjectTotalScore()" required>
+                            </div>
+                            <div class="col-5">
+                                <label class="form-label small fw-semibold text-primary mb-1">Điểm / 1 câu</label>
+                                <div class="input-group input-group-sm">
+                                    <input type="number" step="0.01" min="0" max="5" id="inpScoreSingle" name="score_per_single" class="form-control rounded-start-3 text-center fw-bold text-primary" value="0.25" oninput="calculateSubjectTotalScore()" required>
+                                    <span class="input-group-text">đ</span>
+                                </div>
+                            </div>
+                            <div class="col-12 text-end small text-muted" style="font-size: 0.72rem;">
+                                Tổng phần I: <strong class="text-primary" id="subTotalSingle">6.0</strong>đ
+                            </div>
+                        </div>
+
+                        <!-- PHẦN II -->
+                        <div class="row g-2 mb-2 bg-white p-2 rounded border">
+                            <div class="col-7">
+                                <label class="form-label small fw-semibold text-success mb-1">Phần II: Số câu Đúng/Sai (TF)</label>
+                                <input type="number" min="0" max="50" id="inpNumTf" name="num_tf" class="form-control form-control-sm rounded-3 fw-bold" value="4" oninput="calculateSubjectTotalScore()" required>
+                            </div>
+                            <div class="col-5">
+                                <label class="form-label small fw-semibold text-success mb-1">Điểm max / 1 câu</label>
+                                <div class="input-group input-group-sm">
+                                    <input type="number" step="0.01" min="0" max="5" id="inpScoreTf" name="score_per_tf" class="form-control rounded-start-3 text-center fw-bold text-success" value="1.0" oninput="calculateSubjectTotalScore()" required>
+                                    <span class="input-group-text">đ</span>
+                                </div>
+                            </div>
+                            <div class="col-12 d-flex justify-content-between align-items-center small text-muted" style="font-size: 0.72rem;">
+                                <span>* Chuẩn GD&ĐT (1 ý=10%, 2 ý=25%, 3 ý=50%, 4 ý=100%)</span>
+                                <span>Tổng phần II: <strong class="text-success" id="subTotalTf">4.0</strong>đ</span>
+                            </div>
+                        </div>
+
+                        <!-- PHẦN III -->
+                        <div class="row g-2 bg-white p-2 rounded border">
+                            <div class="col-7">
+                                <label class="form-label small fw-semibold text-info text-dark mb-1">Phần III: Số câu Điền số thực</label>
+                                <input type="number" min="0" max="50" id="inpNumNumeric" name="num_numeric" class="form-control form-control-sm rounded-3 fw-bold" value="6" oninput="calculateSubjectTotalScore()" required>
+                            </div>
+                            <div class="col-5">
+                                <label class="form-label small fw-semibold text-info text-dark mb-1">Điểm / 1 câu</label>
+                                <div class="input-group input-group-sm">
+                                    <input type="number" step="0.01" min="0" max="5" id="inpScoreNumeric" name="score_per_numeric" class="form-control rounded-start-3 text-center fw-bold" value="0.5" oninput="calculateSubjectTotalScore()" required>
+                                    <span class="input-group-text">đ</span>
+                                </div>
+                            </div>
+                            <div class="col-12 text-end small text-muted" style="font-size: 0.72rem;">
+                                Tổng phần III: <strong class="text-dark" id="subTotalNumeric">3.0</strong>đ
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- THUỘC TÍNH: MÔN THI NÀY CHẤM CHO NHỮNG LỚP NÀO -->
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold d-flex justify-content-between align-items-center mb-1">
+                            <span>🏫 Lớp Áp Dụng Chấm Bài:</span>
+                            <span class="badge bg-light text-secondary border small">1 lớp hoặc nhiều lớp</span>
+                        </label>
+                        <div class="p-3 bg-light rounded-3 border">
+                            <div class="form-check form-switch mb-2">
+                                <input class="form-check-input" type="checkbox" id="checkAllClassesSubject" checked onchange="toggleAllClassesSubject(this)">
+                                <label class="form-check-label fw-semibold text-primary small cursor-pointer" for="checkAllClassesSubject">
+                                    Áp dụng tất cả các lớp (Toàn trường)
+                                </label>
+                            </div>
+                            <div id="subjectClassCheckboxContainer" class="d-flex flex-wrap gap-2 pt-2 border-top" style="max-height: 120px; overflow-y: auto;">
+                                {% for c in classes %}
+                                <div class="form-check form-check-inline mb-1 bg-white px-2 py-1 rounded border small shadow-xs">
+                                    <input class="form-check-input subject-class-cb ms-0 me-1" type="checkbox" name="class_ids" id="subj_cls_{{ c.id }}" value="{{ c.id }}" disabled>
+                                    <label class="form-check-label fw-semibold text-dark cursor-pointer" for="subj_cls_{{ c.id }}">{{ c.name }}</label>
+                                </div>
+                                {% empty %}
+                                <span class="text-muted small">Chưa có danh mục lớp học. Môn thi sẽ mặc định áp dụng chung.</span>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-end gap-2 pt-2">
+                        <button type="button" class="btn btn-light rounded-pill px-3" data-bs-dismiss="modal">Hủy</button>
+                        <button type="submit" class="btn btn-success rounded-pill px-4 fw-bold">Tạo Môn Thi</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL SỬA MÔN THI -->
+<div class="modal fade" id="editSubjectModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rounded-4 border-0 shadow">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title fw-bold text-dark">✏️ Sửa Thông Tin Môn Thi</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <form id="formEditSubject">
+                    {% csrf_token %}
+                    <input type="hidden" id="editModalSubjectId">
+                    <div class="mb-3">
+                        <label class="form-label text-muted small mb-1">Thuộc kỳ thi:</label>
+                        <div class="fw-bold text-primary fs-6" id="editModalSubjectPeriodName"></div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Tên Môn Thi <span class="text-danger">*</span></label>
+                        <input type="text" name="name" id="editSubjectName" class="form-control rounded-3" placeholder="Ví dụ: Toán Học, Vật Lí, Hóa Học..." required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Mã Môn Thi <span class="text-danger">*</span></label>
+                        <input type="text" name="code" id="editSubjectCode" class="form-control rounded-3 text-uppercase font-monospace" placeholder="Ví dụ: TOAN, VATLI, HOA..." required>
+                    </div>
+
+                    <!-- CẤU HÌNH RÀNG BUỘC SỐ ĐIỂM / 1 CÂU TRONG MỖI PHẦN -->
+                    <div class="p-3 bg-light rounded-3 border mb-3">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <label class="form-label fw-bold text-dark mb-0">⚙️ Cấu Hình Ràng Buộc Điểm / 1 Câu:</label>
+                            <span class="badge bg-primary rounded-pill px-2 py-1" id="lblEditTotalCalculatedScore">Tổng: 10.0đ</span>
+                        </div>
+                        
+                        <!-- PHẦN I -->
+                        <div class="row g-2 mb-2 pb-2 border-bottom align-items-center">
+                            <div class="col-5">
+                                <span class="fw-semibold text-primary small d-block">Phần I (Trắc nghiệm):</span>
+                                <span class="text-muted" style="font-size: 0.75rem;">Chọn 1 trong 4 đáp án</span>
+                            </div>
+                            <div class="col-3">
+                                <label class="form-label mb-0 small text-muted" style="font-size: 0.72rem;">Số câu</label>
+                                <input type="number" name="num_single" id="editInpNumSingle" class="form-control form-control-sm rounded-2 text-center fw-bold bg-light" 
+                                       value="24" min="0" max="100" oninput="calculateEditSubjectTotalScore()" required readonly title="Không thể thay đổi số lượng câu hỏi sau khi đã tạo">
+                            </div>
+                            <div class="col-4">
+                                <label class="form-label mb-0 small text-muted" style="font-size: 0.72rem;">Điểm / 1 câu</label>
+                                <input type="number" name="score_per_single" id="editInpScoreSingle" class="form-control form-control-sm rounded-2 text-center fw-bold text-primary" 
+                                       value="0.25" min="0" max="5" step="0.01" oninput="calculateEditSubjectTotalScore()" required>
+                            </div>
+                            <div class="col-12 text-end small text-muted" style="font-size: 0.72rem;">
+                                Tổng phần I: <strong class="text-dark" id="editSubTotalSingle">6.0</strong>đ
+                            </div>
+                        </div>
+
+                        <!-- PHẦN II -->
+                        <div class="row g-2 mb-2 pb-2 border-bottom align-items-center">
+                            <div class="col-5">
+                                <span class="fw-semibold text-success small d-block">Phần II (Đúng/Sai):</span>
+                                <span class="text-muted" style="font-size: 0.75rem;">Mỗi câu gồm 4 ý a,b,c,d</span>
+                            </div>
+                            <div class="col-3">
+                                <label class="form-label mb-0 small text-muted" style="font-size: 0.72rem;">Số câu</label>
+                                <input type="number" name="num_tf" id="editInpNumTf" class="form-control form-control-sm rounded-2 text-center fw-bold bg-light" 
+                                       value="4" min="0" max="20" oninput="calculateEditSubjectTotalScore()" required readonly title="Không thể thay đổi số lượng câu hỏi sau khi đã tạo">
+                            </div>
+                            <div class="col-4">
+                                <label class="form-label mb-0 small text-muted" style="font-size: 0.72rem;">Điểm tối đa / 1 câu</label>
+                                <input type="number" name="score_per_tf" id="editInpScoreTf" class="form-control form-control-sm rounded-2 text-center fw-bold text-success" 
+                                       value="1.0" min="0" max="5" step="0.01" oninput="calculateEditSubjectTotalScore()" required>
+                            </div>
+                            <div class="col-12 text-end small text-muted" style="font-size: 0.72rem;">
+                                Tổng phần II: <strong class="text-dark" id="editSubTotalTf">4.0</strong>đ
+                            </div>
+                        </div>
+
+                        <!-- PHẦN III -->
+                        <div class="row g-2 align-items-center">
+                            <div class="col-5">
+                                <span class="fw-semibold text-info text-dark small d-block">Phần III (Trả lời ngắn):</span>
+                                <span class="text-muted" style="font-size: 0.75rem;">Điền số (-9999.99 → 9999.99)</span>
+                            </div>
+                            <div class="col-3">
+                                <label class="form-label mb-0 small text-muted" style="font-size: 0.72rem;">Số câu</label>
+                                <input type="number" name="num_numeric" id="editInpNumNumeric" class="form-control form-control-sm rounded-2 text-center fw-bold bg-light" 
+                                       value="6" min="0" max="50" oninput="calculateEditSubjectTotalScore()" required readonly title="Không thể thay đổi số lượng câu hỏi sau khi đã tạo">
+                            </div>
+                            <div class="col-4">
+                                <label class="form-label mb-0 small text-muted" style="font-size: 0.72rem;">Điểm / 1 câu</label>
+                                <input type="number" name="score_per_numeric" id="editInpScoreNumeric" class="form-control form-control-sm rounded-2 text-center fw-bold text-dark" 
+                                       value="0.5" min="0" max="5" step="0.01" oninput="calculateEditSubjectTotalScore()" required>
+                            </div>
+                            <div class="col-12 text-end small text-muted" style="font-size: 0.72rem;">
+                                Tổng phần III: <strong class="text-dark" id="editSubTotalNumeric">3.0</strong>đ
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- THUỘC TÍNH: MÔN THI NÀY CHẤM CHO NHỮNG LỚP NÀO -->
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold d-flex justify-content-between align-items-center mb-1">
+                            <span>🏫 Lớp Áp Dụng Chấm Bài:</span>
+                            <span class="badge bg-light text-secondary border small">1 lớp hoặc nhiều lớp</span>
+                        </label>
+                        <div class="p-3 bg-light rounded-3 border">
+                            <div class="form-check form-switch mb-2">
+                                <input class="form-check-input cursor-pointer" type="checkbox" id="editCheckAllClassesSubject" onchange="toggleAllClassesEditSubject(this)">
+                                <label class="form-check-label fw-semibold text-primary small cursor-pointer" for="editCheckAllClassesSubject">
+                                    Áp dụng tất cả các lớp (Toàn trường)
+                                </label>
+                            </div>
+                            <div id="editSubjectClassCheckboxContainer" class="d-flex flex-wrap gap-2 pt-2 border-top" style="max-height: 140px; overflow-y: auto;">
+                                {% for c in classes %}
+                                <div class="form-check form-check-inline mb-1 bg-white px-2 py-1 rounded border small shadow-xs edit-class-box cursor-pointer">
+                                    <input class="form-check-input edit-subject-class-cb ms-0 me-1 cursor-pointer" type="checkbox" name="class_ids" id="edit_subj_cls_{{ c.id }}" value="{{ c.id }}">
+                                    <label class="form-check-label fw-semibold text-dark cursor-pointer mb-0" for="edit_subj_cls_{{ c.id }}">{{ c.name }}</label>
+                                </div>
+                                {% empty %}
+                                <span class="text-muted small">Chưa có danh mục lớp học. Môn thi sẽ mặc định áp dụng chung.</span>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-end gap-2 pt-2">
+                        <button type="button" class="btn btn-light rounded-pill px-3" data-bs-dismiss="modal">Hủy</button>
+                        <button type="submit" class="btn btn-primary rounded-pill px-4 fw-bold">Lưu Thay Đổi</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function toggleAllClassesSubject(switchEl) {
+    const cbs = document.querySelectorAll('.subject-class-cb');
+    cbs.forEach(cb => {
+        cb.disabled = switchEl.checked;
+        if (switchEl.checked) {
+            cb.checked = false;
+        }
+    });
+}
+
+function toggleAllClassesEditSubject(switchEl) {
+    const cbs = document.querySelectorAll('.edit-subject-class-cb');
+    cbs.forEach(cb => {
+        cb.disabled = switchEl.checked;
+        if (switchEl.checked) {
+            cb.checked = false;
+        }
+    });
+}
+
+function calculateSubjectTotalScore() {
+    const nSingle = parseFloat(document.getElementById('inpNumSingle')?.value) || 0;
+    const sSingle = parseFloat(document.getElementById('inpScoreSingle')?.value) || 0;
+
+    const nTf = parseFloat(document.getElementById('inpNumTf')?.value) || 0;
+    const sTf = parseFloat(document.getElementById('inpScoreTf')?.value) || 0;
+
+    const nNum = parseFloat(document.getElementById('inpNumNumeric')?.value) || 0;
+    const sNum = parseFloat(document.getElementById('inpScoreNumeric')?.value) || 0;
+
+    const totSingle = Math.round(nSingle * sSingle * 100) / 100;
+    const totTf = Math.round(nTf * sTf * 100) / 100;
+    const totNum = Math.round(nNum * sNum * 100) / 100;
+    const total = Math.round((totSingle + totTf + totNum) * 100) / 100;
+
+    const subSingleEl = document.getElementById('subTotalSingle');
+    const subTfEl = document.getElementById('subTotalTf');
+    const subNumEl = document.getElementById('subTotalNumeric');
+    const lblTotal = document.getElementById('lblTotalCalculatedScore');
+
+    if (subSingleEl) subSingleEl.textContent = totSingle;
+    if (subTfEl) subTfEl.textContent = totTf;
+    if (subNumEl) subNumEl.textContent = totNum;
+    if (lblTotal) lblTotal.textContent = `Tổng: ${total}đ`;
+}
+
+function calculateEditSubjectTotalScore() {
+    const nSingle = parseFloat(document.getElementById('editInpNumSingle')?.value) || 0;
+    const sSingle = parseFloat(document.getElementById('editInpScoreSingle')?.value) || 0;
+
+    const nTf = parseFloat(document.getElementById('editInpNumTf')?.value) || 0;
+    const sTf = parseFloat(document.getElementById('editInpScoreTf')?.value) || 0;
+
+    const nNum = parseFloat(document.getElementById('editInpNumNumeric')?.value) || 0;
+    const sNum = parseFloat(document.getElementById('editInpScoreNumeric')?.value) || 0;
+
+    const totSingle = Math.round(nSingle * sSingle * 100) / 100;
+    const totTf = Math.round(nTf * sTf * 100) / 100;
+    const totNum = Math.round(nNum * sNum * 100) / 100;
+    const total = Math.round((totSingle + totTf + totNum) * 100) / 100;
+
+    const subSingleEl = document.getElementById('editSubTotalSingle');
+    const subTfEl = document.getElementById('editSubTotalTf');
+    const subNumEl = document.getElementById('editSubTotalNumeric');
+    const lblTotal = document.getElementById('lblEditTotalCalculatedScore');
+
+    if (subSingleEl) subSingleEl.textContent = totSingle;
+    if (subTfEl) subTfEl.textContent = totTf;
+    if (subNumEl) subNumEl.textContent = totNum;
+    if (lblTotal) lblTotal.textContent = `Tổng: ${total}đ`;
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    calculateSubjectTotalScore();
+
+    // Hỗ trợ chọn nhanh lớp khi bấm vào hộp lớp ở Create Modal
+    document.querySelectorAll('#subjectClassCheckboxContainer .form-check').forEach(box => {
+        box.addEventListener('click', function(e) {
+            const switchEl = document.getElementById('checkAllClassesSubject');
+            const cb = this.querySelector('.subject-class-cb');
+            if (switchEl && switchEl.checked) {
+                switchEl.checked = false;
+                toggleAllClassesSubject(switchEl);
+                if (cb) cb.checked = true;
+            }
+        });
+    });
+
+    // Hỗ trợ chọn nhanh lớp khi bấm vào hộp lớp ở Edit Modal
+    document.querySelectorAll('#editSubjectClassCheckboxContainer .form-check').forEach(box => {
+        box.addEventListener('click', function(e) {
+            const switchEl = document.getElementById('editCheckAllClassesSubject');
+            const cb = this.querySelector('.edit-subject-class-cb');
+            if (switchEl && switchEl.checked) {
+                switchEl.checked = false;
+                toggleAllClassesEditSubject(switchEl);
+                if (cb) cb.checked = true;
+            }
+        });
+    });
+
+    // Modal gán kỳ thi cho môn thi mới
+    document.querySelectorAll('.btn-add-subject').forEach(btn => {
+        btn.addEventListener('click', function() {
+            document.getElementById('modalSubjectPeriodId').value = this.dataset.periodId;
+            document.getElementById('modalSubjectPeriodName').textContent = this.dataset.periodName;
+            const switchEl = document.getElementById('checkAllClassesSubject');
+            if (switchEl) {
+                switchEl.checked = true;
+                toggleAllClassesSubject(switchEl);
+            }
+            calculateSubjectTotalScore();
+        });
+    });
+
+    // Modal sửa môn thi
+    document.querySelectorAll('.btn-edit-subject').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const subjectId = this.dataset.subjectId;
+            document.getElementById('editModalSubjectId').value = subjectId;
+            document.getElementById('editModalSubjectPeriodName').textContent = this.dataset.periodName || '';
+            document.getElementById('editSubjectName').value = this.dataset.subjectName || '';
+            document.getElementById('editSubjectCode').value = this.dataset.subjectCode || '';
+
+            document.getElementById('editInpNumSingle').value = this.dataset.numSingle || 24;
+            document.getElementById('editInpScoreSingle').value = this.dataset.scoreSingle || 0.25;
+
+            document.getElementById('editInpNumTf').value = this.dataset.numTf || 4;
+            document.getElementById('editInpScoreTf').value = this.dataset.scoreTf || 1.0;
+
+            document.getElementById('editInpNumNumeric').value = this.dataset.numNumeric || 6;
+            document.getElementById('editInpScoreNumeric').value = this.dataset.scoreNumeric || 0.5;
+
+            let assignedClasses = [];
+            try {
+                assignedClasses = JSON.parse(this.dataset.assignedClasses || '[]');
+            } catch(e) {
+                assignedClasses = [];
+            }
+
+            const switchEl = document.getElementById('editCheckAllClassesSubject');
+            const cbs = document.querySelectorAll('.edit-subject-class-cb');
+
+            if (assignedClasses.length > 0) {
+                switchEl.checked = false;
+                const assignedSet = new Set(assignedClasses.map(id => String(id)));
+                cbs.forEach(cb => {
+                    cb.disabled = false;
+                    cb.checked = assignedSet.has(String(cb.value));
+                });
+            } else {
+                switchEl.checked = true;
+                cbs.forEach(cb => {
+                    cb.disabled = true;
+                    cb.checked = false;
+                });
+            }
+
+            calculateEditSubjectTotalScore();
+            new bootstrap.Modal(document.getElementById('editSubjectModal')).show();
+        });
+    });
+
+    // Form Tạo Kỳ Thi
+    document.getElementById('formCreatePeriod').addEventListener('submit', function(e) {
+        e.preventDefault();
+        const formData = new FormData(this);
+        fetch("{% url 'api_create_exam_period' %}", {
+            method: "POST",
+            body: formData,
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.status === 'success') {
+                alert(data.message);
+                window.location.reload();
+            } else {
+                alert(data.message || 'Có lỗi xảy ra.');
+            }
+        })
+        .catch(err => alert('Lỗi kết nối: ' + err));
+    });
+
+    // Form Tạo Môn Thi
+    document.getElementById('formCreateSubject').addEventListener('submit', function(e) {
+        e.preventDefault();
+        const formData = new FormData(this);
+        fetch("{% url 'api_create_subject' %}", {
+            method: "POST",
+            body: formData,
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.status === 'success') {
+                alert(data.message);
+                window.location.reload();
+            } else {
+                alert(data.message || 'Có lỗi xảy ra.');
+            }
+        })
+        .catch(err => alert('Lỗi kết nối: ' + err));
+    });
+
+    // Form Sửa Môn Thi
+    document.getElementById('formEditSubject').addEventListener('submit', function(e) {
+        e.preventDefault();
+        const subjectId = document.getElementById('editModalSubjectId').value;
+        const formData = new FormData(this);
+        fetch(`/cham-trac-nghiem/api/sua-mon-thi/${subjectId}/`, {
+            method: "POST",
+            body: formData,
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.status === 'success') {
+                alert(data.message);
+                window.location.reload();
+            } else {
+                alert(data.message || 'Có lỗi xảy ra khi cập nhật.');
+            }
+        })
+        .catch(err => alert('Lỗi kết nối: ' + err));
+    });
+
+    // Xóa Kỳ Thi
+    document.querySelectorAll('.btn-delete-period').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const periodId = this.dataset.periodId;
+            const periodName = this.dataset.periodName;
+            if (confirm(`Bạn có chắc chắn muốn xóa kỳ thi "${periodName}" và toàn bộ môn thi, đáp án, bài làm liên quan?`)) {
+                fetch(`/cham-trac-nghiem/api/xoa-ky-thi/${periodId}/`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': '{{ csrf_token }}',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        alert(data.message);
+                        window.location.reload();
+                    } else {
+                        alert(data.message || 'Có lỗi xảy ra.');
+                    }
+                })
+                .catch(err => alert('Lỗi: ' + err));
+            }
+        });
+    });
+
+    // Xóa Môn Thi
+    document.querySelectorAll('.btn-delete-subject').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const subjectId = this.dataset.subjectId;
+            const subjectName = this.dataset.subjectName;
+            if (confirm(`Bạn có chắc chắn muốn xóa môn thi "${subjectName}" và toàn bộ đáp án, bài chấm liên quan?`)) {
+                fetch(`/cham-trac-nghiem/api/xoa-mon-thi/${subjectId}/`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': '{{ csrf_token }}',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        alert(data.message);
+                        window.location.reload();
+                    } else {
+                        alert(data.message || 'Có lỗi xảy ra.');
+                    }
+                })
+                .catch(err => alert('Lỗi: ' + err));
+            }
+        });
+    });
+});
+</script>
+{% endblock %}

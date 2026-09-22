@@ -1,0 +1,41 @@
+{% extends 'quiz/base.html' %}
+
+{% block title %}Chấm Phiếu Trắc Nghiệm{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-9">
+        <div class="card shadow-sm border-0 mb-4">
+            <div class="card-header bg-success text-white fw-bold py-3">📸 CHẤM ĐIỂM PHIẾU TRẮC NGHIỆM (OPENCV)</div>
+            <div class="card-body p-4">
+                <form method="POST" enctype="multipart/form-data">
+                    {% csrf_token %}
+                    <div class="mb-4">
+                        <label class="form-label fw-semibold">Chọn ảnh chụp phiếu để kiểm tra thuật toán:</label>
+                        <input class="form-control" type="file" name="exam_image" accept="image/*" required>
+                    </div>
+                    <button type="submit" class="btn btn-success w-100 fw-bold">Xử Lý Ảnh</button>
+                </form>
+            </div>
+        </div>
+
+        {% if processed_image %}
+        <div class="card shadow-sm border-0">
+            <div class="card-header bg-primary text-white fw-bold">📊 KẾT QUẢ PHÂN TÍCH</div>
+            <div class="card-body text-center p-4">
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <h6 class="fw-bold text-secondary">Ảnh gốc:</h6>
+                        <img src="data:image/jpeg;base64,{{ original_image }}" class="img-fluid rounded border shadow-sm">
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <h6 class="fw-bold text-primary">Ảnh nhị phân (Threshold):</h6>
+                        <img src="data:image/jpeg;base64,{{ processed_image }}" class="img-fluid rounded border shadow-sm">
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

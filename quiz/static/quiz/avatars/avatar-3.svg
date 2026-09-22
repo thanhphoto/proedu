@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bg3" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#06b6d4"/>
+      <stop offset="100%" stop-color="#0891b2"/>
+    </linearGradient>
+  </defs>
+  <rect width="120" height="120" rx="60" fill="url(#bg3)"/>
+  <!-- Crazy white hair -->
+  <circle cx="32" cy="45" r="16" fill="#f1f5f9"/>
+  <circle cx="88" cy="45" r="16" fill="#f1f5f9"/>
+  <circle cx="45" cy="30" r="18" fill="#f1f5f9"/>
+  <circle cx="75" cy="30" r="18" fill="#f1f5f9"/>
+  <circle cx="60" cy="26" r="18" fill="#f1f5f9"/>
+  <!-- Lab coat -->
+  <path d="M25 120 C25 90, 45 80, 60 80 C75 80, 95 90, 95 120 Z" fill="#f8fafc"/>
+  <path d="M50 80 L60 98 L70 80 Z" fill="#0284c7"/>
+  <circle cx="60" cy="56" r="24" fill="#fed7aa"/>
+  <!-- Goggles/glasses -->
+  <circle cx="48" cy="52" r="10" fill="#e0f2fe" stroke="#0369a1" stroke-width="3"/>
+  <circle cx="72" cy="52" r="10" fill="#e0f2fe" stroke="#0369a1" stroke-width="3"/>
+  <line x1="58" y1="52" x2="62" y2="52" stroke="#0369a1" stroke-width="3"/>
+  <circle cx="48" cy="52" r="3" fill="#0f172a"/>
+  <circle cx="72" cy="52" r="3" fill="#0f172a"/>
+  <!-- Mustache -->
+  <path d="M48 66 Q60 62 72 66 Q60 73 48 66 Z" fill="#e2e8f0"/>
+  <path d="M54 72 Q60 76 66 72" stroke="#9a3412" stroke-width="2" fill="none" stroke-linecap="round"/>
+</svg>

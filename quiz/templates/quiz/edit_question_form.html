@@ -1,0 +1,64 @@
+{% load widget_tweaks %}
+<div class="inline-edit-form d-none" id="edit-form-{{ q.id }}">
+    <form method="post" action="{% url 'edit_question' q.id %}" class="bg-light p-3 rounded-3 border mt-2">
+        {% csrf_token %}
+        {{ form.non_field_errors }}
+        <div class="mb-2">
+            {{ form.question_text.label_tag }}
+            {{ form.question_text|add_class:"form-control" }}
+            {{ form.question_text.errors }}
+        </div>
+        <div class="row g-2 mb-2">
+            <div class="col-md-4">
+                {{ form.difficulty.label_tag }}
+                {{ form.difficulty|add_class:"form-select" }}
+                {{ form.difficulty.errors }}
+            </div>
+            <div class="col-md-4">
+                {{ form.topic.label_tag }}
+                {{ form.topic|add_class:"form-select" }}
+                {{ form.topic.errors }}
+            </div>
+            <div class="col-md-4">
+                {{ form.question_type.label_tag }}
+                {{ form.question_type|add_class:"form-select" }}
+                {{ form.question_type.errors }}
+            </div>
+        </div>
+        {% if form.exact_numeric_answer %}
+        <div class="mb-2">
+            {{ form.exact_numeric_answer.label_tag }}
+            {{ form.exact_numeric_answer|add_class:"form-control" }}
+            {{ form.exact_numeric_answer.errors }}
+        </div>
+        {% endif %}
+        <h6 class="mt-3 fw-bold">Các Phương Án Đáp Án</h6>
+        {{ formset.management_form }}
+        <div class="row g-2">
+            {% for f in formset %}
+            <div class="col-md-6">
+                <div class="border rounded-2 p-2 mb-2 bg-white">
+                    {{ f.choice_text.label_tag }}
+                    {{ f.choice_text|add_class:"form-control" }}
+                    {{ f.choice_text.errors }}
+                    <div class="form-check mt-1">
+                        {{ f.is_correct }}
+                        {{ f.is_correct.label_tag }}
+                        {{ f.is_correct.errors }}
+                    </div>
+                    {% if f.can_delete %}
+                    <div class="form-check mt-1">
+                        {{ f.DELETE }}
+                        <label class="form-check-label">Xóa</label>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        <div class="d-flex justify-content-end gap-2 mt-3">
+            <button type="submit" class="btn btn-success btn-sm">💾 Lưu</button>
+            <button type="button" class="btn btn-secondary btn-sm edit-cancel" data-qid="{{ q.id }}">⟵ Bỏ qua</button>
+        </div>
+    </form>
+</div>

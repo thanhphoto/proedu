@@ -1,0 +1,657 @@
+{% extends 'quiz/base.html' %}
+
+{% block title %}Nhập Câu Hỏi Từ File Word - SmartQuiz Pro{% endblock %}
+
+{% block content %}
+<div class="container py-3">
+    <!-- Header banner -->
+    <div class="p-4 mb-4 rounded-4 text-white shadow-sm" style="background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);">
+        <div class="row align-items-center">
+            <div class="col-md-8">
+                <h2 class="fw-bold mb-2">📄 Nhập & Quản Lý Ngân Hàng Câu Hỏi</h2>
+                <p class="mb-0 opacity-90">Tự động phân tích file Word (.docx), trích xuất hình ảnh đính kèm, chỉnh sửa trực tiếp đáp án và đồng bộ vào Ngân hàng câu hỏi.</p>
+            </div>
+            <div class="col-md-4 text-md-end mt-3 mt-md-0 d-flex flex-wrap justify-content-md-end gap-2">
+                <a href="{% url 'add_question' %}" class="btn btn-warning btn-lg fw-bold shadow-sm rounded-pill text-dark">
+                    ➕ Thêm Bằng Form
+                </a>
+                <a href="{% url 'download_sample_word' %}" class="btn btn-light btn-lg fw-bold shadow-sm rounded-pill text-primary">
+                    📥 Tải File Mẫu
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hiển thị thông báo messages -->
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show rounded-3 shadow-sm mb-4" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <!-- NAVIGATION TABS -->
+    <ul class="nav nav-pills nav-fill gap-2 p-2 bg-light rounded-4 shadow-sm mb-4 border" id="importTab" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-item nav-link rounded-3 fw-bold py-3 {% if parsed_questions or not filter_subject_id and not filter_period_id %}active{% endif %}" 
+                    id="upload-tab" 
+                    data-bs-toggle="tab" 
+                    data-bs-target="#upload-pane" 
+                    type="button" 
+                    role="tab">
+                📥 1. Tải Lên & Xem Trước File Word 
+                {% if parsed_questions %}
+                    <span class="badge bg-success ms-2 rounded-pill">{{ parsed_questions|length }} câu</span>
+                {% endif %}
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-item nav-link rounded-3 fw-bold py-3 {% if not parsed_questions and filter_subject_id or filter_period_id or filter_difficulty or filter_question_type %}active{% endif %}" 
+                    id="database-tab" 
+                    data-bs-toggle="tab" 
+                    data-bs-target="#database-pane" 
+                    type="button" 
+                    role="tab">
+                📚 2. Ngân Hàng Câu Hỏi CSDL
+                <span class="badge bg-primary ms-2 rounded-pill">{{ total_saved_count }} câu</span>
+            </button>
+        </li>
+    </ul>
+
+    <!-- TAB CONTENT PANES -->
+    <div class="tab-content" id="importTabContent">
+
+        <!-- TAB 1: TẢI LÊN & XEM TRƯỚC FILE WORD -->
+        <div class="tab-pane fade {% if parsed_questions or not filter_subject_id and not filter_period_id %}show active{% endif %}" id="upload-pane" role="tabpanel" tabindex="0">
+            
+            <!-- STEP 1: UPLOAD FILE FORM -->
+            <div class="card border-0 shadow-sm rounded-4 mb-4">
+                <div class="card-header bg-white py-3 border-bottom d-flex align-items-center justify-content-between">
+                    <h5 class="fw-bold text-dark mb-0">📁 Cấu Hình & Tải Lên File Word (.docx)</h5>
+                    <span class="badge bg-light text-secondary border rounded-pill px-3">Bước 1</span>
+                </div>
+                <div class="card-body p-4">
+                    <form method="POST" enctype="multipart/form-data">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="parse">
+
+                        <div class="row g-3 mb-4">
+                            <!-- Chọn Kỳ Thi -->
+                            <div class="col-md-4">
+                                <label for="exam_period_id" class="form-label fw-semibold">Kỳ Thi <span class="text-danger">*</span></label>
+                                <select class="form-select rounded-3" id="exam_period_id" name="exam_period_id" onchange="onPeriodChange('exam_period_id', 'subject_id', 'topic_id')">
+                                    <option value="">-- Chọn Kỳ Thi --</option>
+                                    {% for period in exam_periods %}
+                                        <option value="{{ period.id }}" {% if selected_period_id == period.id %}selected{% endif %}>
+                                            {{ period.name }}
+                                        </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+
+                            <!-- Chọn Môn Thi -->
+                            <div class="col-md-4">
+                                <label for="subject_id" class="form-label fw-semibold">Môn Thi <span class="text-danger">*</span></label>
+                                <select class="form-select rounded-3" id="subject_id" name="subject_id" required onchange="onSubjectChange('subject_id', 'topic_id')">
+                                    <option value="">-- Chọn Môn Thi --</option>
+                                    {% for subj in subjects %}
+                                        <option value="{{ subj.id }}" data-period-id="{{ subj.exam_period_id }}" {% if selected_subject_id == subj.id %}selected{% endif %}>
+                                            {{ subj.name }} ({{ subj.exam_period.name }})
+                                        </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+
+                            <!-- Chọn Chủ Đề -->
+                            <div class="col-md-4">
+                                <label for="topic_id" class="form-label fw-semibold">Chủ Đề / Chương (Không bắt buộc)</label>
+                                <select class="form-select rounded-3" id="topic_id" name="topic_id">
+                                    <option value="">-- Tất cả Chủ Đề --</option>
+                                    {% for topic in topics %}
+                                        <option value="{{ topic.id }}" data-subject-id="{{ topic.subject_id }}" {% if selected_topic_id == topic.id %}selected{% endif %}>
+                                            {{ topic.name }}
+                                        </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Dropzone Upload -->
+                        <div class="mb-4">
+                            <label class="form-label fw-semibold">Chọn File Word (.docx) <span class="text-danger">*</span></label>
+                            <div class="border border-2 border-dashed rounded-4 p-4 text-center bg-light transition-all" id="drop-zone">
+                                <div class="mb-2 fs-1 text-primary">📄</div>
+                                <h6 class="fw-bold text-secondary mb-1">Kéo thả file Word vào đây hoặc bấm nút bên dưới</h6>
+                                <p class="text-muted small mb-3">Tự động nhận diện <code>Câu x: [Loại/Độ khó]</code>, ảnh đính kèm và đáp án đúng</p>
+                                <input type="file" class="form-control d-none" id="word_file" name="word_file" accept=".docx" required onchange="updateFileName(this)">
+                                <button type="button" class="btn btn-outline-primary rounded-pill px-4 fw-semibold" onclick="document.getElementById('word_file').click()">
+                                    🔍 Chọn File từ máy tính
+                                </button>
+                                <div id="file-name-display" class="mt-2 text-success fw-bold"></div>
+                            </div>
+                        </div>
+
+                        <div class="text-end">
+                            <button type="submit" class="btn btn-primary btn-lg rounded-pill px-5 shadow-sm fw-bold">
+                                ⚡ Phân Tích File Word
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- STEP 2: XEM TRƯỚC KẾT QUẢ & EDIT LAYOUT -->
+            {% if parsed_questions %}
+            <div class="card border-0 shadow-sm rounded-4 mb-4 border-start border-4 border-success">
+                
+                <!-- HEADER DASHBOARD DỮ LIỆU ĐÃ PARSE -->
+                <div class="card-header bg-white py-3">
+                    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+                        <div>
+                            <h5 class="fw-bold text-success mb-1">✨ Kết Quả Phân Tích ({{ parsed_questions|length }} câu hỏi)</h5>
+                            <small class="text-muted">Kiểm tra thông tin, điều chỉnh đáp án hoặc mức độ khó trước khi bấm Lưu vào Ngân hàng CSDL.</small>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <span class="badge bg-success-subtle text-success border border-success rounded-pill px-3 py-2 fw-bold">
+                                Ready to Save
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card-body p-4">
+                    
+                    <!-- SUMMARY STATS DASHBOARD -->
+                    <div class="row g-3 mb-4">
+                        <div class="col-6 col-md-3">
+                            <div class="p-3 bg-light rounded-4 border text-center">
+                                <div class="text-muted small fw-semibold">Tổng Số Câu</div>
+                                <div class="fs-4 fw-bold text-primary">{{ parsed_questions|length }}</div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <div class="p-3 bg-light rounded-4 border text-center">
+                                <div class="text-muted small fw-semibold">Trắc Nghiệm 1 Đáp Án</div>
+                                <div class="fs-4 fw-bold text-info">{{ count_single|default:0 }}</div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <div class="p-3 bg-light rounded-4 border text-center">
+                                <div class="text-muted small fw-semibold">Đúng / Sai</div>
+                                <div class="fs-4 fw-bold text-warning">{{ count_tf|default:0 }}</div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <div class="p-3 bg-light rounded-4 border text-center">
+                                <div class="text-muted small fw-semibold">Trả Lời Số Thực</div>
+                                <div class="fs-4 fw-bold text-secondary">{{ count_numeric|default:0 }}</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- DANH SÁCH CARDS CÂU HỎI PREVIEW -->
+                    <div class="preview-questions-list">
+                        {% for q in parsed_questions %}
+                        {% with q_idx=forloop.counter0 %}
+                        <div class="card border-0 shadow-sm rounded-4 mb-4 border-start border-4 {% if q.question_type == 'SINGLE' %}border-primary{% elif q.question_type == 'TF' %}border-warning{% else %}border-success{% endif %}" id="q_card_{{ q_idx }}" style="background-color: #fdfdfd;">
+                            
+                            <!-- Header Card Câu Hỏi -->
+                            <div class="card-header bg-white py-3 border-bottom d-flex flex-wrap align-items-center justify-content-between gap-2">
+                                <div class="d-flex align-items-center gap-2 flex-wrap">
+                                    <span class="badge bg-primary rounded-pill fs-6 px-3 py-2">Câu {{ q.order }}</span>
+                                    
+                                    {% if q.question_type == 'SINGLE' %}
+                                        <span class="badge bg-info text-dark rounded-pill px-3">🎯 Trắc nghiệm 1 đáp án</span>
+                                    {% elif q.question_type == 'TF' %}
+                                        <span class="badge bg-warning text-dark rounded-pill px-3">⚖️ Đúng / Sai</span>
+                                    {% elif q.question_type == 'NUMERIC' %}
+                                        <span class="badge bg-secondary rounded-pill px-3">🔢 Trả lời số thực</span>
+                                    {% endif %}
+
+                                    {% if q.image_base64 %}
+                                        <span class="badge bg-danger rounded-pill px-3">🖼️ Có hình ảnh</span>
+                                    {% endif %}
+                                </div>
+
+                                <div class="d-flex align-items-center gap-2">
+                                    <label class="form-label mb-0 small fw-bold text-secondary">Độ khó:</label>
+                                    <select class="form-select form-select-sm rounded-3 q-difficulty shadow-sm" data-q-idx="{{ q_idx }}" onchange="updateDiffBadge(this.dataset.qIdx, this.value)" style="width: auto;">
+                                        <option value="NB" {% if q.difficulty == 'NB' %}selected{% endif %}>Nhận biết (NB)</option>
+                                        <option value="TH" {% if q.difficulty == 'TH' %}selected{% endif %}>Thông hiểu (TH)</option>
+                                        <option value="VD" {% if q.difficulty == 'VD' %}selected{% endif %}>Vận dụng (VD)</option>
+                                        <option value="VDC" {% if q.difficulty == 'VDC' %}selected{% endif %}>Vận dụng cao (VDC)</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <!-- Body Card Câu Hỏi -->
+                            <div class="card-body p-4">
+                                
+                                <!-- Nội dung chữ câu hỏi -->
+                                <div class="mb-3">
+                                    <h6 class="fw-bold text-secondary small text-uppercase mb-2">Nội dung câu hỏi:</h6>
+                                    <div class="p-3 bg-light rounded-3 border fw-semibold text-dark fs-6" style="white-space: pre-line;">
+                                        {{ q.question_text }}
+                                    </div>
+                                </div>
+
+                                <!-- Image đính kèm -->
+                                {% if q.image_base64 %}
+                                <div class="mb-3 p-3 bg-light rounded-3 border text-center">
+                                    <h6 class="fw-bold text-secondary text-start small text-uppercase mb-2">📷 Hình ảnh đính kèm:</h6>
+                                    <img src="{{ q.image_base64 }}" class="img-fluid rounded-3 shadow-sm border bg-white p-2" style="max-height: 250px;" alt="Ảnh câu hỏi {{ q.order }}">
+                                </div>
+                                {% endif %}
+
+                                <!-- ĐÁP ÁN VÀ LỰA CHỌN -->
+                                {% if q.choices %}
+                                <div class="mb-3">
+                                    <h6 class="fw-bold text-secondary small text-uppercase mb-2">Phương án lựa chọn & Đánh dấu đáp án đúng:</h6>
+                                    <div class="row g-3">
+                                        {% for choice in q.choices %}
+                                        {% with c_idx=forloop.counter0 %}
+                                        <div class="col-md-6">
+                                            <div class="p-3 border rounded-3 bg-white shadow-sm h-100 d-flex align-items-center justify-content-between">
+                                                <div class="d-flex align-items-center gap-3 w-100">
+                                                    
+                                                    {% if q.question_type == 'SINGLE' %}
+                                                        <div class="form-check me-2">
+                                                            <input class="form-check-input q-single-radio" 
+                                                                   type="radio" 
+                                                                   name="q_single_correct_{{ q_idx }}" 
+                                                                   id="radio_{{ q_idx }}_{{ c_idx }}"
+                                                                   data-q-idx="{{ q_idx }}" 
+                                                                   data-choice-idx="{{ c_idx }}" 
+                                                                   {% if choice.is_correct %}checked{% endif %}>
+                                                            <label class="form-check-label fw-bold text-success" for="radio_{{ q_idx }}_{{ c_idx }}">
+                                                                Đúng
+                                                            </label>
+                                                        </div>
+                                                    {% elif q.question_type == 'TF' %}
+                                                        <div class="btn-group btn-group-sm me-2" role="group">
+                                                            <input type="radio" 
+                                                                   class="btn-check q-tf-radio" 
+                                                                   name="q_tf_{{ q_idx }}_{{ c_idx }}" 
+                                                                   id="tf_true_{{ q_idx }}_{{ c_idx }}" 
+                                                                   value="true" 
+                                                                   data-q-idx="{{ q_idx }}" 
+                                                                   data-choice-idx="{{ c_idx }}" 
+                                                                   {% if choice.is_correct %}checked{% endif %}>
+                                                            <label class="btn btn-outline-success fw-semibold" for="tf_true_{{ q_idx }}_{{ c_idx }}">Đúng</label>
+
+                                                            <input type="radio" 
+                                                                   class="btn-check q-tf-radio" 
+                                                                   name="q_tf_{{ q_idx }}_{{ c_idx }}" 
+                                                                   id="tf_false_{{ q_idx }}_{{ c_idx }}" 
+                                                                   value="false" 
+                                                                   data-q-idx="{{ q_idx }}" 
+                                                                   data-choice-idx="{{ c_idx }}" 
+                                                                   {% if not choice.is_correct %}checked{% endif %}>
+                                                            <label class="btn btn-outline-danger fw-semibold" for="tf_false_{{ q_idx }}_{{ c_idx }}">Sai</label>
+                                                        </div>
+                                                    {% endif %}
+
+                                                    <span class="flex-grow-1 text-dark fw-medium">{{ choice.choice_text }}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        {% endwith %}
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                                {% endif %}
+
+                                <!-- ĐÁP ÁN SỐ THỰC NẾU LÀ NUMERIC -->
+                                {% if q.question_type == 'NUMERIC' or q.exact_numeric_answer %}
+                                <div class="p-3 bg-light rounded-3 border mb-2">
+                                    <label class="form-label fw-bold text-dark small text-uppercase">🎯 Đáp án số thực chuẩn:</label>
+                                    <input type="text" class="form-control q-numeric-input rounded-3 shadow-sm" data-q-idx="{{ q_idx }}" value="{{ q.exact_numeric_answer }}" placeholder="Ví dụ: 4.5 hoặc -10">
+                                </div>
+                                {% endif %}
+
+                            </div>
+                        </div>
+                        {% endwith %}
+                        {% endfor %}
+                    </div>
+
+                    <!-- FORM XÁC NHẬN LƯU VÀO CSDL -->
+                    <form method="POST" class="mt-4 pt-3 border-top text-end" onsubmit="return prepareConfirmData()">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="confirm_save">
+                        <input type="hidden" name="exam_period_id" value="{{ selected_period_id|default:'' }}">
+                        <input type="hidden" name="subject_id" value="{{ selected_subject_id }}">
+                        <input type="hidden" name="topic_id" value="{{ selected_topic_id|default:'' }}">
+                        
+                        <!-- LƯU DỮ LIỆU JSON AN TOÀN BẰNG TEXTAREA AN TOÀN THAY CHO INPUT ATTRIBUTE -->
+                        <textarea id="questions_json_input" name="questions_json" class="d-none">{{ parsed_questions_json }}</textarea>
+
+                        <div class="d-flex align-items-center justify-content-between flex-wrap gap-3 p-3 bg-light rounded-4 border">
+                            <div class="text-start">
+                                <div class="fw-bold text-dark">Sẵn sàng nhập dữ liệu vào CSDL</div>
+                                <small class="text-muted">Đã kiểm tra {{ parsed_questions|length }} câu hỏi từ file Word vừa tải lên.</small>
+                            </div>
+                            <button type="submit" class="btn btn-success btn-lg rounded-pill px-5 shadow-sm fw-bold">
+                                💾 Xác Nhận Lưu Vào CSDL
+                            </button>
+                        </div>
+                    </form>
+
+                </div>
+            </div>
+            {% endif %}
+
+        </div>
+
+        <!-- TAB 2: NGÂN HÀNG CÂU HỎI TRONG CSDL -->
+        <div class="tab-pane fade {% if not parsed_questions and filter_subject_id or filter_period_id or filter_difficulty or filter_question_type %}show active{% endif %}" id="database-pane" role="tabpanel" tabindex="0">
+            
+            <div class="card border-0 shadow-sm rounded-4 mb-4">
+                <div class="card-header bg-white py-3 border-bottom d-flex flex-wrap justify-content-between align-items-center gap-2">
+                    <div>
+                        <h5 class="fw-bold text-primary mb-0">📚 Ngân Hàng Câu Hỏi Trong CSDL</h5>
+                        <small class="text-muted">Tra cứu, tìm kiếm và quản lý toàn bộ câu hỏi đã lưu theo Môn thi và Chủ đề.</small>
+                    </div>
+                    <span class="badge bg-primary rounded-pill fs-6 px-3 py-2">
+                        Hiển thị {{ saved_questions|length }} / {{ total_saved_count }} câu hỏi
+                    </span>
+                </div>
+                <div class="card-body p-4">
+                    
+                    <!-- FORM BỘ LỌC CSDL -->
+                    <form method="GET" action="{% url 'import_word' %}" class="bg-light p-3 rounded-4 border mb-4" id="filterForm">
+                        <div class="row g-3">
+                            <div class="col-md-4 col-lg-3">
+                                <label for="filter_period_id" class="form-label fw-semibold small text-secondary">🏛️ Kỳ Thi:</label>
+                                <select class="form-select form-select-sm rounded-3" id="filter_period_id" name="filter_period_id" onchange="onPeriodChange('filter_period_id', 'filter_subject_id', 'filter_topic_id')">
+                                    <option value="">-- Tất cả Kỳ thi --</option>
+                                    {% for period in exam_periods %}
+                                        <option value="{{ period.id }}" {% if filter_period_id == period.id|stringformat:"i" %}selected{% endif %}>
+                                            {{ period.name }}
+                                        </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+
+                            <div class="col-md-4 col-lg-3">
+                                <label for="filter_subject_id" class="form-label fw-semibold small text-secondary">📚 Môn Thi:</label>
+                                <select class="form-select form-select-sm rounded-3" id="filter_subject_id" name="filter_subject_id" onchange="onSubjectChange('filter_subject_id', 'filter_topic_id')">
+                                    <option value="">-- Tất cả Môn thi --</option>
+                                    {% for subj in subjects %}
+                                        <option value="{{ subj.id }}" data-period-id="{{ subj.exam_period_id }}" {% if filter_subject_id == subj.id|stringformat:"i" %}selected{% endif %}>
+                                            {{ subj.name }} ({{ subj.exam_period.name }})
+                                        </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+
+                            <div class="col-md-4 col-lg-2">
+                                <label for="filter_topic_id" class="form-label fw-semibold small text-secondary">🏷️ Chủ Đề:</label>
+                                <select class="form-select form-select-sm rounded-3" id="filter_topic_id" name="filter_topic_id">
+                                    <option value="">-- Tất cả Chủ đề --</option>
+                                    {% for topic in topics %}
+                                        <option value="{{ topic.id }}" data-subject-id="{{ topic.subject_id }}" {% if filter_topic_id == topic.id|stringformat:"i" %}selected{% endif %}>
+                                            {{ topic.name }}
+                                        </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+
+                            <div class="col-md-4 col-lg-2">
+                                <label for="filter_difficulty" class="form-label fw-semibold small text-secondary">🎯 Mức Độ Khó:</label>
+                                <select class="form-select form-select-sm rounded-3" id="filter_difficulty" name="filter_difficulty">
+                                    <option value="">-- Tất cả Mức độ --</option>
+                                    <option value="NB" {% if filter_difficulty == 'NB' %}selected{% endif %}>Nhận biết (NB)</option>
+                                    <option value="TH" {% if filter_difficulty == 'TH' %}selected{% endif %}>Thông hiểu (TH)</option>
+                                    <option value="VD" {% if filter_difficulty == 'VD' %}selected{% endif %}>Vận dụng (VD)</option>
+                                    <option value="VDC" {% if filter_difficulty == 'VDC' %}selected{% endif %}>Vận dụng cao (VDC)</option>
+                                </select>
+                            </div>
+
+                            <div class="col-md-4 col-lg-2">
+                                <label for="filter_question_type" class="form-label fw-semibold small text-secondary">📋 Loại Câu Hỏi:</label>
+                                <select class="form-select form-select-sm rounded-3" id="filter_question_type" name="filter_question_type">
+                                    <option value="">-- Tất cả Loại --</option>
+                                    <option value="SINGLE" {% if filter_question_type == 'SINGLE' %}selected{% endif %}>Trắc nghiệm 1 đáp án</option>
+                                    <option value="TF" {% if filter_question_type == 'TF' %}selected{% endif %}>Đúng / Sai (4 ý)</option>
+                                    <option value="NUMERIC" {% if filter_question_type == 'NUMERIC' %}selected{% endif %}>Trả lời số thực</option>
+                                </select>
+                            </div>
+
+                            <div class="col-12 text-end pt-2 border-top">
+                                <a href="{% url 'import_word' %}" class="btn btn-sm btn-outline-secondary rounded-pill me-2">
+                                    🔄 Xóa bộ lọc
+                                </a>
+                                <button type="submit" class="btn btn-sm btn-primary rounded-pill px-4 fw-bold">
+                                    🔍 Lọc Câu Hỏi
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+
+                    <!-- DANH SÁCH CÂU HỎI TRONG CSDL -->
+                    {% if saved_questions %}
+                        <div class="accordion" id="savedQuestionsAccordion">
+                            {% for q in saved_questions %}
+                            <div class="accordion-item border rounded-3 mb-3 shadow-sm overflow-hidden">
+                                <h2 class="accordion-header" id="headingSaved{{ q.id }}">
+                                    <button class="accordion-button collapsed bg-white fw-bold" type="button" data-bs-toggle="collapse" data-bs-target="#collapseSaved{{ q.id }}">
+                                        <div class="d-flex align-items-center flex-wrap gap-2 w-100 me-3">
+                                            <span class="badge bg-dark rounded-pill">#{{ q.id }}</span>
+                                            <span class="badge bg-primary">{{ q.subject.exam_period.name }}</span>
+                                            <span class="badge bg-secondary">{{ q.subject.name }}</span>
+                                            {% if q.topic %}
+                                                <span class="badge bg-info text-dark">{{ q.topic.name }}</span>
+                                            {% endif %}
+
+                                            {% if q.question_type == 'SINGLE' %}
+                                                <span class="badge bg-info text-dark">Trắc nghiệm 1 đáp án</span>
+                                            {% elif q.question_type == 'TF' %}
+                                                <span class="badge bg-warning text-dark">Đúng / Sai</span>
+                                            {% elif q.question_type == 'NUMERIC' %}
+                                                <span class="badge bg-secondary">Trả lời số thực</span>
+                                            {% endif %}
+
+                                            <span class="badge bg-outline-dark border text-dark">
+                                                {% if q.difficulty == 'NB' %}Nhận biết
+                                                {% elif q.difficulty == 'TH' %}Thông hiểu
+                                                {% elif q.difficulty == 'VD' %}Vận dụng
+                                                {% elif q.difficulty == 'VDC' %}Vận dụng cao
+                                                {% else %}{{ q.difficulty }}{% endif %}
+                                            </span>
+
+                                            {% if q.image %}
+                                            <span class="badge bg-danger rounded-pill">🖼️ Ảnh</span>
+                                            {% endif %}
+                                            
+
+                                            <div class="text-truncate flex-grow-1 ms-2 text-dark" style="max-width: 350px;">
+                                                {{ q.question_text }}
+                                            </div>
+                                            
+                                        </div>
+                                    </button>
+                                </h2>
+                                <div id="collapseSaved{{ q.id }}" class="accordion-collapse collapse" data-bs-parent="#savedQuestionsAccordion">
+                                    <div class="accordion-body bg-white p-4">
+                                        <a href="{% url 'edit_question' q.id %}" class="btn btn-sm btn-outline-primary ms-2 mt-2">✏️ Sửa</a>
+                                        <!-- NỘI DUNG CÂU HỎI -->
+                                        <div class="mb-3">
+                                            <h6 class="fw-bold text-secondary small text-uppercase">Nội dung câu hỏi:</h6>
+                                            <div class="p-3 bg-light rounded-3 border fw-semibold text-dark fs-6" style="white-space: pre-line;">
+                                                {{ q.question_text }}
+                                            </div>
+                                        </div>
+
+                                        <!-- HÌNH ẢNH ĐÍNH KÈM -->
+                                        {% if q.image %}
+                                        <div class="mb-3 p-3 bg-light rounded-3 border text-center">
+                                            <h6 class="fw-bold text-secondary text-start small text-uppercase mb-2">📷 Hình ảnh đính kèm:</h6>
+                                            <img src="{{ q.image.url }}" class="img-fluid rounded-3 shadow-sm border bg-white p-2" style="max-height: 250px;" alt="Hình ảnh câu hỏi {{ q.id }}">
+                                        </div>
+                                        {% endif %}
+
+                                        <!-- PHƯƠNG ÁN LỰA CHỌN -->
+                                        {% if q.choices.all %}
+                                        <div class="mb-3">
+                                            <h6 class="fw-bold text-secondary small text-uppercase mb-2">Danh sách phương án:</h6>
+                                            <div class="row g-2">
+                                                {% for choice in q.choices.all %}
+                                                <div class="col-md-6">
+                                                    <div class="p-3 border rounded-3 d-flex align-items-center justify-content-between {% if choice.is_correct %}bg-success-subtle border-success{% else %}bg-white{% endif %} shadow-sm">
+                                                        <span class="fw-medium text-dark">{{ choice.choice_text }}</span>
+                                                        {% if choice.is_correct %}
+                                                            <span class="badge bg-success rounded-pill px-3">✓ Đáp án ĐÚNG</span>
+                                                        {% endif %}
+                                                    </div>
+                                                </div>
+                                                {% endfor %}
+                                            </div>
+                                        </div>
+                                        {% endif %}
+
+                                        <!-- ĐÁP ÁN SỐ THỰC NẾU LÀ NUMERIC -->
+                                        {% if q.exact_numeric_answer %}
+                                        <div class="p-3 bg-light rounded-3 border">
+                                            <span class="fw-bold text-primary">🎯 Đáp án số thực chuẩn:</span> 
+                                            <span class="badge bg-success fs-6 ms-2">{{ q.exact_numeric_answer }}</span>
+                                        </div>
+                                        {% endif %}
+
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="text-center py-5 bg-light rounded-4 border">
+                            <div class="fs-1 text-muted mb-2">🔍</div>
+                            <h6 class="fw-bold text-secondary">Không tìm thấy câu hỏi nào phù hợp với bộ lọc.</h6>
+                            <p class="text-muted small mb-0">Thử chọn lại bộ lọc hoặc bấm "Xóa bộ lọc" để xem toàn bộ danh sách câu hỏi.</p>
+                        </div>
+                    {% endif %}
+
+                </div>
+            </div>
+
+        </div>
+
+    </div>
+</div>
+
+<script>
+    const allSubjects = JSON.parse('{{ subjects_json|escapejs }}');
+    const allTopics = JSON.parse('{{ topics_json|escapejs }}');
+
+    function updateFileName(input) {
+        const display = document.getElementById('file-name-display');
+        if (input.files && input.files[0]) {
+            display.textContent = '📄 File đã chọn: ' + input.files[0].name;
+        } else {
+            display.textContent = '';
+        }
+    }
+
+    function updateDiffBadge(qIdx, val) {
+        const badge = document.getElementById('diff_badge_' + qIdx);
+        if (!badge) return;
+        const labels = {'NB': 'Nhận biết', 'TH': 'Thông hiểu', 'VD': 'Vận dụng', 'VDC': 'Vận dụng cao'};
+        badge.textContent = labels[val] || val;
+    }
+
+    function onPeriodChange(periodSelectId, subjectSelectId, topicSelectId) {
+        const periodVal = document.getElementById(periodSelectId)?.value;
+        const subjectSelect = document.getElementById(subjectSelectId);
+
+        if (!subjectSelect) return;
+
+        const currentSubjVal = subjectSelect.value;
+        subjectSelect.innerHTML = '<option value="">-- Tất cả Môn thi --</option>';
+        
+        const filteredSubjects = periodVal ? allSubjects.filter(s => s.exam_period_id == periodVal) : allSubjects;
+
+        filteredSubjects.forEach(s => {
+            const opt = document.createElement('option');
+            opt.value = s.id;
+            opt.textContent = `${s.name} (${s.exam_period_name})`;
+            if (s.id == currentSubjVal) opt.selected = true;
+            subjectSelect.appendChild(opt);
+        });
+
+        onSubjectChange(subjectSelectId, topicSelectId);
+    }
+
+    function onSubjectChange(subjectSelectId, topicSelectId) {
+        const subjectVal = document.getElementById(subjectSelectId)?.value;
+        const topicSelect = document.getElementById(topicSelectId);
+
+        if (!topicSelect) return;
+
+        const currentTopicVal = topicSelect.value;
+        topicSelect.innerHTML = '<option value="">-- Tất cả Chủ đề --</option>';
+
+        const filteredTopics = subjectVal ? allTopics.filter(t => t.subject_id == subjectVal) : allTopics;
+
+        filteredTopics.forEach(t => {
+            const opt = document.createElement('option');
+            opt.value = t.id;
+            opt.textContent = t.name;
+            if (t.id == currentTopicVal) opt.selected = true;
+            topicSelect.appendChild(opt);
+        });
+    }
+
+    function prepareConfirmData() {
+        const jsonInput = document.getElementById('questions_json_input');
+        if (!jsonInput || !jsonInput.value.trim()) return true;
+
+        try {
+            let questionsData = JSON.parse(jsonInput.value);
+
+            questionsData.forEach((q, qIdx) => {
+                const diffSelect = document.querySelector(`.q-difficulty[data-q-idx="${qIdx}"]`);
+                if (diffSelect) {
+                    q.difficulty = diffSelect.value;
+                }
+
+                if (q.question_type === 'SINGLE') {
+                    const singleRadios = document.querySelectorAll(`.q-single-radio[data-q-idx="${qIdx}"]`);
+                    singleRadios.forEach((radio, cIdx) => {
+                        if (q.choices[cIdx]) {
+                            q.choices[cIdx].is_correct = radio.checked;
+                        }
+                    });
+                }
+                else if (q.question_type === 'TF') {
+                    q.choices.forEach((c, cIdx) => {
+                        const tfTrue = document.getElementById(`tf_true_${qIdx}_${cIdx}`);
+                        if (tfTrue) {
+                            c.is_correct = tfTrue.checked;
+                        }
+                    });
+                }
+                else if (q.question_type === 'NUMERIC') {
+                    const numInput = document.querySelector(`.q-numeric-input[data-q-idx="${qIdx}"]`);
+                    if (numInput) {
+                        q.exact_numeric_answer = numInput.value.trim();
+                    }
+                }
+            });
+
+            jsonInput.value = JSON.stringify(questionsData);
+            return true;
+        } catch (err) {
+            console.error("Lỗi khi đồng bộ dữ liệu JSON câu hỏi:", err);
+            return true;
+        }
+    }
+
+    document.addEventListener("DOMContentLoaded", function() {
+        if (window.MathJax && window.MathJax.typesetPromise) {
+            window.MathJax.typesetPromise();
+        }
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,826 @@
+{% extends 'quiz/base.html' %}
+
+{% block title %}Tạo Bài Thi từ Ma Trận Đề - SmartQuiz Pro{% endblock %}
+
+{% block content %}
+<style>
+    .wizard-steps {
+        display: flex;
+        justify-content: center;
+        gap: 0;
+        margin-bottom: 2rem;
+    }
+    .wizard-step {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.75rem 1.5rem;
+        background: #e2e8f0;
+        color: #64748b;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        position: relative;
+    }
+    .wizard-step:first-child { border-radius: 0.75rem 0 0 0.75rem; }
+    .wizard-step:last-child { border-radius: 0 0.75rem 0.75rem 0; }
+    .wizard-step.active {
+        background: linear-gradient(135deg, #4f46e5, #7c3aed);
+        color: #fff;
+        box-shadow: 0 4px 15px rgba(79,70,229,0.35);
+    }
+    .wizard-step.completed {
+        background: #10b981;
+        color: #fff;
+    }
+    .wizard-step .step-num {
+        width: 28px; height: 28px;
+        border-radius: 50%;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 0.85rem;
+        background: rgba(255,255,255,0.25);
+    }
+    .wizard-panel { display: none; }
+    .wizard-panel.active { display: block; animation: fadeIn 0.3s ease; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* Matrix table */
+    .matrix-table { font-size: 0.8rem; }
+    .matrix-table thead th {
+        background: linear-gradient(135deg, #4f46e5, #6366f1);
+        color: #fff;
+        text-align: center;
+        padding: 0.4rem 0.3rem;
+        font-size: 0.75rem;
+        white-space: nowrap;
+    }
+    .matrix-table thead tr:nth-child(2) th {
+        background: #e0e7ff;
+        color: #4f46e5;
+        font-size: 0.7rem;
+    }
+    .matrix-table td { text-align: center; padding: 0.3rem; vertical-align: middle; }
+    .matrix-table input[type=number] {
+        width: 52px;
+        text-align: center;
+        border: 1px solid #cbd5e1;
+        border-radius: 0.375rem;
+        padding: 0.25rem;
+        font-size: 0.8rem;
+        transition: border-color 0.2s;
+    }
+    .matrix-table input[type=number]:focus {
+        outline: none;
+        border-color: #4f46e5;
+        box-shadow: 0 0 0 2px rgba(79,70,229,0.2);
+    }
+    .avail-badge {
+        font-size: 0.65rem;
+        padding: 0.1rem 0.35rem;
+        border-radius: 0.25rem;
+        display: inline-block;
+        margin-top: 2px;
+    }
+    .avail-ok { background: #d1fae5; color: #065f46; }
+    .avail-warn { background: #fef3c7; color: #92400e; }
+    .avail-danger { background: #fee2e2; color: #991b1b; }
+    .total-row td { background: #fef3c7; font-weight: 700; }
+    .score-row td { background: #d1fae5; font-weight: 700; }
+
+    /* Score warning */
+    .score-warning {
+        display: none;
+        background: #fef3c7;
+        border: 2px solid #f59e0b;
+        border-radius: 0.75rem;
+        padding: 0.75rem 1rem;
+        margin-top: 0.75rem;
+        font-weight: 600;
+        color: #92400e;
+        animation: shake 0.4s ease;
+    }
+    .score-warning.show { display: block; }
+    .score-ok {
+        display: none;
+        background: #d1fae5;
+        border: 2px solid #10b981;
+        border-radius: 0.75rem;
+        padding: 0.75rem 1rem;
+        margin-top: 0.75rem;
+        font-weight: 600;
+        color: #065f46;
+    }
+    .score-ok.show { display: block; }
+    @keyframes shake {
+        0%, 100% { transform: translateX(0); }
+        25% { transform: translateX(-5px); }
+        75% { transform: translateX(5px); }
+    }
+
+    /* Summary card */
+    .summary-card {
+        background: linear-gradient(135deg, #f8fafc, #e0e7ff);
+        border: 1px solid #c7d2fe;
+        border-radius: 1rem;
+        padding: 1.5rem;
+    }
+    .score-highlight {
+        font-size: 2rem;
+        font-weight: 800;
+        background: linear-gradient(135deg, #4f46e5, #7c3aed);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+    .score-highlight.danger {
+        background: linear-gradient(135deg, #dc2626, #ef4444);
+        -webkit-background-clip: text;
+    }
+
+    /* Topic spec textarea */
+    .topic-spec-area {
+        width: 100%;
+        border: 1px solid #cbd5e1;
+        border-radius: 0.5rem;
+        padding: 0.5rem;
+        font-size: 0.85rem;
+        resize: vertical;
+        min-height: 60px;
+        transition: border-color 0.2s;
+    }
+    .topic-spec-area:focus {
+        outline: none;
+        border-color: #4f46e5;
+        box-shadow: 0 0 0 2px rgba(79,70,229,0.15);
+    }
+</style>
+
+<!-- HEADER -->
+<div class="p-4 mb-4 rounded-4 text-white shadow" style="background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 50%, #a855f7 100%);">
+    <h2 class="fw-bold mb-2">📊 Tạo Bài Thi từ Ma Trận Đề</h2>
+    <p class="mb-0 opacity-90">Thiết lập ma trận đề thi và đặc tả chủ đề. Hệ thống sẽ tự bốc câu hỏi ngẫu nhiên khi thí sinh vào làm bài.</p>
+</div>
+
+<!-- WIZARD STEPS -->
+<div class="wizard-steps">
+    <div class="wizard-step active" data-step="1" onclick="goToStep(1)">
+        <span class="step-num">1</span> Thông tin đề thi
+    </div>
+    <div class="wizard-step" data-step="2" onclick="goToStep(2)">
+        <span class="step-num">2</span> Ma trận đề
+    </div>
+    <div class="wizard-step" data-step="3" onclick="goToStep(3)">
+        <span class="step-num">3</span> Xem trước & Lưu
+    </div>
+</div>
+
+<!-- ==================== BƯỚC 1: THÔNG TIN ĐỀ THI ==================== -->
+<div class="wizard-panel active" id="step1">
+    <div class="card border-0 shadow-sm rounded-4">
+        <div class="card-body p-4">
+            <h5 class="fw-bold mb-4"><span class="text-primary">①</span> Thông tin cơ bản đề thi</h5>
+
+            <div class="row g-3">
+                <!-- Kỳ thi -->
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">Kỳ thi</label>
+                    <select id="examPeriodSelect" class="form-select" onchange="filterSubjects()">
+                        <option value="">-- Chọn kỳ thi --</option>
+                        {% for ep in exam_periods %}
+                        <option value="{{ ep.id }}">{{ ep.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <!-- Môn thi -->
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">Môn thi <span class="text-danger">*</span></label>
+                    <select id="subjectSelect" class="form-select" onchange="onSubjectChange()">
+                        <option value="">-- Chọn môn thi --</option>
+                        {% for s in subjects %}
+                        <option value="{{ s.id }}" data-period="{{ s.exam_period_id }}">{{ s.name }} ({{ s.code }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <!-- Tiêu đề -->
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">Tiêu đề đề thi <span class="text-danger">*</span></label>
+                    <input type="text" id="titleInput" class="form-control" placeholder="VD: Đề kiểm tra giữa kỳ Toán 12">
+                </div>
+                <!-- Mã bài thi (6 chữ số) -->
+                <div class="col-md-3">
+                    <label class="form-label fw-semibold">Mã bài thi (6 chữ số) <span class="text-danger">*</span></label>
+                    <div class="input-group">
+                        <input type="text" id="examCodeInput" class="form-control font-monospace fw-bold text-primary" value="{{ auto_exam_code }}" placeholder="VD: 839201" maxlength="6">
+                        <button type="button" class="btn btn-outline-secondary" onclick="generateRandomExamCode()" title="Sinh mã 6 số ngẫu nhiên khác">🎲</button>
+                    </div>
+                    <small class="text-muted">Mã số 6 chữ số tự động duy nhất.</small>
+                </div>
+                <!-- Thời gian -->
+                <div class="col-md-3">
+                    <label class="form-label fw-semibold">Thời gian (phút)</label>
+                    <input type="number" id="durationInput" class="form-control" value="45" min="1">
+                </div>
+                <!-- Thời gian bắt đầu mở thi -->
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">Thời gian mở thi</label>
+                    <input type="datetime-local" id="startTimeInput" class="form-control">
+                    <small class="text-muted">Thí sinh chỉ được vào làm bài khi đến thời điểm này (để trống nếu cho thi ngay).</small>
+                </div>
+                <!-- Hạn nộp bài -->
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">Ngày hạn nộp bài</label>
+                    <input type="datetime-local" id="deadlineInput" class="form-control">
+                    <small class="text-muted">Bài thi sẽ tự động kết thúc sau thời điểm này (để trống nếu không giới hạn).</small>
+                </div>
+            </div>
+
+            <hr class="my-4">
+            <h6 class="fw-bold mb-3">💰 Cấu hình điểm số</h6>
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold">Điểm mỗi câu Trắc nghiệm (SINGLE)</label>
+                    <input type="number" id="scoreSingle" class="form-control" value="0.25" step="0.05" min="0" onchange="onMatrixChange()">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold">Điểm tối đa câu Đúng/Sai (TF)</label>
+                    <input type="number" id="scoreTF" class="form-control" value="1.0" step="0.05" min="0" onchange="onMatrixChange()">
+                    <small class="text-muted">1 ý đúng: 0.1đ | 2 ý: 0.25đ | 3 ý: 0.5đ | 4/4: 1đ</small>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold">Điểm mỗi câu Trả lời số (NUMERIC)</label>
+                    <input type="number" id="scoreNumeric" class="form-control" value="0.5" step="0.05" min="0" onchange="onMatrixChange()">
+                </div>
+            </div>
+
+            <div class="d-flex justify-content-end mt-4">
+                <button class="btn btn-primary fw-bold px-4" onclick="goToStep(2)">
+                    Tiếp theo: Ma trận đề →
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ==================== BƯỚC 2: MA TRẬN ĐỀ ==================== -->
+<div class="wizard-panel" id="step2">
+    <div class="card border-0 shadow-sm rounded-4">
+        <div class="card-body p-4">
+            <h5 class="fw-bold mb-3"><span class="text-primary">②</span> Ma trận đề thi</h5>
+            <p class="text-muted small mb-3">Nhập số lượng câu hỏi cho từng ô: <strong>Chủ đề × Mức độ × Loại câu</strong>. Số trong ngoặc () là số câu <span class="text-success fw-bold">có sẵn</span> trong ngân hàng.</p>
+
+            <div id="matrixContainer">
+                <div class="alert alert-warning">⚠️ Vui lòng chọn <strong>Môn thi</strong> ở Bước 1 trước.</div>
+            </div>
+
+            <!-- Score warnings -->
+            <div id="scoreWarning" class="score-warning">
+                ⚠️ Tổng điểm hiện tại: <span id="warnScoreVal"></span> điểm — khác 10 điểm!
+            </div>
+            <div id="scoreOk" class="score-ok">
+                ✅ Tổng điểm: 10.00 điểm — Hợp lệ!
+            </div>
+
+            <hr class="my-4">
+
+            <!-- Đặc tả chủ đề -->
+            <h6 class="fw-bold mb-3">📝 Đặc tả chủ đề kiến thức <small class="text-muted fw-normal">(tùy chọn — sẽ được xuất ra file Word)</small></h6>
+            <div id="topicSpecsContainer">
+                <div class="text-muted small">Chọn môn thi để hiển thị danh sách chủ đề.</div>
+            </div>
+
+            <div class="d-flex justify-content-between mt-4">
+                <button class="btn btn-outline-secondary fw-bold px-4" onclick="goToStep(1)">
+                    ← Quay lại
+                </button>
+                <button class="btn btn-primary fw-bold px-4" onclick="goToStep(3)">
+                    Tiếp theo: Xem trước →
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ==================== BƯỚC 3: XEM TRƯỚC & LƯU ==================== -->
+<div class="wizard-panel" id="step3">
+    <div class="card border-0 shadow-sm rounded-4">
+        <div class="card-body p-4">
+            <h5 class="fw-bold mb-4"><span class="text-primary">③</span> Xem trước & Lưu ma trận</h5>
+
+            <div id="previewContent"></div>
+
+            <div class="d-flex justify-content-between mt-4">
+                <button class="btn btn-outline-secondary fw-bold px-4" onclick="goToStep(2)">
+                    ← Quay lại ma trận
+                </button>
+                <button class="btn btn-success fw-bold px-5 py-2 shadow" id="btnCreateExam" onclick="submitExam()">
+                    💾 Lưu Ma Trận Đề
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const SUBJECTS = {{ subjects_json|safe }};
+const CSRF = '{{ csrf_token }}';
+
+const DIFFICULTIES = ['NB', 'TH', 'VD', 'VDC'];
+const DIFF_LABELS = {'NB': 'Nhận biết', 'TH': 'Thông hiểu', 'VD': 'Vận dụng', 'VDC': 'Vận dụng cao'};
+const Q_TYPES = ['SINGLE', 'TF', 'NUMERIC'];
+const TYPE_LABELS = {'SINGLE': 'TN', 'TF': 'Đ/S', 'NUMERIC': 'Số'};
+
+let currentStep = 1;
+let matrixTopics = [];
+let matrixCounts = {};
+
+// ============ WIZARD NAVIGATION ============
+function goToStep(step) {
+    if (step === 2 || step === 3) {
+        if (!document.getElementById('subjectSelect').value) {
+            Swal.fire({icon: 'warning', title: 'Thiếu thông tin', text: 'Vui lòng chọn Môn thi trước!'});
+            return;
+        }
+    }
+
+    currentStep = step;
+    document.querySelectorAll('.wizard-step').forEach(el => {
+        const s = parseInt(el.dataset.step);
+        el.classList.remove('active', 'completed');
+        if (s === step) el.classList.add('active');
+        else if (s < step) el.classList.add('completed');
+    });
+    document.querySelectorAll('.wizard-panel').forEach(el => el.classList.remove('active'));
+    document.getElementById('step' + step).classList.add('active');
+
+    if (step === 3) buildPreview();
+}
+
+// ============ SUBJECT FILTER ============
+function filterSubjects() {
+    const periodId = document.getElementById('examPeriodSelect').value;
+    const select = document.getElementById('subjectSelect');
+    Array.from(select.options).forEach(opt => {
+        if (!opt.value) return;
+        opt.style.display = (!periodId || opt.dataset.period === periodId) ? '' : 'none';
+    });
+}
+
+function onSubjectChange() {
+    const subjectId = document.getElementById('subjectSelect').value;
+    if (!subjectId) return;
+    loadMatrixData(subjectId);
+}
+
+// ============ LOAD MATRIX DATA ============
+function loadMatrixData(subjectId) {
+    document.getElementById('matrixContainer').innerHTML = '<div class="text-center py-3"><div class="spinner-border text-primary"></div></div>';
+
+    fetch(`/api/matrix-data/?subject_id=${subjectId}`)
+        .then(r => r.json())
+        .then(data => {
+            matrixTopics = data.topics;
+            matrixCounts = data.counts;
+            renderMatrix();
+            renderTopicSpecs();
+        })
+        .catch(err => {
+            document.getElementById('matrixContainer').innerHTML = '<div class="alert alert-danger">Lỗi khi tải dữ liệu.</div>';
+        });
+}
+
+// ============ RENDER MATRIX TABLE ============
+function renderMatrix() {
+    if (!matrixTopics.length) {
+        document.getElementById('matrixContainer').innerHTML = '<div class="alert alert-info">Môn thi này chưa có chủ đề nào. Vui lòng tạo chủ đề trong trang Quản trị.</div>';
+        return;
+    }
+
+    let html = '<div class="table-responsive"><table class="table table-bordered matrix-table mb-0">';
+
+    // Header row 1
+    html += '<thead><tr><th rowspan="2" style="min-width:140px;">Chủ đề</th>';
+    DIFFICULTIES.forEach(d => {
+        html += `<th colspan="${Q_TYPES.length}">${DIFF_LABELS[d]}</th>`;
+    });
+    html += '<th rowspan="2">Tổng</th></tr>';
+
+    // Header row 2
+    html += '<tr>';
+    DIFFICULTIES.forEach(d => {
+        Q_TYPES.forEach(t => {
+            html += `<th>${TYPE_LABELS[t]}</th>`;
+        });
+    });
+    html += '</tr></thead>';
+
+    // Data rows
+    html += '<tbody>';
+    matrixTopics.forEach(topic => {
+        html += `<tr><td class="text-start fw-semibold">${topic.name}</td>`;
+        DIFFICULTIES.forEach(d => {
+            Q_TYPES.forEach(t => {
+                const key = `${topic.id}_${d}_${t}`;
+                const avail = matrixCounts[key] || 0;
+                const inputId = `m_${topic.id}_${d}_${t}`;
+                let badgeClass = avail > 0 ? 'avail-ok' : 'avail-danger';
+                html += `<td>
+                    <input type="number" id="${inputId}" class="matrix-input" min="0" max="${avail}" value="0"
+                           data-topic="${topic.id}" data-diff="${d}" data-type="${t}" data-avail="${avail}"
+                           onchange="onMatrixChange()" oninput="onMatrixChange()">
+                    <br><span class="avail-badge ${badgeClass}">(${avail})</span>
+                </td>`;
+            });
+        });
+        html += `<td class="fw-bold topic-total" id="total_${topic.id}">0</td>`;
+        html += '</tr>';
+    });
+
+    // Tổng SL row
+    html += '<tr class="total-row"><td class="text-start fw-bold">Tổng SL</td>';
+    DIFFICULTIES.forEach(d => {
+        Q_TYPES.forEach(t => {
+            html += `<td id="colTotal_${d}_${t}">0</td>`;
+        });
+    });
+    html += '<td id="grandTotal">0</td></tr>';
+
+    // Tổng Điểm row
+    html += '<tr class="score-row"><td class="text-start fw-bold">Tổng Điểm</td>';
+    DIFFICULTIES.forEach(d => {
+        Q_TYPES.forEach(t => {
+            html += `<td id="colScore_${d}_${t}">0</td>`;
+        });
+    });
+    html += '<td id="grandScore" class="fs-5">0</td></tr>';
+
+    html += '</tbody></table></div>';
+    document.getElementById('matrixContainer').innerHTML = html;
+}
+
+// ============ RENDER TOPIC SPECS ============
+function renderTopicSpecs() {
+    if (!matrixTopics.length) {
+        document.getElementById('topicSpecsContainer').innerHTML = '<div class="text-muted small">Không có chủ đề nào.</div>';
+        return;
+    }
+    let html = '';
+    matrixTopics.forEach(topic => {
+        html += `
+        <div class="mb-3">
+            <label class="form-label fw-semibold text-primary small mb-1">📌 ${topic.name}</label>
+            <textarea class="topic-spec-area" id="spec_${topic.id}" data-topic-id="${topic.id}"
+                placeholder="Nhập đặc tả kiến thức cho chủ đề này (VD: Yêu cầu nắm vững khái niệm đạo hàm, biết tính đạo hàm các hàm đa thức...)"></textarea>
+        </div>`;
+    });
+    document.getElementById('topicSpecsContainer').innerHTML = html;
+}
+
+// ============ MATRIX CHANGE HANDLER ============
+function onMatrixChange() {
+    const scoreSingle = parseFloat(document.getElementById('scoreSingle').value) || 0;
+    const scoreTF = parseFloat(document.getElementById('scoreTF').value) || 0;
+    const scoreNumeric = parseFloat(document.getElementById('scoreNumeric').value) || 0;
+    const scoreMap = {'SINGLE': scoreSingle, 'TF': scoreTF, 'NUMERIC': scoreNumeric};
+
+    let grandTotal = 0;
+    let grandScore = 0;
+
+    // Row totals
+    matrixTopics.forEach(topic => {
+        let rowTotal = 0;
+        DIFFICULTIES.forEach(d => {
+            Q_TYPES.forEach(t => {
+                const input = document.getElementById(`m_${topic.id}_${d}_${t}`);
+                if (input) {
+                    let val = parseInt(input.value) || 0;
+                    const avail = parseInt(input.dataset.avail) || 0;
+                    if (val > avail) { input.value = avail; val = avail; input.style.borderColor = '#ef4444'; }
+                    else if (val < 0) { input.value = 0; val = 0; }
+                    else { input.style.borderColor = ''; }
+                    rowTotal += val;
+                }
+            });
+        });
+        const cell = document.getElementById(`total_${topic.id}`);
+        if (cell) cell.textContent = rowTotal;
+        grandTotal += rowTotal;
+    });
+
+    // Column totals
+    DIFFICULTIES.forEach(d => {
+        Q_TYPES.forEach(t => {
+            let colSum = 0;
+            matrixTopics.forEach(topic => {
+                const input = document.getElementById(`m_${topic.id}_${d}_${t}`);
+                if (input) colSum += parseInt(input.value) || 0;
+            });
+            const colCell = document.getElementById(`colTotal_${d}_${t}`);
+            if (colCell) colCell.textContent = colSum;
+
+            const colScore = colSum * scoreMap[t];
+            const scoreCell = document.getElementById(`colScore_${d}_${t}`);
+            if (scoreCell) scoreCell.textContent = colScore > 0 ? colScore.toFixed(2) : '0';
+            grandScore += colScore;
+        });
+    });
+
+    const grandTotalEl = document.getElementById('grandTotal');
+    const grandScoreEl = document.getElementById('grandScore');
+    if (grandTotalEl) grandTotalEl.textContent = grandTotal;
+    if (grandScoreEl) grandScoreEl.textContent = grandScore.toFixed(2);
+
+    // Score warning
+    const warnEl = document.getElementById('scoreWarning');
+    const okEl = document.getElementById('scoreOk');
+    const warnVal = document.getElementById('warnScoreVal');
+
+    if (grandTotal > 0) {
+        if (Math.abs(grandScore - 10.0) > 0.001) {
+            warnEl.classList.add('show');
+            okEl.classList.remove('show');
+            warnVal.textContent = grandScore.toFixed(2);
+        } else {
+            warnEl.classList.remove('show');
+            okEl.classList.add('show');
+        }
+    } else {
+        warnEl.classList.remove('show');
+        okEl.classList.remove('show');
+    }
+}
+
+// ============ COLLECT DATA ============
+function collectMatrix() {
+    const entries = [];
+    const inputs = document.querySelectorAll('.matrix-input');
+    inputs.forEach(input => {
+        const qty = parseInt(input.value) || 0;
+        if (qty > 0) {
+            entries.push({
+                topic_id: parseInt(input.dataset.topic),
+                difficulty: input.dataset.diff,
+                question_type: input.dataset.type,
+                quantity: qty,
+            });
+        }
+    });
+    return entries;
+}
+
+function collectTopicSpecs() {
+    const specs = [];
+    document.querySelectorAll('.topic-spec-area').forEach(ta => {
+        const desc = ta.value.trim();
+        if (desc) {
+            specs.push({
+                topic_id: parseInt(ta.dataset.topicId),
+                description: desc,
+            });
+        }
+    });
+    return specs;
+}
+
+// ============ BUILD PREVIEW ============
+function buildPreview() {
+    const title = document.getElementById('titleInput').value || '—';
+    const examCode = document.getElementById('examCodeInput').value || '—';
+    const duration = document.getElementById('durationInput').value || '45';
+    const deadline = document.getElementById('deadlineInput').value || 'Không giới hạn';
+    const subjectEl = document.getElementById('subjectSelect');
+    const subjectName = subjectEl.options[subjectEl.selectedIndex]?.text || '—';
+
+    const scoreSingle = parseFloat(document.getElementById('scoreSingle').value) || 0;
+    const scoreTF = parseFloat(document.getElementById('scoreTF').value) || 0;
+    const scoreNumeric = parseFloat(document.getElementById('scoreNumeric').value) || 0;
+
+    const matrixEntries = collectMatrix();
+    const topicSpecs = collectTopicSpecs();
+
+    let totalQ = 0;
+    let totalScore = 0;
+    const scoreMap = {'SINGLE': scoreSingle, 'TF': scoreTF, 'NUMERIC': scoreNumeric};
+    matrixEntries.forEach(e => {
+        totalQ += e.quantity;
+        totalScore += e.quantity * (scoreMap[e.question_type] || 0);
+    });
+
+    const isScoreOk = Math.abs(totalScore - 10.0) <= 0.001;
+    const scoreClass = isScoreOk ? '' : 'danger';
+
+    let html = `
+    <div class="summary-card mb-4">
+        <div class="row">
+            <div class="col-md-8">
+                <h5 class="fw-bold mb-3">📋 Thông tin đề thi</h5>
+                <table class="table table-sm table-borderless mb-0">
+                    <tr><td class="text-muted" style="width:160px;">Tiêu đề:</td><td class="fw-bold">${title}</td></tr>
+                    <tr><td class="text-muted">Mã bài thi:</td><td><span class="badge bg-primary fs-6">${examCode}</span></td></tr>
+                    <tr><td class="text-muted">Môn thi:</td><td>${subjectName}</td></tr>
+                    <tr><td class="text-muted">Thời gian:</td><td>${duration} phút</td></tr>
+                    <tr><td class="text-muted">Hạn nộp:</td><td>${deadline}</td></tr>
+                    <tr><td class="text-muted">Điểm TN:</td><td>${scoreSingle}</td></tr>
+                    <tr><td class="text-muted">Điểm Đ/S (tối đa):</td><td>${scoreTF}</td></tr>
+                    <tr><td class="text-muted">Điểm Số:</td><td>${scoreNumeric}</td></tr>
+                </table>
+            </div>
+            <div class="col-md-4 text-center d-flex flex-column justify-content-center">
+                <div class="score-highlight ${scoreClass}">${totalScore.toFixed(2)} điểm</div>
+                <div class="text-muted">${totalQ} câu hỏi</div>
+                ${!isScoreOk ? '<div class="text-danger fw-bold small mt-1">⚠️ Tổng điểm khác 10!</div>' : '<div class="text-success fw-bold small mt-1">✅ Tổng điểm hợp lệ</div>'}
+            </div>
+        </div>
+    </div>`;
+
+    // Matrix preview
+    if (matrixEntries.length > 0) {
+        html += '<h6 class="fw-bold mb-2">📊 Ma trận đề</h6>';
+        html += '<div class="table-responsive"><table class="table table-sm table-bordered matrix-table">';
+        html += '<thead><tr><th>Chủ đề</th>';
+        DIFFICULTIES.forEach(d => {
+            Q_TYPES.forEach(t => {
+                html += `<th>${DIFF_LABELS[d]}<br><small>${TYPE_LABELS[t]}</small></th>`;
+            });
+        });
+        html += '<th>Tổng</th></tr></thead><tbody>';
+
+        matrixTopics.forEach(topic => {
+            let rowTotal = 0;
+            let hasData = false;
+            let rowHtml = `<tr><td class="text-start">${topic.name}</td>`;
+            DIFFICULTIES.forEach(d => {
+                Q_TYPES.forEach(t => {
+                    const entry = matrixEntries.find(e => e.topic_id == topic.id && e.difficulty === d && e.question_type === t);
+                    const qty = entry ? entry.quantity : 0;
+                    rowHtml += `<td>${qty || ''}</td>`;
+                    rowTotal += qty;
+                    if (qty > 0) hasData = true;
+                });
+            });
+            rowHtml += `<td class="fw-bold">${rowTotal}</td></tr>`;
+            if (hasData) html += rowHtml;
+        });
+        html += '</tbody></table></div>';
+    }
+
+    // Topic specs preview
+    if (topicSpecs.length > 0) {
+        html += '<h6 class="fw-bold mb-2 mt-3">📝 Đặc tả chủ đề kiến thức</h6>';
+        html += '<div class="list-group">';
+        topicSpecs.forEach(spec => {
+            const topicName = matrixTopics.find(t => t.id == spec.topic_id)?.name || 'Chủ đề';
+            html += `<div class="list-group-item">
+                <strong class="text-primary">📌 ${topicName}:</strong>
+                <div class="small mt-1" style="white-space:pre-line;">${spec.description}</div>
+            </div>`;
+        });
+        html += '</div>';
+    }
+
+    // TF scoring reminder
+    html += `
+    <div class="alert alert-info mt-3 small">
+        <strong>📌 Lưu ý:</strong> Hệ thống sẽ <strong>tự bốc câu hỏi ngẫu nhiên</strong> từ ngân hàng theo ma trận này khi thí sinh vào làm bài.<br>
+        <strong>Công thức điểm Đúng/Sai:</strong>
+        1/4 ý đúng = <strong>0.1đ</strong> | 2/4 = <strong>0.25đ</strong> | 3/4 = <strong>0.5đ</strong> | 4/4 = <strong>1.0đ</strong>
+        (× hệ số ${scoreTF})
+    </div>`;
+
+    document.getElementById('previewContent').innerHTML = html;
+}
+
+// ============ SUBMIT ============
+function submitExam() {
+    const matrixEntries = collectMatrix();
+    const topicSpecs = collectTopicSpecs();
+
+    if (matrixEntries.length === 0) {
+        Swal.fire({icon: 'warning', title: 'Ma trận trống', text: 'Vui lòng nhập số lượng câu hỏi trong ma trận!'});
+        return;
+    }
+
+    const titleVal = document.getElementById('titleInput').value.trim();
+    const examCodeVal = document.getElementById('examCodeInput').value.trim();
+    if (!titleVal || !examCodeVal) {
+        Swal.fire({icon: 'warning', title: 'Thiếu thông tin', text: 'Vui lòng nhập Tiêu đề và Mã bài thi!'});
+        return;
+    }
+
+    // Tính tổng điểm
+    const scoreSingle = parseFloat(document.getElementById('scoreSingle').value) || 0;
+    const scoreTF = parseFloat(document.getElementById('scoreTF').value) || 0;
+    const scoreNumeric = parseFloat(document.getElementById('scoreNumeric').value) || 0;
+    const scoreMap = {'SINGLE': scoreSingle, 'TF': scoreTF, 'NUMERIC': scoreNumeric};
+    let totalScore = 0;
+    let totalQ = 0;
+    matrixEntries.forEach(e => {
+        totalScore += e.quantity * (scoreMap[e.question_type] || 0);
+        totalQ += e.quantity;
+    });
+
+    const doSave = () => {
+        Swal.fire({
+            title: 'Đang lưu ma trận...',
+            allowOutsideClick: false,
+            didOpen: () => Swal.showLoading()
+        });
+
+        const formData = new FormData();
+        formData.append('subject_id', document.getElementById('subjectSelect').value);
+        formData.append('title', titleVal);
+        formData.append('exam_code', examCodeVal);
+        formData.append('duration', document.getElementById('durationInput').value);
+        formData.append('start_time', document.getElementById('startTimeInput').value);
+        formData.append('deadline', document.getElementById('deadlineInput').value);
+        formData.append('score_single', document.getElementById('scoreSingle').value);
+        formData.append('score_tf', document.getElementById('scoreTF').value);
+        formData.append('score_numeric', document.getElementById('scoreNumeric').value);
+        formData.append('matrix_json', JSON.stringify(matrixEntries));
+        formData.append('topic_specs_json', JSON.stringify(topicSpecs));
+        formData.append('csrfmiddlewaretoken', CSRF);
+
+        fetch('/tao-bai-thi/', {
+            method: 'POST',
+            body: formData,
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+        .then(r => r.json().then(data => ({status: r.status, body: data})))
+        .then(({status, body}) => {
+            if (body.status === 'success') {
+                Swal.fire({
+                    icon: 'success',
+                    title: '🎉 Lưu ma trận thành công!',
+                    html: `<p>${body.message}</p>
+                           <div class="d-flex justify-content-center gap-2 mt-3">
+                               <a href="${body.export_word_url}" class="btn btn-outline-primary btn-sm">📄 Xuất Word</a>
+                               <a href="${body.export_excel_url}" class="btn btn-outline-success btn-sm">📊 Xuất Excel</a>
+                           </div>`,
+                    confirmButtonText: 'Đóng',
+                    confirmButtonColor: '#4f46e5',
+                });
+            } else {
+                let errHtml = '<ul class="text-start mb-0">';
+                (body.errors || []).forEach(e => errHtml += `<li>${e}</li>`);
+                errHtml += '</ul>';
+                Swal.fire({icon: 'error', title: 'Lỗi!', html: errHtml, confirmButtonColor: '#dc3545'});
+            }
+        })
+        .catch(err => {
+            Swal.fire({icon: 'error', title: 'Lỗi kết nối!', text: 'Không thể kết nối đến máy chủ.'});
+        });
+    };
+
+    // Cảnh báo nếu tổng điểm ≠ 10
+    if (Math.abs(totalScore - 10.0) > 0.001) {
+        Swal.fire({
+            icon: 'warning',
+            title: '⚠️ Tổng điểm khác 10!',
+            html: `<p>Tổng điểm hiện tại: <strong class="text-danger fs-4">${totalScore.toFixed(2)} điểm</strong></p>
+                   <p class="text-muted">Thông thường tổng điểm đề thi phải bằng <strong>10 điểm</strong>.</p>
+                   <p>Bạn có muốn tiếp tục lưu không?</p>`,
+            showCancelButton: true,
+            confirmButtonText: 'Vẫn lưu',
+            cancelButtonText: 'Quay lại chỉnh sửa',
+            confirmButtonColor: '#f59e0b',
+            cancelButtonColor: '#6c757d',
+        }).then(result => {
+            if (result.isConfirmed) doSave();
+        });
+    } else {
+        // Tổng điểm = 10, xác nhận bình thường
+        Swal.fire({
+            title: '💾 Xác nhận lưu ma trận?',
+            html: `<p>Đề thi <strong>"${titleVal}"</strong> — Mã: <strong>${examCodeVal}</strong></p>
+                   <p>Tổng: <strong>${totalQ}</strong> câu | <strong class="text-success">${totalScore.toFixed(2)} điểm</strong></p>
+                   <p class="small text-muted">Câu hỏi sẽ được bốc ngẫu nhiên khi thí sinh làm bài.</p>`,
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'Lưu ma trận',
+            cancelButtonText: 'Hủy',
+            confirmButtonColor: '#4f46e5',
+        }).then(result => {
+            if (result.isConfirmed) doSave();
+        });
+    }
+}
+
+// Sinh mã ngẫu nhiên 6 chữ số
+function generateRandomExamCode() {
+    const randomCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const input = document.getElementById('examCodeInput');
+    if (input) {
+        input.value = randomCode;
+        Swal.fire({
+            toast: true,
+            position: 'top-end',
+            icon: 'info',
+            title: `Đã đổi sang mã mới: ${randomCode}`,
+            showConfirmButton: false,
+            timer: 1500
+        });
+    }
+}
+</script>
+{% endblock %}

@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}SmartQuiz Pro{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script>
+        window.MathJax = {
+            tex: {
+                inlineMath: [['$', '$'], ['\\(', '\\)']],
+                displayMath: [['$$', '$$'], ['\\[', '\\]']],
+                processEscapes: true
+            }
+        };
+    </script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    {% block extra_head %}{% endblock %}
+    {% block extra_css %}{% endblock %}
+</head>
+<body class="bg-light">
+
+     <!-- Thanh Menu chính -->
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark shadow-sm py-3">
+    <div class="container">
+        <a class="navbar-brand fw-bold fs-4 text-warning" href="{% url 'home' %}">⚡ SmartQuiz Pro</a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNavDropdown">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNavDropdown">
+            <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                <li class="nav-item">
+                    <a class="nav-link active" href="{% url 'home' %}">Trang Chủ</a>
+                </li>
+                
+                <!-- MENU HỌC SINH / THÍ SINH (Tất cả người dùng đều thấy) -->
+                <li class="nav-item">
+                    <a class="nav-link text-warning fw-bold" href="{% url 'enter_exam_code' %}">⚡ Vào Thi</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-white" href="{% url 'online_exam' %}">📝 Thi Trực Tuyến</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link text-info fw-bold" href="{% url 'coding_list' %}">💻 Luyện Code</a>
+                </li>
+                <!-- MENU DÀNH CHO QUẢN LÝ & ADMIN ĐÃ ĐƯỢC CHUYỂN VÀO MENU TÀI KHOẢN -->
+
+
+                <!-- MENU DÀNH RIÊNG CHO QUẢN TRỊ VIÊN (Chỉ Admin mới thấy) -->
+                {% if is_admin %}
+                <li class="nav-item">
+                    <a class="nav-link text-danger fw-bold" href="{% url 'user_management' %}">
+                        🛡️ Quản Trị Người Dùng
+                    </a>
+                </li>
+                {% endif %}
+            </ul>
+
+            <!-- KHU VỰC TÀI KHOẢN NGƯỜI DÙNG -->
+            <div class="d-flex align-items-center gap-2">
+                {% if user.is_authenticated %}
+                    <div class="dropdown">
+                        <button class="btn btn-outline-light d-flex align-items-center gap-2 rounded-pill px-3 py-1 border-white-50 shadow-sm dropdown-toggle" type="button" id="userMenuDropdown" data-bs-toggle="dropdown" aria-expanded="false" style="background: rgba(255,255,255,0.12); backdrop-filter: blur(6px);">
+                            <img src="{{ user_profile.avatar_url|default:'/static/quiz/avatars/avatar-1.svg' }}" alt="Avatar" id="navbarUserAvatar" class="rounded-circle border border-white" width="30" height="30" style="object-fit: contain; background: white;">
+                            <span class="text-white fw-semibold small text-truncate" style="max-width: 140px;">
+                                {{ user.get_full_name|default:user.username }}
+                            </span>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end shadow-lg border-0 rounded-4 mt-2 p-2" aria-labelledby="userMenuDropdown" style="min-width: 250px;">
+                            <li class="p-3 bg-light rounded-3 mb-2 text-center">
+                                <img src="{{ user_profile.avatar_url|default:'/static/quiz/avatars/avatar-1.svg' }}" alt="Avatar" class="rounded-circle border shadow-xs mb-2" width="56" height="56" style="background: white; object-fit: contain;">
+                                <div class="fw-bold text-dark text-truncate">{{ user.get_full_name|default:user.username }}</div>
+                                <div class="small text-muted text-truncate">@{{ user.username }}</div>
+                                <div class="mt-2">
+                                    {% if is_admin %}
+                                        <span class="badge bg-danger px-2 py-1 rounded-pill small">🛡️ Quản trị viên</span>
+                                    {% elif is_manager %}
+                                        <span class="badge bg-warning text-dark px-2 py-1 rounded-pill small">💼 Quản lý khảo thí</span>
+                                    {% else %}
+                                        <span class="badge bg-success-subtle text-success px-2 py-1 rounded-pill small">👤 Thí sinh</span>
+                                    {% endif %}
+                                </div>
+                            </li>
+                            <li>
+                                <a class="dropdown-item py-2 rounded-3 d-flex align-items-center gap-2" href="{% url 'profile' %}">
+                                    <span>👤</span>
+                                    <span class="fw-semibold">Thông tin cá nhân</span>
+                                </a>
+                            </li>
+                            {% if user.profile.is_coding_contributor %}
+                            <li>
+                                <a class="dropdown-item py-2 rounded-3 d-flex align-items-center gap-2" href="{% url 'coding_manage_list' %}">
+                                    <span>💻</span>
+                                    <span>Quản lý Luyện Code</span>
+                                </a>
+                            </li>
+                            {% endif %}
+                            {% if is_manager %}
+                            <li><hr class="dropdown-divider my-1"></li>
+                            <li><span class="dropdown-header text-uppercase small fw-bold text-success">Thi Online & Đề Thi</span></li>
+                            <li><a class="dropdown-item py-2" href="{% url 'manage_question_bank' %}">📚 Quản lý ngân hàng đề</a></li>
+                            <li><a class="dropdown-item py-2" href="{% url 'create_exam' %}">📊 Tạo bài thi từ ma trận đề</a></li>
+                            <li><a class="dropdown-item py-2" href="{% url 'exam_list' %}">📋 Danh sách bài thi</a></li>
+                            <li><hr class="dropdown-divider my-1"></li>
+                            <li><span class="dropdown-header text-uppercase small fw-bold text-warning">Chấm Điểm Trắc Nghiệm</span></li>
+                            <li><a class="dropdown-item py-2 fw-bold text-primary" href="{% url 'grading_dashboard' %}">🎯 Bảng điều khiển Chấm thi</a></li>
+                            <li><a class="dropdown-item py-2" href="{% url 'grading_sheet_view' %}">✍️ Phiếu chấm bài tương tác</a></li>
+                            <li><a class="dropdown-item py-2" href="{% url 'grading_key_list' %}">📝 Quản lý đáp án chuẩn</a></li>
+                            <li><a class="dropdown-item py-2" href="{% url 'grading_manage_exams' %}">🏛️ Quản lý kỳ thi & môn thi</a></li>
+                            <li><a class="dropdown-item py-2" href="{% url 'grading_results_list' %}">📊 Bảng điểm & Xuất Excel</a></li>
+                            {% endif %}
+                            {% if is_admin %}
+                            <li><hr class="dropdown-divider my-1"></li>
+                            <li><span class="dropdown-header text-uppercase small fw-bold text-danger">Quản Trị</span></li>
+                            <li>
+                                <a class="dropdown-item py-2 rounded-3 d-flex align-items-center gap-2" href="{% url 'user_management' %}">
+                                    <span>🛡️</span>
+                                    <span>Quản trị người dùng</span>
+                                </a>
+                            </li>
+                            {% endif %}
+                            <li><hr class="dropdown-divider my-1"></li>
+                            <li>
+                                <a class="dropdown-item py-2 rounded-3 text-danger d-flex align-items-center gap-2 fw-semibold" href="{% url 'logout' %}">
+                                    <span>🚪</span>
+                                    <span>Đăng xuất</span>
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+                {% else %}
+                    <!-- Khi chưa đăng nhập -->
+                    <a href="{% url 'login' %}" class="btn btn-outline-light btn-sm rounded-pill px-3 fw-bold">
+                        🔑 Đăng Nhập
+                    </a>
+                    <a href="{% url 'register' %}" class="btn btn-warning btn-sm rounded-pill px-3 fw-bold shadow-sm">
+                        ✨ Đăng Ký
+                    </a>
+                {% endif %}
+            </div>
+
+        </div>
+    </div>
+</nav>
+
+
+    <!-- Nơi các trang con đổ nội dung vào -->
+    <div class="container my-4">
+        {% block content %}
+        {% endblock %}
+    </div>
+
+    <!-- SweetAlert2 -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+    <!-- Nhúng mã JavaScript của Bootstrap để Menu Dropdown hoạt động khi click -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+    {% block extra_js %}{% endblock %}
+</body>
+</html>
+

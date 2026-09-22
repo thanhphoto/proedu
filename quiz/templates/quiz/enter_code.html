@@ -1,0 +1,143 @@
+{% extends 'quiz/base.html' %}
+
+{% block title %}Vào Thi - Nhập Mã Bài Thi - SmartQuiz Pro{% endblock %}
+
+{% block content %}
+<style>
+    .enter-code-card {
+        background: rgba(255, 255, 255, 0.98);
+        border: 1px solid rgba(226, 232, 240, 0.8);
+        box-shadow: 0 20px 45px rgba(15, 23, 42, 0.08);
+        border-radius: 1.5rem;
+    }
+    .code-input-lg {
+        font-family: 'Courier New', Courier, monospace;
+        font-size: 2.5rem;
+        font-weight: 800;
+        letter-spacing: 12px;
+        text-align: center;
+        text-transform: uppercase;
+        border: 2px solid #cbd5e1;
+        border-radius: 1rem;
+        background-color: #f8fafc;
+        transition: all 0.25s ease;
+        padding: 0.75rem 1rem;
+    }
+    .code-input-lg:focus {
+        border-color: #4f46e5;
+        background-color: #ffffff;
+        box-shadow: 0 0 0 5px rgba(79, 70, 229, 0.15);
+        outline: none;
+    }
+    .pulse-btn {
+        transition: all 0.2s ease;
+    }
+    .pulse-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 10px 25px rgba(79, 70, 229, 0.3) !important;
+    }
+</style>
+
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-7 col-lg-5">
+            <!-- Header card -->
+            <div class="card enter-code-card overflow-hidden">
+                <div class="p-4 text-center text-white" style="background: linear-gradient(135deg, #1e1b4b 0%, #4338ca 100%);">
+                    <div class="display-4 mb-2">⚡</div>
+                    <h3 class="fw-extrabold mb-1 text-white">VÀO PHÒNG THI</h3>
+                    <p class="small text-white-50 mb-0">Hệ thống khảo thí trực tuyến SmartQuiz Pro</p>
+                </div>
+
+                <div class="card-body p-4 p-md-5">
+                    {% if messages %}
+                        {% for message in messages %}
+                            <div class="alert alert-{{ message.tags }} alert-dismissible fade show rounded-3 shadow-sm mb-4" role="alert">
+                                {{ message }}
+                                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+
+                    {% if error_msg %}
+                        <div class="alert alert-danger rounded-3 shadow-xs mb-4">
+                            ⚠️ {{ error_msg }}
+                        </div>
+                    {% endif %}
+
+                    <form method="POST" action="{% url 'enter_exam_code' %}" id="enterCodeForm">
+                        {% csrf_token %}
+                        <div class="text-center mb-4">
+                            <label for="examCodeInput" class="form-label fw-bold text-dark fs-6 mb-2">
+                                NHẬP MÃ BÀI THI (6 CHỮ SỐ)
+                            </label>
+                            <input type="text" 
+                                   id="examCodeInput" 
+                                   name="exam_code" 
+                                   class="form-control code-input-lg" 
+                                   placeholder="______" 
+                                   maxlength="6" 
+                                   autocomplete="off" 
+                                   autofocus 
+                                   required 
+                                   value="{{ code }}">
+                            <div class="form-text text-muted mt-2">
+                                Nhập 6 chữ số mã phòng thi do giáo viên hoặc người quản lý cung cấp.
+                            </div>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary btn-lg w-100 rounded-pill fw-bold py-3 shadow-sm pulse-btn fs-5">
+                            🚀 Vào Thi Ngay
+                        </button>
+                    </form>
+
+                    <div class="mt-4 pt-4 border-top">
+                        <h6 class="fw-bold text-dark small text-uppercase mb-2">📌 Lưu ý trước khi thi:</h6>
+                        <ul class="text-secondary small ps-3 mb-0">
+                            <li class="mb-1">Nếu chưa có tài khoản, thí sinh chỉ cần nhập Họ và tên để bắt đầu.</li>
+                            <li class="mb-1">Bài thi sẽ mở đúng thời gian đã được quy định bởi người tạo.</li>
+                            <li class="mb-1">Phương án trả lời sẽ được tự động lưu liên tục phòng trường hợp tải lại trang hoặc mất điện.</li>
+                            <li>Bài thi sẽ tự động kết thúc khi hết giờ làm bài hoặc hết hạn nộp đề.</li>
+                        </ul>
+                    </div>
+
+                    <div class="text-center mt-4">
+                        <a href="{% url 'home' %}" class="text-decoration-none text-muted small fw-semibold">
+                            &larr; Quay lại Trang Chủ
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const input = document.getElementById('examCodeInput');
+    if (!input) return;
+
+    // Chỉ cho phép nhập số
+    input.addEventListener('input', function(e) {
+        this.value = this.value.replace(/\D/g, '');
+        // Tự động submit khi đã nhập đủ 6 số
+        if (this.value.length === 6) {
+            document.getElementById('enterCodeForm').submit();
+        }
+    });
+
+    // Paste handler
+    input.addEventListener('paste', function(e) {
+        e.preventDefault();
+        const pasteData = (e.clipboardData || window.clipboardData).getData('text');
+        const digitsOnly = pasteData.replace(/\D/g, '').substring(0, 6);
+        this.value = digitsOnly;
+        if (this.value.length === 6) {
+            document.getElementById('enterCodeForm').submit();
+        }
+    });
+});
+</script>
+{% endblock %}

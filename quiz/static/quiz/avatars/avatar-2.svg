@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bg2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ec4899"/>
+      <stop offset="100%" stop-color="#be185d"/>
+    </linearGradient>
+  </defs>
+  <rect width="120" height="120" rx="60" fill="url(#bg2)"/>
+  <path d="M30 60 C26 75, 26 95, 36 108 L45 80 Z" fill="#78350f"/>
+  <path d="M90 60 C94 75, 94 95, 84 108 L75 80 Z" fill="#78350f"/>
+  <path d="M25 120 C25 90, 45 80, 60 80 C75 80, 95 90, 95 120 Z" fill="#0f172a"/>
+  <path d="M50 80 L60 98 L70 80 Z" fill="#fdf2f8"/>
+  <circle cx="60" cy="55" r="24" fill="#ffedd5"/>
+  <path d="M36 50 C36 28, 84 28, 84 50 C80 38, 40 38, 36 50 Z" fill="#78350f"/>
+  <circle cx="49" cy="53" r="2.5" fill="#1e293b"/>
+  <circle cx="71" cy="53" r="2.5" fill="#1e293b"/>
+  <path d="M45 48 Q49 46 53 48" stroke="#78350f" stroke-width="1.8" fill="none"/>
+  <path d="M67 48 Q71 46 75 48" stroke="#78350f" stroke-width="1.8" fill="none"/>
+  <circle cx="44" cy="59" r="4" fill="#f43f5e" opacity="0.4"/>
+  <circle cx="76" cy="59" r="4" fill="#f43f5e" opacity="0.4"/>
+  <path d="M54 64 Q60 70 66 64" stroke="#e11d48" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+  <polygon points="60,20 98,33 60,43 22,33" fill="#1e1b4b"/>
+  <circle cx="60" cy="31" r="3" fill="#fbbf24"/>
+  <path d="M60 31 Q76 33 80 48" stroke="#fbbf24" stroke-width="2.5" fill="none"/>
+  <rect x="78" y="48" width="4" height="7" rx="1" fill="#f59e0b"/>
+</svg>

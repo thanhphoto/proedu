@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bg15" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0d9488"/>
+      <stop offset="100%" stop-color="#115e59"/>
+    </linearGradient>
+  </defs>
+  <rect width="120" height="120" rx="60" fill="url(#bg15)"/>
+  <!-- Hair Bun -->
+  <circle cx="60" cy="26" r="12" fill="#451a03"/>
+  <!-- Dress / Shirt -->
+  <path d="M25 120 C25 90, 45 80, 60 80 C75 80, 95 90, 95 120 Z" fill="#134e4a"/>
+  <path d="M48 80 L60 96 L72 80 Z" fill="#ccfbf1"/>
+  <!-- Face -->
+  <circle cx="60" cy="55" r="24" fill="#ffedd5"/>
+  <!-- Hair front -->
+  <path d="M36 50 C36 30, 84 30, 84 50 C76 38, 44 38, 36 50 Z" fill="#451a03"/>
+  <!-- Glasses -->
+  <rect x="42" y="50" width="13" height="9" rx="2.5" fill="none" stroke="#b45309" stroke-width="2"/>
+  <rect x="65" y="50" width="13" height="9" rx="2.5" fill="none" stroke="#b45309" stroke-width="2"/>
+  <line x1="55" y1="54" x2="65" y2="54" stroke="#b45309" stroke-width="2"/>
+  <circle cx="48.5" cy="54.5" r="2" fill="#0f172a"/>
+  <circle cx="71.5" cy="54.5" r="2" fill="#0f172a"/>
+  <circle cx="43" cy="62" r="3" fill="#f43f5e" opacity="0.4"/>
+  <circle cx="77" cy="62" r="3" fill="#f43f5e" opacity="0.4"/>
+  <path d="M54 66 Q60 70 66 66" stroke="#be123c" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+</svg>

@@ -1,0 +1,465 @@
+{% extends 'quiz/base.html' %}
+{% load static %}
+
+{% block extra_css %}
+<style>
+    .editor-container {
+        height: 600px;
+        border: 1px solid #dee2e6;
+        border-radius: 4px;
+        overflow: hidden;
+    }
+    .problem-description {
+        height: 600px;
+        overflow-y: auto;
+        padding-right: 15px;
+    }
+    .console-output {
+        background-color: #1e1e1e;
+        color: #d4d4d4;
+        padding: 15px;
+        border-radius: 4px;
+        font-family: 'Courier New', Courier, monospace;
+        min-height: 150px;
+        max-height: 300px;
+        overflow-y: auto;
+        white-space: pre-wrap;
+    }
+    .testcase-result {
+        margin-bottom: 10px;
+        padding: 10px;
+        border-radius: 4px;
+    }
+    .testcase-pass {
+        background-color: #d4edda;
+        border-left: 4px solid #28a745;
+    }
+    .testcase-fail {
+        background-color: #f8d7da;
+        border-left: 4px solid #dc3545;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    {% if attempt %}
+    <div class="alert alert-info d-flex justify-content-between align-items-center mb-3 py-2 shadow-sm">
+        <div>
+            <i class="fas fa-trophy text-warning"></i> Đang làm kỳ thi: <strong>{{ question.exam.title }}</strong>
+            <button class="btn btn-sm btn-link text-info ms-2 p-0" data-bs-toggle="modal" data-bs-target="#examInfoModal">
+                (Thông tin)
+            </button>
+        </div>
+        {% if remaining_time != None %}
+        <div class="fs-5 fw-bold text-danger">
+            <i class="fas fa-clock"></i> <span id="exam-timer">--:--:--</span>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+    <div class="row">
+        <!-- Đề bài -->
+        <div class="col-md-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">{{ question.title }}</h5>
+                    {% if question.exam_id %}
+                    <a href="{% url 'coding_exam_detail' question.exam_id %}" class="btn btn-sm btn-outline-secondary"><i class="fas fa-arrow-left"></i> Bỏ qua / Trở lại</a>
+                    {% else %}
+                    <a href="{% url 'coding_list' %}" class="btn btn-sm btn-outline-secondary"><i class="fas fa-arrow-left"></i> Trở lại</a>
+                    {% endif %}
+                </div>
+                <div class="card-body problem-description">
+                    <div class="mb-3">
+                        <span class="badge bg-primary">Thời gian: {{ question.time_limit }}s</span>
+                        <span class="badge bg-info">Bộ nhớ: {{ question.memory_limit }}MB</span>
+                        {% if question.past_exam %}
+                        <span class="badge bg-warning text-dark"><i class="fas fa-trophy"></i> {{ question.past_exam }}</span>
+                        {% endif %}
+                    </div>
+                    <hr>
+                    <div class="description-content">
+                        {{ question.description|linebreaks }}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Code Editor -->
+        <div class="col-md-8">
+            <div class="card shadow-sm mb-3">
+                <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                    <div class="d-flex align-items-center">
+                        <label for="languageSelect" class="me-2 mb-0 fw-bold">Ngôn ngữ:</label>
+                        <select id="languageSelect" class="form-select form-select-sm" style="width: auto;">
+                            <option value="python" selected>Python 3</option>
+                            <option value="cpp">C++ (GCC)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <button id="btnSubmit" class="btn btn-primary btn-lg">
+                        {% if latest_submission %}
+                        <i class="fas fa-play"></i> Nộp lại bài
+                        {% else %}
+                        <i class="fas fa-play"></i> Chạy Code & Nộp Bài
+                        {% endif %}
+                    </button>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    <div id="editor" class="editor-container"></div>
+                </div>
+            </div>
+
+            <!-- Kết quả chạy -->
+            <div class="card shadow-sm" id="resultCard" style="display: none;">
+                <div class="card-header bg-white fw-bold">
+                    Kết quả thực thi: <span id="overallStatus" class="badge bg-secondary">Đang chạy...</span>
+                </div>
+                <div class="card-body">
+                    <div id="loadingIndicator" class="text-center py-3">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p class="mt-2 mb-0 text-muted">Đang chấm điểm qua hệ thống an toàn...</p>
+                    </div>
+                    <div id="resultsContainer" style="display: none;">
+                        <h6 class="mb-3">Điểm số: <span id="scoreDisplay" class="text-primary fw-bold">0</span> <small class="text-muted">(Đúng <span id="passedDisplay">0</span>/<span id="totalDisplay">0</span> testcases)</small></h6>
+                        
+                        <div class="table-responsive mt-3">
+                            <table class="table table-bordered table-hover mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th width="15%">Test</th>
+                                        <th width="70%">Trạng thái</th>
+                                        <th width="15%" class="text-end">Chi tiết</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="testcaseTableBody">
+                                    <!-- Rows được render động -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Comments Section -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-white fw-bold">
+                    <i class="fas fa-comments"></i> Bình luận ({{ comments.count|default:0 }})
+                </div>
+                <div class="card-body">
+                    {% if user.is_authenticated %}
+                        <form method="post" action="{% url 'add_coding_comment' question.id %}" class="mb-4">
+                            {% csrf_token %}
+                            <div class="mb-3">
+                                <textarea name="content" class="form-control" rows="3" placeholder="Viết bình luận của bạn..." required></textarea>
+                            </div>
+                            <button type="submit" class="btn btn-primary"><i class="fas fa-paper-plane"></i> Gửi bình luận</button>
+                        </form>
+                    {% else %}
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle"></i> Vui lòng <a href="{% url 'login' %}">đăng nhập</a> để tham gia bình luận.
+                        </div>
+                    {% endif %}
+
+                    <div class="comments-list">
+                        {% for comment in comments %}
+                            <div class="d-flex mb-3 pb-3 border-bottom">
+                                <div class="flex-shrink-0">
+                                    <img src="{{ comment.user.profile.avatar_url|default:'/static/quiz/avatars/avatar-1.svg' }}" class="rounded-circle" width="48" height="48" alt="Avatar">
+                                </div>
+                                <div class="flex-grow-1 ms-3">
+                                    <h6 class="mb-1 fw-bold">{{ comment.user.get_full_name|default:comment.user.username }} <small class="text-muted fw-normal ms-2">{{ comment.created_at|date:"d/m/Y H:i" }}</small></h6>
+                                    <div class="text-break">{{ comment.content|linebreaksbr }}</div>
+                                </div>
+                            </div>
+                        {% empty %}
+                            <p class="text-muted">Chưa có bình luận nào. Hãy là người đầu tiên bình luận!</p>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Chi Tiết Lỗi -->
+<div class="modal fade" id="errorDetailModal" tabindex="-1" aria-labelledby="errorDetailModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="errorDetailModalLabel"><i class="fas fa-exclamation-triangle text-danger"></i> Chi tiết lỗi</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row">
+            <div class="col-md-6 mb-3">
+                <strong>Đầu ra của bạn:</strong>
+                <pre id="modalYourOutput" class="console-output mt-1 bg-light border p-2 small" style="min-height: 100px;"></pre>
+            </div>
+            <div class="col-md-6 mb-3">
+                <strong>Đầu ra mong đợi:</strong>
+                <pre id="modalExpectedOutput" class="console-output mt-1 bg-light border p-2 small" style="min-height: 100px;"></pre>
+            </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- Tải Monaco Editor từ CDN -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.38.0/min/vs/loader.min.js"></script>
+<script>
+    const INITIAL_CODE_PYTHON = `{{ question.initial_code_python|escapejs }}`;
+    const INITIAL_CODE_CPP = `{{ question.initial_code_cpp|escapejs }}`;
+    const SUBMIT_API_URL = "{% url 'submit_code_api' question.id %}";
+    const CSRF_TOKEN = "{{ csrf_token }}";
+
+    const HAS_SUBMISSION = "{{ latest_submission|yesno:'true,false' }}" === "true";
+    const SUBMITTED_CODE = `{{ latest_submission.code|escapejs|default:'' }}`;
+    const SUBMITTED_LANG = "{{ latest_submission.language|default:'python' }}";
+
+    let editor;
+
+    require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.38.0/min/vs' }});
+    require(['vs/editor/editor.main'], function() {
+        let initialLang = HAS_SUBMISSION ? SUBMITTED_LANG : 'python';
+        let initialVal = HAS_SUBMISSION ? SUBMITTED_CODE : (INITIAL_CODE_PYTHON || "# Viết code Python của bạn ở đây\n");
+
+        document.getElementById('languageSelect').value = initialLang;
+
+        editor = monaco.editor.create(document.getElementById('editor'), {
+            value: initialVal,
+            language: initialLang,
+            theme: 'vs-dark',
+            automaticLayout: true,
+            fontSize: 14,
+            minimap: { enabled: false }
+        });
+
+        // Xử lý đổi ngôn ngữ
+        document.getElementById('languageSelect').addEventListener('change', function(e) {
+            const lang = e.target.value;
+            const model = editor.getModel();
+            
+            if (lang === 'python') {
+                monaco.editor.setModelLanguage(model, 'python');
+                if (HAS_SUBMISSION && SUBMITTED_LANG === 'python') {
+                    editor.setValue(SUBMITTED_CODE);
+                } else if (INITIAL_CODE_PYTHON) {
+                    editor.setValue(INITIAL_CODE_PYTHON);
+                } else if (!editor.getValue().trim() || editor.getValue().includes("# Viết code C++")) {
+                    editor.setValue("# Viết code Python của bạn ở đây\n");
+                }
+            } else if (lang === 'cpp') {
+                monaco.editor.setModelLanguage(model, 'cpp');
+                if (HAS_SUBMISSION && SUBMITTED_LANG === 'cpp') {
+                    editor.setValue(SUBMITTED_CODE);
+                } else if (INITIAL_CODE_CPP) {
+                    editor.setValue(INITIAL_CODE_CPP);
+                } else if (!editor.getValue().trim() || editor.getValue().includes("# Viết code Python")) {
+                    editor.setValue("// Viết code C++ của bạn ở đây\n#include <iostream>\nusing namespace std;\n\nint main() {\n    return 0;\n}\n");
+                }
+            }
+        });
+
+        // Nút nộp bài
+        document.getElementById('btnSubmit').addEventListener('click', function() {
+            submitCode();
+        });
+
+        // Hiển thị kết quả cũ nếu có
+        const detailsJson = {{ details_json|safe }};
+        if (HAS_SUBMISSION && detailsJson !== null) {
+            const initialResults = {
+                status: "{{ latest_submission.status }}",
+                score: {{ latest_submission.score|default:"0" }},
+                passed_count: {{ latest_submission_passed_count|default:"0" }},
+                total_testcases: {{ question.testcases.count|default:"0" }},
+                results: detailsJson
+            };
+            displayResults(initialResults);
+        }
+    });
+
+    function submitCode() {
+        const code = editor.getValue();
+        const language = document.getElementById('languageSelect').value;
+        const btnSubmit = document.getElementById('btnSubmit');
+        
+        if (!code.trim()) {
+            alert("Code không được để trống!");
+            return;
+        }
+
+        btnSubmit.disabled = true;
+        btnSubmit.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang xử lý...';
+        
+        document.getElementById('resultCard').style.display = 'block';
+        document.getElementById('loadingIndicator').style.display = 'block';
+        document.getElementById('resultsContainer').style.display = 'none';
+        
+        fetch(SUBMIT_API_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': CSRF_TOKEN
+            },
+            body: JSON.stringify({ code: code, language: language })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                alert("Lỗi: " + data.error);
+                return;
+            }
+            displayResults(data);
+        })
+        .catch(err => {
+            console.error(err);
+            alert("Lỗi kết nối tới máy chủ chấm bài.");
+        })
+        .finally(() => {
+            btnSubmit.disabled = false;
+            btnSubmit.innerHTML = HAS_SUBMISSION ? '<i class="fas fa-play"></i> Nộp lại bài' : '<i class="fas fa-play"></i> Chạy Code & Nộp Bài';
+            document.getElementById('loadingIndicator').style.display = 'none';
+        });
+    }
+
+    function displayResults(data) {
+        document.getElementById('resultCard').style.display = 'block';
+        document.getElementById('loadingIndicator').style.display = 'none';
+        document.getElementById('resultsContainer').style.display = 'block';
+        
+        // Trạng thái tổng
+        const overallBadge = document.getElementById('overallStatus');
+        overallBadge.innerText = data.status;
+        overallBadge.className = 'badge ' + getBadgeClassForStatus(data.status);
+        
+        // Điểm
+        document.getElementById('scoreDisplay').innerText = Number(data.score).toFixed(2);
+        document.getElementById('passedDisplay').innerText = data.passed_count;
+        document.getElementById('totalDisplay').innerText = data.total_testcases;
+
+        // Render Table Rows
+        const tbody = document.getElementById('testcaseTableBody');
+        tbody.innerHTML = '';
+        window.tcResults = data.results;
+
+        if (data.results && data.results.length > 0) {
+            data.results.forEach((tc, index) => {
+                const tr = document.createElement('tr');
+                let actionHtml = '';
+                
+                if (tc.status !== 'Accepted' && !tc.is_hidden) {
+                    actionHtml = '<button class="btn btn-sm btn-outline-primary" type="button" onclick="showErrorModal(' + index + ')"><i class="fas fa-search"></i> Xem chi tiết</button>';
+                } else if (tc.is_hidden) {
+                    actionHtml = '<span class="text-muted small"><i class="fas fa-lock"></i> Đã ẩn</span>';
+                }
+
+                tr.innerHTML = '<td><strong>#' + (index + 1) + '</strong></td>' +
+                               '<td><span class="badge ' + getBadgeClassForStatus(tc.status) + '">' + tc.status + '</span>' + 
+                               (tc.time !== undefined ? '<small class="text-muted ms-2" style="font-size: 0.8em;"><i class="fas fa-clock"></i> ' + Number(tc.time).toFixed(3) + 's</small>' : '') + '</td>' +
+                               '<td class="text-end">' + actionHtml + '</td>';
+                
+                tbody.appendChild(tr);
+            });
+        }
+    }
+
+    function showErrorModal(index) {
+        if (!window.tcResults || !window.tcResults[index]) return;
+        const tc = window.tcResults[index];
+        document.getElementById('modalYourOutput').innerText = tc.output || '(Không có)';
+        document.getElementById('modalExpectedOutput').innerText = tc.expected || '(Không có)';
+        const modal = new bootstrap.Modal(document.getElementById('errorDetailModal'));
+        modal.show();
+    }
+
+    function getBadgeClassForStatus(status) {
+        switch(status) {
+            case 'Accepted': return 'bg-success';
+            case 'Wrong Answer': return 'bg-danger';
+            case 'Time Limit Exceeded': return 'bg-warning text-dark';
+            case 'Compilation Error': return 'bg-secondary';
+            case 'Runtime Error': return 'bg-danger';
+            default: return 'bg-dark';
+        }
+    }
+</script>
+
+<!-- MathJax -->
+<script>
+    MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']],
+        displayMath: [['$$', '$$'], ['\\[', '\\]']]
+      }
+    };
+</script>
+<script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
+{% if attempt %}
+<!-- Exam Info Modal -->
+<div class="modal fade" id="examInfoModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header bg-primary text-white">
+        <h5 class="modal-title"><i class="fas fa-info-circle"></i> Thông tin kỳ thi</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <h5>{{ question.exam.title }}</h5>
+        <p><strong>Thời gian làm bài:</strong> {% if question.exam.duration > 0 %}{{ question.exam.duration }} phút{% else %}Không giới hạn{% endif %}</p>
+        <hr>
+        <div>
+            {{ question.exam.description|linebreaksbr }}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% if remaining_time != None %}
+<script>
+    let remainingTime = Number("{{ remaining_time|default:0 }}");
+    const timerEl = document.getElementById('exam-timer');
+    const submitBtn = document.getElementById('btnSubmit');
+    
+    if (remainingTime <= 0) {
+        timerEl.textContent = "00:00:00 (Đã hết giờ)";
+        if (submitBtn) submitBtn.disabled = true;
+    } else {
+        const interval = setInterval(() => {
+            if (remainingTime <= 0) {
+                clearInterval(interval);
+                timerEl.textContent = "00:00:00 (Đã hết giờ)";
+                if (submitBtn) submitBtn.disabled = true;
+                return;
+            }
+            
+            let h = Math.floor(remainingTime / 3600);
+            let m = Math.floor((remainingTime % 3600) / 60);
+            let s = remainingTime % 60;
+            timerEl.textContent = 
+                (h < 10 ? "0" + h : h) + ":" + 
+                (m < 10 ? "0" + m : m) + ":" + 
+                (s < 10 ? "0" + s : s);
+                
+            remainingTime--;
+        }, 1000);
+    }
+</script>
+{% endif %}
+{% endif %}
+{% endblock %}

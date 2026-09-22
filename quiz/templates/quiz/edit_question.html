@@ -1,0 +1,157 @@
+{% extends 'quiz/base.html' %}
+
+{% block title %}Sửa Câu Hỏi - SmartQuiz Pro{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="p-4 mb-4 rounded-4 text-white shadow-sm" style="background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);">
+        <h2 class="fw-bold mb-2">✏️ Sửa Câu Hỏi #{{ question.id }}</h2>
+        <p class="mb-0 opacity-90">Chỉnh sửa nội dung, độ khó, chủ đề và đáp án cho câu hỏi đã lưu trong ngân hàng.</p>
+    </div>
+
+    <form id="editQuestionForm" method="post" enctype="multipart/form-data" class="bg-light p-4 rounded-4 shadow-sm">
+        {% csrf_token %}
+        {{ form.non_field_errors }}
+        <div class="mb-3">
+            {{ form.question_text.label_tag }}
+            {{ form.question_text }}
+            {{ form.question_text.errors }}
+        </div>
+        <div class="row g-3 mb-3">
+            <div class="col-md-4">
+                {{ form.difficulty.label_tag }}
+                {{ form.difficulty }}
+                {{ form.difficulty.errors }}
+            </div>
+            <div class="col-md-4">
+                {{ form.topic.label_tag }}
+                {{ form.topic }}
+                {{ form.topic.errors }}
+            </div>
+            <div class="col-md-4">
+                {{ form.question_type.label_tag }}
+                {{ form.question_type }}
+                {{ form.question_type.errors }}
+            </div>
+        </div>
+        {% if form.exact_numeric_answer %}
+        <div class="mb-3">
+            {{ form.exact_numeric_answer.label_tag }}
+            {{ form.exact_numeric_answer }}
+            {{ form.exact_numeric_answer.errors }}
+        </div>
+        {% endif %}
+        <h5 class="fw-bold mt-4 mb-3">Các Phương Án Đáp Án</h5>
+        {{ formset.management_form }}
+        <div class="row g-3">
+            {% for f in formset %}
+            <div class="col-md-6">
+                <div class="border rounded-3 p-3 mb-2 bg-white">
+                    {{ f.id }}
+                    {{ f.choice_text.label_tag }}
+                    {{ f.choice_text }}
+                    {{ f.choice_text.errors }}
+                    <div class="form-check mt-2">
+                        {{ f.is_correct }}
+                        {{ f.is_correct.label_tag }}
+                        {{ f.is_correct.errors }}
+                    </div>
+                    {% if f.can_delete %}
+                    <div class="form-check mt-2">
+                        {{ f.DELETE }}
+                        <label class="form-check-label">Xóa</label>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        <div class="d-flex justify-content-end gap-3 mt-4">
+            <a href="{% url 'import_word' %}" class="btn btn-outline-secondary">⟵ Quay lại</a>
+            <button type="submit" class="btn btn-success fw-bold" id="btnSaveEdit">💾 Lưu Thay Đổi</button>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('editQuestionForm');
+
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+
+        // Show loading
+        Swal.fire({
+            title: 'Đang lưu...',
+            html: 'Vui lòng chờ trong giây lát',
+            allowOutsideClick: false,
+            allowEscapeKey: false,
+            didOpen: () => {
+                Swal.showLoading();
+            }
+        });
+
+        const formData = new FormData(form);
+
+        fetch(form.action || window.location.href, {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(response => response.json().then(data => ({status: response.status, body: data})))
+        .then(({status, body}) => {
+            if (body.status === 'success') {
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Thành công!',
+                    text: body.message,
+                    confirmButtonText: 'Quay lại danh sách',
+                    confirmButtonColor: '#4f46e5',
+                    showCancelButton: true,
+                    cancelButtonText: 'Tiếp tục chỉnh sửa',
+                    cancelButtonColor: '#6c757d',
+                    timer: 5000,
+                    timerProgressBar: true,
+                }).then((result) => {
+                    if (result.isConfirmed || result.dismiss === Swal.DismissReason.timer) {
+                        window.location.href = "{% url 'import_word' %}";
+                    }
+                });
+            } else {
+                let errorHtml = '<ul class="text-start mb-0" style="list-style: disc; padding-left: 1.5rem;">';
+                if (body.errors && body.errors.length) {
+                    body.errors.forEach(err => {
+                        errorHtml += `<li>${err}</li>`;
+                    });
+                } else {
+                    errorHtml += `<li>${body.message}</li>`;
+                }
+                errorHtml += '</ul>';
+
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Lỗi!',
+                    html: errorHtml,
+                    confirmButtonText: 'Đóng',
+                    confirmButtonColor: '#dc3545',
+                });
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            Swal.fire({
+                icon: 'error',
+                title: 'Lỗi kết nối!',
+                text: 'Không thể kết nối đến máy chủ. Vui lòng thử lại.',
+                confirmButtonText: 'Đóng',
+                confirmButtonColor: '#dc3545',
+            });
+        });
+    });
+});
+</script>
+{% endblock %}

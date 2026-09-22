@@ -1,0 +1,2769 @@
+{% extends 'quiz/grading/layout.html' %}
+
+{% block grading_title %}Giao Diện Chấm Bài Trắc Nghiệm Hàng Loạt{% endblock %}
+
+{% block extra_head %}
+{{ block.super }}
+<!-- Cropper.js CSS & JS for Rotation & Interactive Cropping -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
+<script>
+    window.subjectConfig = {
+        num_single: parseInt("{{ selected_subject.num_single|default_if_none:24 }}"),
+        num_tf: parseInt("{{ selected_subject.num_tf|default_if_none:4 }}"),
+        num_numeric: parseInt("{{ selected_subject.num_numeric|default_if_none:6 }}")
+    };
+    if (isNaN(window.subjectConfig.num_single)) window.subjectConfig.num_single = 24;
+    if (isNaN(window.subjectConfig.num_tf)) window.subjectConfig.num_tf = 4;
+    if (isNaN(window.subjectConfig.num_numeric)) window.subjectConfig.num_numeric = 6;
+</script>
+<style>
+    .optical-sheet-container {
+        background: #ffffff;
+        border-radius: 1.25rem;
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.08);
+        border: 2px solid #e2e8f0;
+        position: relative;
+    }
+    .sheet-header-border {
+        border-bottom: 2px dashed #cbd5e1;
+    }
+    .bubble-opt {
+        width: 25px;
+        height: 25px;
+        border-radius: 50%;
+        border: 2px solid #94a3b8;
+        background: #ffffff;
+        color: #334155;
+        font-weight: 800;
+        font-size: 0.7rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.12s cubic-bezier(0.4, 0, 0.2, 1);
+        user-select: none;
+    }
+    .bubble-opt:hover {
+        border-color: #2563eb;
+        background: #eff6ff;
+        color: #1d4ed8;
+        transform: scale(1.08);
+    }
+    /* ======================================================= */
+    /* ĐỊNH NGHĨA CLASS .selected & THUỘC TÍNH [selected] CHO PHIẾU ĐIỆN TỬ */
+    /* ======================================================= */
+    .selected,
+    [selected],
+    [data-selected="true"] {
+        background-color: #1e3a8a !important;
+        border-color: #1e3a8a !important;
+        color: #ffffff !important;
+        box-shadow: 0 3px 8px rgba(30, 58, 138, 0.35) !important;
+    }
+
+    /* 1. Nút trắc nghiệm phần 1 (Single choose) */
+    .bubble-opt.selected,
+    .bubble-opt[selected],
+    .bubble-opt[data-selected="true"] {
+        background-color: #1e3a8a !important;
+        border-color: #1e3a8a !important;
+        color: #ffffff !important;
+        box-shadow: 0 4px 10px rgba(30, 58, 138, 0.4) !important;
+        transform: scale(1.06);
+    }
+
+    /* 2. Khi phương án đã chọn ĐÚNG (Màu xanh lá) */
+    .bubble-opt.is-correct,
+    .bubble-opt.selected.is-correct,
+    .bubble-opt.is-correct.selected,
+    .bubble-opt.is-correct[selected],
+    .bubble-opt.is-correct[data-selected="true"],
+    .sheet-tf-btn.is-correct,
+    .sheet-tf-btn.selected.is-correct,
+    .sheet-tf-btn.is-correct.selected,
+    .num-matrix-bubble.is-correct,
+    .num-matrix-bubble.selected.is-correct,
+    .num-matrix-bubble.is-correct.selected {
+        background-color: #16a34a !important;
+        border-color: #15803d !important;
+        color: #ffffff !important;
+        box-shadow: 0 4px 10px rgba(22, 163, 74, 0.5) !important;
+        transform: scale(1.06);
+    }
+
+    /* 3. Khi phương án đã chọn SAI (Màu đỏ) */
+    .bubble-opt.is-wrong,
+    .bubble-opt.selected.is-wrong,
+    .bubble-opt.is-wrong.selected,
+    .bubble-opt.is-wrong[selected],
+    .bubble-opt.is-wrong[data-selected="true"],
+    .sheet-tf-btn.is-wrong,
+    .sheet-tf-btn.selected.is-wrong,
+    .sheet-tf-btn.is-wrong.selected,
+    .num-matrix-bubble.is-wrong,
+    .num-matrix-bubble.selected.is-wrong,
+    .num-matrix-bubble.is-wrong.selected {
+        background-color: #dc2626 !important;
+        border-color: #b91c1c !important;
+        color: #ffffff !important;
+        box-shadow: 0 4px 10px rgba(220, 38, 38, 0.5) !important;
+        transform: scale(1.06);
+    }
+
+    /* 4. Đáp án chuẩn của đề khi học sinh làm sai (Màu xanh lam nét đứt) */
+    .bubble-opt.is-key-correct,
+    .sheet-tf-btn.is-key-correct,
+    .num-matrix-bubble.is-key-correct {
+        background-color: #0284c7 !important;
+        border-color: #0369a1 !important;
+        color: #ffffff !important;
+        box-shadow: 0 3px 8px rgba(2, 132, 199, 0.5) !important;
+        outline: 2px dashed #38bdf8;
+        outline-offset: 2px;
+    }
+
+    .sheet-tf-btn {
+        width: 25px;
+        height: 25px;
+        border-radius: 50%;
+        border: 2px solid #94a3b8;
+        background: #ffffff;
+        color: #475569;
+        font-weight: 800;
+        font-size: 0.7rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.12s ease;
+    }
+    .sheet-tf-btn.selected,
+    .sheet-tf-btn[selected],
+    .sheet-tf-btn[data-selected="true"] {
+        background-color: #1e3a8a !important;
+        border-color: #1e3a8a !important;
+        color: #ffffff !important;
+    }
+    .sheet-tf-btn.active-true {
+        background: #15803d;
+        border-color: #15803d;
+        color: #ffffff;
+        box-shadow: 0 2px 8px rgba(21, 128, 61, 0.3);
+    }
+    .sheet-tf-btn.active-false {
+        background: #b91c1c;
+        border-color: #b91c1c;
+        color: #ffffff;
+        box-shadow: 0 2px 8px rgba(185, 28, 28, 0.3);
+    }
+
+    .score-circle {
+        width: 130px;
+        height: 130px;
+        border-radius: 50%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto;
+        border: 5px solid #2563eb;
+        background: #eff6ff;
+    }
+
+    .batch-thumb-item {
+        width: 110px;
+        min-height: 115px;
+        border-radius: 10px;
+        border: 2px dashed #94a3b8;
+        background: #f8fafc;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        padding: 6px;
+        flex-shrink: 0;
+    }
+    .batch-thumb-item:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px -2px rgba(0, 0, 0, 0.12);
+    }
+    .batch-thumb-item.thumb-valid {
+        border: 3px solid #198754 !important;
+        background-color: #f0fdf4 !important;
+    }
+    .batch-thumb-item.thumb-error {
+        border: 3px solid #dc3545 !important;
+        background-color: #fef2f2 !important;
+    }
+    .batch-thumb-item.active-thumb {
+        outline: 3px solid #2563eb !important;
+        outline-offset: 2px;
+        box-shadow: 0 0 12px rgba(37, 99, 235, 0.35) !important;
+    }
+
+    @media (min-width: 992px) {
+        .col-queue-4 {
+            flex: 0 0 40% !important;
+            max-width: 40% !important;
+        }
+        .col-editor-6 {
+            flex: 0 0 60% !important;
+            max-width: 60% !important;
+        }
+    }
+
+    #batchThumbnails {
+        overflow-y: auto !important;
+        overflow-x: hidden !important;
+        scrollbar-width: thin;
+        max-height: 520px;
+    }
+    #batchThumbnails::-webkit-scrollbar {
+        width: 6px;
+    }
+    #batchThumbnails::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+        border-radius: 3px;
+    }
+
+    #imgPreviewOrigContainer {
+        user-select: none;
+        cursor: grab;
+    }
+    #imgPreviewOrigContainer.dragging {
+        cursor: grabbing;
+    }
+    #imgZoomWrapper {
+        display: inline-block;
+        transform-origin: top left;
+        transition: transform 0.15s ease;
+    }
+
+    .num-matrix-bubble {
+        width: 23px;
+        height: 23px;
+        border-radius: 50%;
+        border: 1px solid #cbd5e1;
+        background: #ffffff;
+        color: #334155;
+        font-weight: 700;
+        font-size: 0.72rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        user-select: none;
+        transition: all 0.1s ease;
+    }
+    .num-matrix-bubble:hover {
+        border-color: #0284c7;
+        background: #e0f2fe;
+        color: #0369a1;
+    }
+    .num-matrix-bubble.selected,
+    .num-matrix-bubble[selected],
+    .num-matrix-bubble[data-selected="true"] {
+        background-color: #0284c7 !important;
+        border-color: #0284c7 !important;
+        color: #ffffff !important;
+        box-shadow: 0 2px 6px rgba(2, 132, 199, 0.4) !important;
+        transform: scale(1.08);
+    }
+</style>
+{% endblock %}
+
+{% block grading_content %}
+<!-- TOP SELECTION ROW -->
+{% if selected_subject %}
+<div class="card border-0 shadow-sm rounded-4 mb-4 bg-white">
+    <div class="card-body p-3 d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+        <div>
+            <div class="d-flex align-items-center gap-2 mb-1">
+                <span class="badge bg-primary font-monospace fs-6 px-3 py-1 rounded-pill">Mã: {{ selected_subject.code }}</span>
+                <span class="badge bg-light text-secondary border rounded-pill">{{ selected_subject.exam_period.name }}</span>
+            </div>
+            <h4 class="fw-bold mb-0 text-dark">📚 Đang Chấm Môn Thi: {{ selected_subject.name }}</h4>
+        </div>
+        <div class="d-flex align-items-center flex-wrap gap-2">
+            <a href="{% url 'subject_workspace_view' selected_subject.id %}" class="btn btn-outline-secondary rounded-pill px-4 fw-semibold shadow-sm">
+                ⬅ Quay lại Workspace
+            </a>
+            <!-- Giữ lại thẻ select ẩn để không gây lỗi JS -->
+            <select id="selectExamKey" class="d-none" onchange="loadExamKey(this.value)">
+                <option value="">-- Chọn Mã Đề --</option>
+                {% for k in subject_keys %}
+                <option value="{{ k.id }}" {% if selected_key_id == k.id|stringformat:"s" %}selected{% endif %}>
+                    Đề {{ k.code }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+    </div>
+</div>
+{% else %}
+<div class="card border-0 shadow-sm rounded-4 mb-4">
+    <div class="card-header bg-white py-3 px-4 border-bottom">
+        <h5 class="fw-bold mb-0 text-dark">📋 1. Chọn Mã Đề Thi Cần Chấm</h5>
+    </div>
+    <div class="card-body p-4">
+        <div class="row g-3 align-items-end">
+            <div class="col-md-5">
+                <label class="form-label fw-semibold">Kỳ Thi & Môn Thi <span class="text-danger">*</span></label>
+                <select id="selectExamKey" class="form-select rounded-3 py-2 fs-6" onchange="loadExamKey(this.value)">
+                    <option value="">-- Chọn Bộ Đáp Án (Mã Đề) --</option>
+                    {% for p in periods %}
+                        <optgroup label="🏛️ {{ p.name }}">
+                            {% for s in p.subjects.all %}
+                                {% for k in s.grading_keys.all %}
+                                <option value="{{ k.id }}" {% if selected_key_id == k.id|stringformat:"s" %}selected{% endif %}>
+                                    {{ s.name }} &bull; Đề {{ k.code }} ({{ k.questions.count }} câu - {{ k.max_possible_score }}đ)
+                                </option>
+                                {% endfor %}
+                            {% endfor %}
+                        </optgroup>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-4">
+                <div id="keyInfoBox" class="p-2 border rounded-3 bg-light d-none">
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="badge bg-primary fs-6 font-monospace" id="badgeKeyCode">Đề 101</span>
+                        <span class="fw-bold text-dark" id="txtSubjectName">Toán Học</span>
+                    </div>
+                    <div class="small text-muted mt-1">
+                        <span id="txtPeriodName">Kỳ thi</span> &bull; <strong class="text-success" id="txtTotalQuestions">0</strong> câu (<span id="txtMaxScore">10</span>đ)
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 text-md-end">
+                <button type="button" class="btn btn-warning fw-bold text-dark rounded-pill btn-sm px-3 shadow-sm me-2" onclick="reGradeWithAdjustedInfo()">
+                    🔄 Chấm Lại
+                </button>
+                <a href="{% url 'grading_key_create' %}" class="btn btn-outline-primary rounded-pill fw-semibold btn-sm px-3">
+                    ➕ Nhập đề mới
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+
+<!-- BATCH IMAGE LOADER & QUEUE -->
+<div class="card border-0 shadow-sm rounded-4 mb-4" id="uploadCard">
+    <div class="card-header bg-white py-3 px-4 border-bottom d-flex justify-content-between align-items-center">
+        <h5 class="fw-bold mb-0 text-dark">📸 Tải Phiếu Bài Làm Lên</h5>
+        <span class="badge bg-light text-primary border rounded-pill">Hỗ trợ JPG / JPEG / TIFF (chuẩn 150 DPI)</span>
+    </div>
+    <div class="card-body p-4">
+        <!-- Hidden inputs for candidate info compatibility with existing JS -->
+        <input type="hidden" id="inputStudentId" value="">
+        <input type="hidden" id="inputStudentName" value="">
+        <input type="hidden" id="inputStudentClass" value="">
+        <div id="sbdMatchInfo" class="d-none"></div>
+
+        <!-- Hidden classes selector for candidate lookup compatibility -->
+        <div class="d-none" id="classCheckboxWrapper">
+            <input class="form-check-input" type="checkbox" id="checkAllClasses" {% if not assigned_class_ids %}checked{% endif %} onchange="toggleAllClasses(this)">
+            {% for c in classes %}
+            <input class="form-check-input applied-class-cb" type="checkbox" id="cls_{{ c.id }}" value="{{ c.name }}" data-id="{{ c.id }}" 
+                   {% if not assigned_class_ids or c.id in assigned_class_ids %}checked{% endif %} 
+                   onchange="onAppliedClassChange()">
+            {% endfor %}
+        </div>
+
+        <!-- BATCH IMAGE UPLOAD SECTION (JPG / TIFF DPI=150) -->
+        <div class="p-3 bg-light rounded-3 border">
+            <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2 mb-2">
+                <label class="form-label fw-bold mb-0 text-dark d-flex align-items-center gap-2">
+                    📁 Chọn File Ảnh Phiếu Thi (JPG / TIFF Chuẩn 150 DPI):
+                </label>
+                <span class="badge bg-white text-secondary border small">Có thể chọn một hoặc nhiều file ảnh (.jpg, .jpeg, .tif, .tiff)</span>
+            </div>
+            <div class="row g-2 align-items-center">
+                <div class="col-md-8">
+                    <input type="file" id="inputSheetImage" class="form-control rounded-3" 
+                           accept=".jpg, .jpeg, .tif, .tiff, image/jpeg, image/tiff" multiple onchange="uploadBatchImages(this)">
+                </div>
+                <div class="col-md-4 text-md-end">
+                    <span id="imgUploadStatus" class="small text-muted">Chưa chọn file nào</span>
+                </div>
+            </div>
+
+            <!-- CONTAINER 1 HÀNG CHIA LÀM 2: BÊN TRÁI ẢNH CHỜ (4/10) & BÊN PHẢI ẢNH ĐÃ XỬ LÝ (6/10) -->
+            <div id="batchMainRow" class="row g-3 mt-3 d-none">
+                <!-- BÊN TRÁI: HÀNG CHỜ ẢNH (4/10) -->
+                <div class="col-12 col-queue-4">
+                    <div id="batchQueueWrapper" class="p-3 bg-white rounded-3 border h-100 shadow-xs d-flex flex-column">
+                        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2 pb-2 border-bottom">
+                            <div class="small fw-bold text-dark d-flex align-items-center gap-1">
+                                <span>🖼️ Hàng Chờ Ảnh (<span id="batchCount">0</span>):</span>
+                            </div>
+                            <button type="button" class="btn btn-sm btn-primary rounded-pill px-3 fw-semibold shadow-xs d-flex align-items-center gap-1" id="btnBatchGradeAll" onclick="batchGradeAllQueue()" title="Tự động quét và chấm tất cả ảnh trong hàng chờ">
+                                <span>⚡ Quét & Chấm Hết</span>
+                            </button>
+                            <button type="button" class="btn btn-sm btn-success rounded-pill px-3 fw-semibold shadow-xs d-flex align-items-center gap-1" id="btnBatchSaveAll" onclick="batchGradeAllQueue(true)" title="Tự động quét, chấm và lưu tất cả ảnh trong hàng chờ">
+                                <span>💾 Lưu Hàng Loạt</span>
+                            </button>
+                            <!-- Nút thêm phiếu: không reset dữ liệu đã chấm -->
+                            <input type="file" id="inputAddMoreSheets" class="d-none"
+                                   accept=".jpg,.jpeg,.tif,.tiff,image/jpeg,image/tiff" multiple
+                                   onchange="appendBatchImages(this)">
+                            <button type="button" class="btn btn-sm btn-outline-success rounded-pill px-3 fw-semibold d-flex align-items-center gap-1"
+                                    onclick="document.getElementById('inputAddMoreSheets').click()" title="Thêm phiếu mới vào hàng chờ mà không mất bài đã chấm">
+                                ➕ Thêm phiếu
+                            </button>
+                        </div>
+
+                        <!-- THỐNG KÊ TRẠNG THÁI -->
+                        <div class="d-flex flex-wrap gap-1 mb-2">
+                            <span class="badge bg-success-subtle text-success border border-success px-2 py-1 small" id="statValidCount">✓ 0 hợp lệ</span>
+                            <span class="badge bg-danger-subtle text-danger border border-danger px-2 py-1 small" id="statErrorCount">❌ 0 lỗi</span>
+                            <span class="badge bg-secondary-subtle text-secondary border px-2 py-1 small" id="statPendingCount">⏳ 0 chờ</span>
+                        </div>
+
+                        <!-- LIVE BATCH SCAN PROGRESS BAR -->
+                        <div id="batchProgressBarWrapper" class="progress mb-2 d-none" style="height: 6px;">
+                            <div id="batchProgressBar" class="progress-bar progress-bar-striped progress-bar-animated bg-primary" role="progressbar" style="width: 0%;"></div>
+                        </div>
+
+                        <!-- DANH SÁCH THUMBNAILS: CHỨA TRONG KHUNG 4/10 VỚI THANH CUỘN DỌC -->
+                        <div id="batchThumbnails" class="d-flex flex-wrap gap-2 py-2 flex-grow-1 overflow-y-auto" style="max-height: 520px; align-content: flex-start;">
+                            <!-- Thumbnails rendered dynamically -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- BÊN PHẢI: XỬ LÝ ẢNH PHIẾU THI (6/10) -->
+                <div class="col-12 col-editor-6">
+                    <div id="imgEditorWrapper" class="p-3 bg-white rounded-3 border h-100 shadow-xs">
+                        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3 border-bottom pb-2">
+                            <div class="fw-bold text-dark small d-flex align-items-center gap-2">
+                                <span>⚙️ Ảnh Đã Xử Lý:</span>
+                                <span id="currentImageName" class="text-primary font-monospace">---</span>
+                                <span class="badge bg-light text-muted border small">DPI: <span id="txtImgDpi">150</span></span>
+                            </div>
+                            <div class="d-flex flex-wrap align-items-center gap-2">
+                                <!-- ZOOM CONTROLS (PHÓNG TO / THU NHỎ / ĐẶT LẠI) -->
+                                <div class="btn-group btn-group-sm" role="group" aria-label="Zoom controls">
+                                    <button type="button" class="btn btn-outline-secondary" onclick="zoomEditorImage(0.2)" title="Phóng to ảnh">
+                                        🔍+ Phóng to
+                                    </button>
+                                    <button type="button" class="btn btn-outline-secondary" onclick="zoomEditorImage(-0.2)" title="Thu nhỏ ảnh">
+                                        🔍- Thu nhỏ
+                                    </button>
+                                    <button type="button" class="btn btn-outline-secondary" onclick="resetEditorZoom()" title="Kích thước chuẩn (100%)">
+                                        🔄 100%
+                                    </button>
+                                </div>
+                                <span id="txtEditorZoomLevel" class="badge bg-light text-dark border">100%</span>
+
+                                <!-- XOAY & CẮT KHUNG -->
+                                <div class="btn-group btn-group-sm" role="group">
+                                    <button type="button" class="btn btn-outline-secondary px-2" onclick="rotateImage(-90)" title="Xoay Trái 90°">
+                                        🔄 90° Trái
+                                    </button>
+                                    <button type="button" class="btn btn-outline-secondary px-2" onclick="rotateImage(90)" title="Xoay Phải 90°">
+                                        🔄 90° Phải
+                                    </button>
+                                    <button type="button" class="btn btn-outline-secondary px-2" onclick="rotateImage(180)" title="Xoay 180°">
+                                        🔃 180°
+                                    </button>
+                                </div>
+                                <button type="button" id="btnToggleCrop" class="btn btn-sm btn-outline-primary rounded-pill px-3 fw-bold" onclick="toggleCropper()">
+                                    ✂️ Khung Cắt
+                                </button>
+                                <button type="button" class="btn btn-warning fw-bold text-dark rounded-pill px-3 btn-sm shadow-sm d-flex align-items-center gap-1" onclick="reGradeWithAdjustedInfo()" title="Chấm lại theo Mã đề và SBD đã điều chỉnh">
+                                    <span>🔄 Chấm Lại</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- ẢNH BÀI LÀM ĐÃ NHẬN DIỆN & CHẤM ĐIỂM -->
+                        <div class="row g-2">
+                            <div class="col-12 text-center">
+                                <div id="imgPreviewOrigContainer" class="bg-dark bg-opacity-10 rounded p-2" style="max-height: 520px; min-height: 420px; overflow: auto; position: relative; cursor: grab;">
+                                    <div id="imgZoomWrapper" style="display: inline-block; transform-origin: top left;">
+                                        <img id="imgPreviewOrig" class="rounded shadow-sm" style="display: block; max-width: none;">
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- Hidden binary threshold preview to avoid breaking JS references -->
+                            <img id="imgPreviewThresh" class="d-none">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+
+<style>
+/* Đảm bảo class selected luôn hiển thị nổi bật trên phiếu trả lời điện tử */
+.selected, [selected], [data-selected="true"] {
+    background-color: #1e3a8a !important;
+    border-color: #1e3a8a !important;
+    color: #ffffff !important;
+    box-shadow: 0 3px 8px rgba(30, 58, 138, 0.35) !important;
+}
+.bubble-opt.selected, .bubble-opt[selected], .bubble-opt[data-selected="true"] {
+    background-color: #1e3a8a !important;
+    border-color: #1e3a8a !important;
+    color: #ffffff !important;
+    box-shadow: 0 4px 10px rgba(30, 58, 138, 0.4) !important;
+    transform: scale(1.06);
+}
+.bubble-opt.is-correct, .bubble-opt.selected.is-correct, .bubble-opt.is-correct.selected, .bubble-opt.is-correct[selected], .bubble-opt.is-correct[data-selected="true"] {
+    background-color: #16a34a !important;
+    border-color: #15803d !important;
+    color: #ffffff !important;
+    box-shadow: 0 4px 10px rgba(22, 163, 74, 0.5) !important;
+    transform: scale(1.06);
+}
+.bubble-opt.is-wrong, .bubble-opt.selected.is-wrong, .bubble-opt.is-wrong.selected, .bubble-opt.is-wrong[selected], .bubble-opt.is-wrong[data-selected="true"] {
+    background-color: #dc2626 !important;
+    border-color: #b91c1c !important;
+    color: #ffffff !important;
+    box-shadow: 0 4px 10px rgba(220, 38, 38, 0.5) !important;
+    transform: scale(1.06);
+}
+.bubble-opt.is-key-correct {
+    background-color: #0284c7 !important;
+    border-color: #0369a1 !important;
+    color: #ffffff !important;
+    box-shadow: 0 3px 8px rgba(2, 132, 199, 0.5) !important;
+    outline: 2px dashed #38bdf8;
+    outline-offset: 2px;
+}
+.sheet-tf-btn.selected, .sheet-tf-btn[selected], .sheet-tf-btn[data-selected="true"] {
+    background-color: #1e3a8a !important;
+    border-color: #1e3a8a !important;
+    color: #ffffff !important;
+}
+.sheet-tf-btn.is-correct {
+    background-color: #16a34a !important;
+    border-color: #15803d !important;
+    color: #ffffff !important;
+}
+.sheet-tf-btn.is-wrong {
+    background-color: #dc2626 !important;
+    border-color: #b91c1c !important;
+    color: #ffffff !important;
+}
+.sheet-tf-btn.is-key-correct {
+    background-color: #0284c7 !important;
+    border-color: #0369a1 !important;
+    color: #ffffff !important;
+    outline: 2px dashed #38bdf8;
+}
+.num-matrix-bubble.selected, .num-matrix-bubble[selected], .num-matrix-bubble[data-selected="true"] {
+    background-color: #0284c7 !important;
+    border-color: #0284c7 !important;
+    color: #ffffff !important;
+    box-shadow: 0 2px 6px rgba(2, 132, 199, 0.4) !important;
+    transform: scale(1.08);
+}
+.num-matrix-bubble.is-correct {
+    background-color: #16a34a !important;
+    border-color: #15803d !important;
+    color: #ffffff !important;
+}
+.num-matrix-bubble.is-wrong {
+    background-color: #dc2626 !important;
+    border-color: #b91c1c !important;
+    color: #ffffff !important;
+}
+</style>
+
+<!-- BẢNG ĐIỀU CHỈNH MÃ ĐỀ & SỐ BÁO DANH NHẬN DIỆN ĐƯỢC TỪ PHIẾU (OMR) -->
+<div id="omrAdjustmentCard" class="card border-0 shadow-sm rounded-4 mb-4 d-none" style="border-left: 5px solid #f59e0b !important; background: #fffcf7;">
+    <div class="card-header bg-white py-3 px-4 border-bottom d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <div class="d-flex align-items-center gap-2">
+            <span class="fs-4">📝</span>
+            <div>
+                <h5 class="fw-bold mb-0 text-dark">Kiểm Tra & Điều Chỉnh Thông Tin Phiếu Nhận Diện</h5>
+                <span class="small text-muted">Thay đổi Mã đề hoặc Số báo danh đã nhận diện và chấm lại tức thì</span>
+            </div>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            <span id="badgeOmrMatchStatus" class="badge bg-success fs-6 px-3 py-2 rounded-pill">Đã khớp mã đề</span>
+            <button type="button" class="btn btn-warning text-dark fw-bold rounded-pill px-4 py-2 shadow-sm d-flex align-items-center gap-2" onclick="reGradeWithAdjustedInfo()">
+                <span>🔄</span>
+                <span>CHẤM LẠI BÀI NÀY</span>
+            </button>
+        </div>
+    </div>
+    <div class="card-body p-4">
+        <div class="row g-3">
+            <!-- 1. MÃ ĐỀ THI -->
+            <div class="col-lg-6">
+                <div class="p-3 bg-white rounded-3 border h-100 shadow-sm">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <label class="form-label fw-bold text-dark mb-0">🏷️ Mã Đề Thi (Mục số 8 trên phiếu):</label>
+                        <span class="badge bg-light text-secondary border">Nhận diện OMR</span>
+                    </div>
+
+                    <!-- Ẩn hiển thị máy đọc được để giao diện gọn gàng theo yêu cầu -->
+                    <span id="txtOmrDetectedCode" class="d-none">---</span>
+
+                    <!-- Sửa / Chọn mã đề -->
+                    <div class="row g-2">
+                        <div class="col-sm-7">
+                            <label class="form-label small text-dark fw-semibold mb-1">Chọn từ danh sách đề của môn:</label>
+                            <select id="adjustKeySelect" class="form-select font-monospace fw-bold text-primary" onchange="onAdjustKeySelectChange(this.value)">
+                                <option value="">-- Chọn Mã Đề Chuẩn --</option>
+                            </select>
+                        </div>
+                        <div class="col-sm-5">
+                            <label class="form-label small text-dark fw-semibold mb-1">Hoặc nhập mã đề:</label>
+                            <div class="input-group">
+                                <input type="text" id="adjustExamCodeInput" class="form-control font-monospace fw-bold text-uppercase" 
+                                       placeholder="VD: 101" maxlength="6" oninput="onAdjustCodeInputChange(this.value)">
+                                <button class="btn btn-outline-secondary" type="button" onclick="onAdjustCodeInputChange(document.getElementById('adjustExamCodeInput').value)" title="Áp dụng">✓</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="examCodeMismatchWarning" class="alert alert-danger p-2 mt-2 mb-0 small rounded-2 d-none">
+                        ⚠️ Mã đề này chưa khớp với đề thi nào trong hệ thống! Nếu chấm, bài thi sẽ nhận 0 điểm. Vui lòng chọn lại đúng đề thi.
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2. SỐ BÁO DANH (SBD) & THÍ SINH -->
+            <div class="col-lg-6">
+                <div class="p-3 bg-white rounded-3 border h-100 shadow-sm">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <label class="form-label fw-bold text-dark mb-0">🔢 Số Báo Danh & Thí Sinh (Mục số 7):</label>
+                        <span class="badge bg-light text-secondary border">Điều chỉnh</span>
+                    </div>
+
+                    <!-- Ẩn hiển thị máy đọc được để giao diện gọn gàng theo yêu cầu -->
+                    <span id="txtOmrDetectedSbd" class="d-none">---</span>
+
+                    <!-- Sửa SBD & Tên -->
+                    <div class="row g-2">
+                        <div class="col-sm-5">
+                            <label class="form-label small text-dark fw-semibold mb-1">SBD điều chỉnh:</label>
+                            <div class="input-group">
+                                <input type="text" id="adjustSbdInput" class="form-control font-monospace fw-bold" 
+                                       placeholder="VD: 120001" oninput="onAdjustSbdChange(this.value)">
+                                <button class="btn btn-outline-primary" type="button" onclick="autoSearchSbd(document.getElementById('adjustSbdInput').value)" title="Tra cứu">🔍</button>
+                            </div>
+                        </div>
+                        <div class="col-sm-7">
+                            <label class="form-label small text-dark fw-semibold mb-1">Họ và tên thí sinh:</label>
+                            <input type="text" id="adjustStudentNameInput" class="form-control fw-bold" 
+                                   placeholder="Họ tên thí sinh" oninput="onAdjustNameChange(this.value)">
+                        </div>
+                    </div>
+                    <div id="adjustSbdMatchInfo" class="text-success small mt-2 fw-semibold d-none">
+                        ✓ Đã tìm thấy học sinh trong danh sách master
+                    </div>
+                </div>
+            </div>
+
+            <!-- HÀNG NÚT CHẤM LẠI & HƯỚNG DẪN -->
+            <div class="col-12 mt-2 pt-3 border-top d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+                <div class="text-muted small">
+                    💡 <strong>Mẹo:</strong> Sau khi chỉnh sửa Mã đề hoặc Số báo danh, bấm nút <strong>"CHẤM LẠI BÀI NÀY"</strong> để hệ thống tự động tính lại điểm số, ghi điểm số & chữ lên phiếu và tô màu đáp án trên phiếu điện tử 40 câu.
+                </div>
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-outline-secondary rounded-pill px-3 btn-sm" onclick="resetToDetectedValues()" title="Khôi phục giá trị OMR gốc">
+                        ↩️ Hoàn Tác OMR Gốc
+                    </button>
+                    <button type="button" class="btn btn-warning fw-bold text-dark rounded-pill px-4 shadow-sm" onclick="reGradeWithAdjustedInfo()">
+                        🔄 CHẤM LẠI BÀI NÀY
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- INTERACTIVE OPTICAL ANSWER SHEET -->
+<div id="sheetWrapper" class="optical-sheet-container p-4 p-lg-5 mb-4 d-none">
+    <div class="sheet-header-border pb-4 mb-4 d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+        <div>
+            <div class="text-uppercase fw-bold text-muted small letter-spacing-1">Phiếu Trả Lời Trắc Nghiệm Điện Tử</div>
+            <h3 class="fw-bold mb-0 text-dark" id="sheetTitle">Bài Làm Thí Sinh</h3>
+        </div>
+        <div class="d-flex gap-2">
+            <button type="button" class="btn btn-outline-secondary rounded-pill btn-sm px-3" onclick="clearSheet()">
+                🧹 Làm Mới Phiếu
+            </button>
+        </div>
+    </div>
+
+    <!-- GRADING RESULT STATUS BANNER -->
+    <div id="gradingResultBannerContainer"></div>
+
+    <!-- COLOR LEGEND -->
+    <div class="p-2 px-3 bg-light rounded-3 border d-flex flex-wrap align-items-center justify-content-between gap-2 mb-4 small">
+        <span class="fw-bold text-dark">🎨 Quy ước màu phiếu chấm:</span>
+        <div class="d-flex flex-wrap gap-3 align-items-center">
+            <span class="d-flex align-items-center gap-1">
+                <span class="badge rounded-circle p-1" style="width: 13px; height: 13px; background: #16a34a; display: inline-block;"></span>
+                <span class="text-dark fw-semibold">Xanh lá: Câu đúng</span>
+            </span>
+            <span class="d-flex align-items-center gap-1">
+                <span class="badge rounded-circle p-1" style="width: 13px; height: 13px; background: #0284c7; display: inline-block;"></span>
+                <span class="text-dark fw-semibold">Xanh lam: Đáp án của đề (khi sai)</span>
+            </span>
+            <span class="d-flex align-items-center gap-1">
+                <span class="badge rounded-circle p-1" style="width: 13px; height: 13px; background: #dc2626; display: inline-block;"></span>
+                <span class="text-dark fw-semibold">Đỏ: Phương án chọn sai</span>
+            </span>
+            <span class="d-flex align-items-center gap-1">
+                <span class="badge rounded-circle p-1" style="width: 13px; height: 13px; background: #1e3a8a; display: inline-block;"></span>
+                <span class="text-dark fw-semibold">Xanh đậm: Đang chọn</span>
+            </span>
+        </div>
+    </div>
+
+    <!-- SECTIONS CONTAINER -->
+    <div id="sectionsContainer">
+        <!-- Rendered by JS -->
+    </div>
+
+    <!-- SUBMIT ACTION -->
+    <div class="mt-5 pt-4 border-top text-center">
+        <button type="button" id="btnGradeSubmit" class="btn btn-warning btn-lg rounded-pill px-5 py-3 fw-bold shadow" onclick="submitGrading()">
+            ⚡ CHẤM ĐIỂM & LƯU KẾT QUẢ
+        </button>
+    </div>
+</div>
+
+<!-- EMPTY STATE WHEN NO KEY SELECTED -->
+<div id="noKeySelectedBox" class="card border-0 shadow-sm rounded-4 text-center py-5">
+    <div class="fs-1 mb-2">📋</div>
+    <h5 class="fw-bold text-dark">Chưa chọn Bộ Đáp Án (Mã Đề)</h5>
+    <p class="text-muted small mb-0">Vui lòng chọn Mã đề ở phía trên để nạp cấu trúc câu hỏi của đề thi vào phiếu chấm.</p>
+</div>
+
+<!-- RESULT MODAL -->
+<div class="modal fade" id="resultModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content rounded-4 border-0 shadow-lg overflow-hidden">
+            <div class="modal-header bg-primary text-white border-0 py-3 px-4">
+                <h5 class="modal-title fw-bold">🎉 KẾT QUẢ CHẤM BÀI THI</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <!-- TOP SCORE SUMMARY -->
+                <div class="row align-items-center mb-4">
+                    <div class="col-md-5 text-center mb-3 mb-md-0">
+                        <div class="score-circle">
+                            <span class="fs-1 fw-bold text-primary" id="modalScore">0.0</span>
+                            <span class="small text-muted fw-semibold">trên <span id="modalMaxScore">10.0</span>đ</span>
+                        </div>
+                        <div class="mt-2" id="modalRankBadge">
+                            <span class="badge bg-success fs-6 px-3 py-1 rounded-pill">Xuất sắc</span>
+                        </div>
+                    </div>
+                    <div class="col-md-7">
+                        <div class="p-3 bg-light rounded-3 border">
+                            <h6 class="fw-bold text-dark mb-2" id="modalStudentName">Nguyễn Văn An</h6>
+                            <div class="row g-2 small text-muted">
+                                <div class="col-6">SBD: <strong class="text-dark font-monospace" id="modalStudentId">120015</strong></div>
+                                <div class="col-6">Lớp: <strong class="text-dark" id="modalStudentClass">12A1</strong></div>
+                                <div class="col-6">Môn: <strong class="text-dark" id="modalSubject">Toán</strong></div>
+                                <div class="col-6">Mã đề: <strong class="text-primary font-monospace" id="modalExamCode">101</strong></div>
+                                <div class="col-12 mt-2 pt-2 border-top">
+                                    Số câu đúng tuyệt đối: <strong class="text-success" id="modalCorrectCount">0</strong> / <span id="modalTotalQ">0</span> câu
+                                    (<strong class="text-primary" id="modalPercent">0%</strong>)
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- DETAILS TABLE -->
+                <h6 class="fw-bold text-dark mb-2">🔍 Đối Chiếu Chi Tiết Từng Câu:</h6>
+                <div class="table-responsive" style="max-height: 320px; overflow-y: auto;">
+                    <table class="table table-bordered table-sm align-middle mb-0 text-center">
+                        <thead class="table-light text-muted small sticky-top">
+                            <tr>
+                                <th>Câu</th>
+                                <th>Loại</th>
+                                <th>Bài Làm Thí Sinh</th>
+                                <th>Đáp Án Chuẩn</th>
+                                <th>Đánh Giá</th>
+                                <th>Điểm Đạt</th>
+                            </tr>
+                        </thead>
+                        <tbody id="modalDetailsTbody">
+                            <!-- Rendered by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer bg-light border-0 py-3 px-4 d-flex justify-content-between">
+                <a href="{% url 'grading_results_list' %}" class="btn btn-outline-secondary rounded-pill px-3">
+                    📊 Xem Bảng Điểm
+                </a>
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-secondary rounded-pill px-3" data-bs-dismiss="modal">
+                        Đóng
+                    </button>
+                    <button type="button" class="btn btn-primary rounded-pill px-4 fw-bold shadow-sm" onclick="prepareNextStudent()">
+                        ➡️ Chấm Thí Sinh Tiếp Theo
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let currentKey = null;
+let currentQuestions = [];
+let studentAnswers = {};
+let uploadedFiles = [];
+let currentFileIndex = 0;
+let fileGradingStatus = {}; // key: idx -> { graded: bool, hasError: bool, errors: string[], sbd: string, code: string, score: number, maxScore: number }
+let cropperInstance = null;
+let lastDetectedAnswers = null;
+let lastRawParts = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+    initAdjustCard();
+    const selectedKeyId = "{{ selected_key_id }}";
+    if (selectedKeyId) {
+        loadExamKey(selectedKeyId);
+    }
+
+    // Hỗ trợ chọn nhanh lớp khi bấm vào hộp lớp: tự tắt switch Toàn trường nếu đang bật
+    document.querySelectorAll('#classCheckboxWrapper .form-check').forEach(box => {
+        box.addEventListener('click', function(e) {
+            const checkAll = document.getElementById('checkAllClasses');
+            const cb = this.querySelector('.applied-class-cb');
+            if (checkAll && checkAll.checked) {
+                checkAll.checked = false;
+                toggleAllClasses(checkAll);
+                if (cb) {
+                    cb.checked = true;
+                    onAppliedClassChange();
+                }
+            }
+        });
+    });
+});
+
+function applyDetectedAnswers(detectedAnswers, rawParts) {
+    if (!detectedAnswers && !rawParts) return;
+
+    // Gán 40 câu trắc nghiệm phần I
+    for (let i = 1; i <= 40; i++) {
+        const val = (rawParts && rawParts.part1 && (rawParts.part1[i] || rawParts.part1[String(i)]))
+                 || (detectedAnswers && (detectedAnswers[i] || detectedAnswers[String(i)]));
+        if (val) {
+            studentAnswers[i] = val;
+            const q = (currentQuestions || []).find(item => item.number === i);
+            if (q) {
+                q.selected = val;
+                q.seleted = val;
+            }
+        }
+    }
+
+    if (currentQuestions && currentQuestions.length > 0) {
+        const singleQs = currentQuestions.filter(q => q.type === 'SINGLE');
+        const tfQs = currentQuestions.filter(q => q.type === 'TF');
+        const numQs = currentQuestions.filter(q => q.type === 'NUMERIC');
+
+        // Gán Phần I theo câu hỏi của bộ đề
+        singleQs.forEach((q, idx) => {
+            const val = (rawParts && rawParts.part1 && (rawParts.part1[q.number] || rawParts.part1[idx + 1])) 
+                     || detectedAnswers[q.number] 
+                     || detectedAnswers[String(idx + 1)];
+            if (val) {
+                studentAnswers[q.number] = val;
+                q.selected = val;
+                q.seleted = val;
+            }
+        });
+
+        // Gán Phần II: True/False
+        tfQs.forEach((q, idx) => {
+            const val = (rawParts && rawParts.part2 && (rawParts.part2[idx + 1] || rawParts.part2[String(idx + 1)]))
+                     || detectedAnswers[q.number]
+                     || detectedAnswers[String(singleQs.length + idx + 1)];
+            if (val) {
+                studentAnswers[q.number] = val;
+                q.selected = val;
+                q.seleted = val;
+            }
+        });
+
+        // Gán Phần III: Numeric
+        numQs.forEach((q, idx) => {
+            const val = (rawParts && rawParts.part3 && (rawParts.part3[idx + 1] || rawParts.part3[String(idx + 1)]))
+                     || detectedAnswers[q.number]
+                     || detectedAnswers[String(singleQs.length + tfQs.length + idx + 1)];
+            if (val) {
+                studentAnswers[q.number] = val;
+                q.selected = val;
+                q.seleted = val;
+            }
+        });
+    } else {
+        studentAnswers = { ...detectedAnswers };
+    }
+}
+
+function loadExamKey(keyId, keepAnswers = false) {
+    if (!keyId) {
+        currentKey = null;
+        currentQuestions = [];
+        let qNum = 1;
+        for(let i=0; i < window.subjectConfig.num_single; i++) {
+            currentQuestions.push({ number: qNum++, type: 'SINGLE' });
+        }
+        for(let i=0; i < window.subjectConfig.num_tf; i++) {
+            currentQuestions.push({ number: qNum++, type: 'TF' });
+        }
+        for(let i=0; i < window.subjectConfig.num_numeric; i++) {
+            currentQuestions.push({ number: qNum++, type: 'NUMERIC' });
+        }
+        currentQuestions.forEach(q => {
+            q.selected = null;
+            q.seleted = null;
+        });
+
+        const sheetWrapper = document.getElementById('sheetWrapper');
+        const keyInfoBox = document.getElementById('keyInfoBox');
+        const noKeySelectedBox = document.getElementById('noKeySelectedBox');
+        const badgeKeyCode = document.getElementById('badgeKeyCode');
+        const txtSubjectName = document.getElementById('txtSubjectName');
+        const txtPeriodName = document.getElementById('txtPeriodName');
+        const txtTotalQuestions = document.getElementById('txtTotalQuestions');
+        const txtMaxScore = document.getElementById('txtMaxScore');
+        const sheetTitle = document.getElementById('sheetTitle');
+
+        if (badgeKeyCode) badgeKeyCode.textContent = `Chưa chọn Đề`;
+        if (txtSubjectName) txtSubjectName.textContent = '---';
+        if (txtPeriodName) txtPeriodName.textContent = '---';
+        if (txtTotalQuestions) txtTotalQuestions.textContent = '--';
+        if (txtMaxScore) txtMaxScore.textContent = '--';
+        if (sheetTitle) sheetTitle.textContent = `Phiếu Trả Lời (Chưa có mã đề)`;
+
+        if (sheetWrapper) sheetWrapper.classList.remove('d-none');
+        if (keyInfoBox) keyInfoBox.classList.remove('d-none');
+        if (noKeySelectedBox) noKeySelectedBox.classList.add('d-none');
+
+        if (!keepAnswers) studentAnswers = {};
+        if (lastDetectedAnswers || lastRawParts) {
+            applyDetectedAnswers(lastDetectedAnswers, lastRawParts);
+        }
+        renderOpticalSheet();
+        return;
+    }
+
+    fetch(`/cham-trac-nghiem/api/lay-cau-hoi/${keyId}/`, {
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.status === 'success') {
+            currentKey = data.key;
+            currentQuestions = data.questions;
+
+            // Khởi tạo thuộc tính selected trên từng câu hỏi
+            currentQuestions.forEach(q => {
+                if (q.selected === undefined) {
+                    q.selected = null;
+                }
+                q.seleted = q.selected;
+            });
+
+            // Hiển thị info box (Null-safe)
+            const badgeKeyCode = document.getElementById('badgeKeyCode');
+            const txtSubjectName = document.getElementById('txtSubjectName');
+            const txtPeriodName = document.getElementById('txtPeriodName');
+            const txtTotalQuestions = document.getElementById('txtTotalQuestions');
+            const txtMaxScore = document.getElementById('txtMaxScore');
+            const keyInfoBox = document.getElementById('keyInfoBox');
+            const sheetTitle = document.getElementById('sheetTitle');
+            const noKeySelectedBox = document.getElementById('noKeySelectedBox');
+            const sheetWrapper = document.getElementById('sheetWrapper');
+
+            if (badgeKeyCode) badgeKeyCode.textContent = `Đề ${currentKey.code}`;
+            if (txtSubjectName) txtSubjectName.textContent = currentKey.subject_name;
+            if (txtPeriodName) txtPeriodName.textContent = currentKey.period_name;
+            if (txtTotalQuestions) txtTotalQuestions.textContent = currentKey.total_questions;
+            if (txtMaxScore) txtMaxScore.textContent = currentKey.max_score;
+            if (keyInfoBox) keyInfoBox.classList.remove('d-none');
+
+            if (sheetTitle) sheetTitle.textContent = `${currentKey.subject_name} - Đề ${currentKey.code}`;
+            if (noKeySelectedBox) noKeySelectedBox.classList.add('d-none');
+            if (sheetWrapper) sheetWrapper.classList.remove('d-none');
+
+            // Đồng bộ với bảng điều chỉnh OMR
+            initAdjustCard();
+            const adjSelect = document.getElementById('adjustKeySelect');
+            if (adjSelect && adjSelect.value != keyId) {
+                adjSelect.value = keyId;
+            }
+            const inputCode = document.getElementById('adjustExamCodeInput');
+            if (inputCode && currentKey && currentKey.code) {
+                inputCode.value = currentKey.code;
+            }
+            const warning = document.getElementById('examCodeMismatchWarning');
+            if (warning) warning.classList.add('d-none');
+
+            // Đồng bộ các lớp áp dụng theo cấu hình môn thi của mã đề vừa chọn
+            if (currentKey && currentKey.assigned_class_ids !== undefined) {
+                const checkAll = document.getElementById('checkAllClasses');
+                const noteBadge = document.getElementById('appliedClassSubjectNote');
+                const cbs = document.querySelectorAll('.applied-class-cb');
+                if (currentKey.assigned_class_ids && currentKey.assigned_class_ids.length > 0) {
+                    if (checkAll) checkAll.checked = false;
+                    if (noteBadge) {
+                        noteBadge.className = 'badge bg-primary-subtle text-primary border border-primary-subtle small';
+                        noteBadge.textContent = `Áp dụng theo môn: ${currentKey.subject_name}`;
+                    }
+                    const assignedSet = new Set(currentKey.assigned_class_ids.map(id => String(id)));
+                    cbs.forEach(cb => {
+                        cb.disabled = false;
+                        cb.checked = assignedSet.has(String(cb.dataset.id));
+                    });
+                } else {
+                    if (checkAll) checkAll.checked = true;
+                    if (noteBadge) {
+                        noteBadge.className = 'badge bg-white text-secondary border small';
+                        noteBadge.textContent = '1 bài thi có thể chấm cho 1 lớp hoặc nhiều lớp';
+                    }
+                    cbs.forEach(cb => {
+                        cb.disabled = true;
+                        cb.checked = false;
+                    });
+                }
+                onAppliedClassChange();
+            }
+
+            // Reset hoặc re-map đáp án
+            if (!keepAnswers) {
+                studentAnswers = {};
+            }
+            if (lastDetectedAnswers || lastRawParts) {
+                applyDetectedAnswers(lastDetectedAnswers, lastRawParts);
+            }
+            renderOpticalSheet();
+        } else {
+            alert(data.message || "Không thể tải bộ câu hỏi.");
+        }
+    })
+    .catch(err => {
+        console.error("Lỗi loadExamKey:", err);
+        alert("Lỗi tải bộ đề: " + err);
+    });
+}
+
+function chunkArray(arr, size) {
+    const res = [];
+    for (let i = 0; i < arr.length; i += size) {
+        res.push(arr.slice(i, i + size));
+    }
+    return res;
+}
+
+function renderOpticalSheet() {
+    const container = document.getElementById('sectionsContainer');
+    container.innerHTML = '';
+
+    const singleQuestions = currentQuestions.filter(q => q.type === 'SINGLE');
+    const tfQuestions = currentQuestions.filter(q => q.type === 'TF');
+    const numQuestions = currentQuestions.filter(q => q.type === 'NUMERIC');
+
+    const detailMap = {};
+    if (window.lastGradingDetails && Array.isArray(window.lastGradingDetails)) {
+        window.lastGradingDetails.forEach(d => { detailMap[d.number] = d; });
+    }
+    const isKeyMatched = window.lastIsCodeMatched !== false;
+
+    // =========================================================================
+    // PHẦN I: CHỈ HIỆN ĐÚNG SỐ CÂU ĐÃ CÀI ĐẶT
+    // =========================================================================
+    const TOTAL_SINGLE = singleQuestions.length;  // số câu TN đơn đã cài
+    // Tổng ô phải chia đủ thành các cột 10 câu (làm tròn lên bội 10)
+    const TOTAL_SHEET_QUESTIONS = Math.ceil(Math.max(TOTAL_SINGLE, 10) / 10) * 10;
+    const questions40 = [];
+    for (let i = 1; i <= TOTAL_SHEET_QUESTIONS; i++) {
+        const found = singleQuestions.find(q => q.number === i);
+        if (found) {
+            questions40.push({ ...found, _inRange: true });
+        } else {
+            // Câu ngoài phạm vi: chỉ hiện số câu, không có bubble
+            questions40.push({
+                number: i,
+                type: 'SINGLE',
+                _inRange: false,
+            });
+        }
+    }
+
+    const columns = chunkArray(questions40, 10);
+    const sec1 = document.createElement('div');
+    sec1.className = 'card border-0 shadow-sm rounded-4 mb-4 overflow-hidden';
+
+    let colsHtml = columns.map((colQuestions, cIdx) => `
+        <div class="col">
+            <div class="p-3 bg-white rounded-3 border h-100 shadow-sm">
+                <div class="small fw-bold text-primary mb-2 border-bottom pb-1 font-monospace text-center">
+                    Cột ${cIdx + 1} (Câu ${colQuestions[0].number} - ${colQuestions[colQuestions.length - 1].number})
+                </div>
+                <div class="d-flex flex-column">
+                    ${colQuestions.map(q => {
+                        if (!q._inRange) {
+                            return `
+                            <div class="d-flex align-items-center py-1 border-bottom border-light">
+                                <span class="fw-bold text-muted font-monospace small me-2" style="min-width:32px;opacity:0.4;">-.</span>
+                            </div>`;
+                        }
+
+                        const rawDetail = detailMap[q.number];
+                        const qDetail = (rawDetail && rawDetail.type === 'SINGLE') ? rawDetail : null;
+
+                        let studAns = '';
+                        const rawAns = (q.selected !== undefined && q.selected !== null) ? q.selected : studentAnswers[q.number];
+                        if (typeof rawAns === 'string') {
+                            studAns = rawAns.trim().toUpperCase();
+                        } else if (rawAns !== undefined && rawAns !== null && typeof rawAns !== 'object') {
+                            studAns = String(rawAns).trim().toUpperCase();
+                        }
+
+                        let corrAns = '';
+                        if (qDetail && typeof qDetail.correct_ans === 'string') {
+                            corrAns = qDetail.correct_ans.trim().toUpperCase();
+                        } else if (qDetail && typeof qDetail.correct_ans === 'number') {
+                            corrAns = String(qDetail.correct_ans).trim().toUpperCase();
+                        }
+
+                        const isCorr = qDetail ? qDetail.is_correct : false;
+
+                        return `
+                        <div class="d-flex align-items-center justify-content-between py-1 border-bottom border-light">
+                            <span class="fw-bold text-dark font-monospace small me-2" style="min-width: 32px;">${q.number}.</span>
+                            <div class="d-flex gap-1 flex-grow-1 justify-content-between">
+                                ${['A', 'B', 'C', 'D'].map(opt => {
+                                    let cls = 'bubble-opt';
+                                    const isSelected = (studAns === opt);
+                                    if (qDetail && isKeyMatched) {
+                                        if (isCorr && isSelected) {
+                                            cls += ' is-correct selected';
+                                        } else if (!isCorr) {
+                                            if (opt === corrAns) {
+                                                cls += ' is-key-correct';
+                                            } else if (isSelected) {
+                                                cls += ' is-wrong selected';
+                                            }
+                                        }
+                                    } else {
+                                        if (isSelected) cls += ' selected';
+                                    }
+
+                                    return `
+                                    <div class="${cls}" ${isSelected ? 'selected data-selected="true"' : ''} onclick="pickSingleOption(${q.number}, '${opt}')" id="bubble_${q.number}_${opt}" title="Câu ${q.number} - ${opt}">
+                                        ${opt}
+                                    </div>
+                                    `;
+                                }).join('')}
+                            </div>
+                        </div>
+                        `;
+                    }).join('')}
+                </div>
+            </div>
+        </div>
+    `).join('');
+
+    sec1.innerHTML = `
+        <div class="card-header bg-primary bg-opacity-10 py-3 px-4 border-bottom d-flex justify-content-between align-items-center">
+            <h6 class="fw-bold mb-0 text-primary d-flex align-items-center gap-2">
+                <span>🔵 PHẦN I. TRẮC NGHIỆM ĐƠN (A/B/C/D)</span>
+                <span class="badge bg-primary text-white rounded-pill small">${TOTAL_SINGLE} câu &bull; ${columns.length} cột (10 câu/cột)</span>
+            </h6>
+            <span class="small text-muted">Hàng ngang ${columns.length} cột &bull; Mỗi cột 10 câu &bull; Phương án A, B, C, D</span>
+        </div>
+        <div class="card-body p-3 bg-light bg-opacity-50">
+            <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-4 g-3">
+                ${colsHtml}
+            </div>
+        </div>
+    `;
+    container.appendChild(sec1);
+
+
+    // PHẦN II: TRUE / FALSE (MỖI CÂU Ý THEO CỘT DỌC, HÀNG TỐI ĐA 8 CÂU)
+    if (tfQuestions.length > 0) {
+        const sec2 = document.createElement('div');
+        sec2.className = 'card border-0 shadow-sm rounded-4 mb-4 overflow-hidden';
+
+        let tfCardsHtml = tfQuestions.map((q, idx) => {
+            const rawAns = (q.selected !== undefined && q.selected !== null ? q.selected : studentAnswers[q.number]);
+            const ans = (typeof rawAns === 'object' && rawAns !== null) ? rawAns : {};
+            const qDetail = detailMap[q.number];
+            const subResults = (qDetail && qDetail.sub_results) ? qDetail.sub_results : null;
+
+            return `
+            <div class="col">
+                <div class="p-2 bg-white rounded-3 border h-100 shadow-sm text-center">
+                    <div class="fw-bold text-dark mb-2 pb-1 border-bottom small font-monospace">Câu ${idx + 1}</div>
+                    <div class="d-flex flex-column">
+                        ${['a', 'b', 'c', 'd'].map(sub => {
+                            const subInfo = subResults ? subResults[sub] : null;
+                            let tCls = 'sheet-tf-btn';
+                            let fCls = 'sheet-tf-btn';
+                            let isTrueSelected = false;
+                            let isFalseSelected = false;
+
+                            if (subInfo && isKeyMatched) {
+                                const uVal = subInfo.user;
+                                const eVal = subInfo.expected;
+                                const isSubOk = subInfo.is_correct;
+
+                                if (isSubOk) {
+                                    if (uVal === true) { tCls += ' is-correct selected active-true'; isTrueSelected = true; }
+                                    if (uVal === false) { fCls += ' is-correct selected active-false'; isFalseSelected = true; }
+                                } else {
+                                    if (eVal === true) tCls += ' is-key-correct';
+                                    if (eVal === false) fCls += ' is-key-correct';
+                                    if (uVal === true) { tCls += ' is-wrong selected active-true'; isTrueSelected = true; }
+                                    if (uVal === false) { fCls += ' is-wrong selected active-false'; isFalseSelected = true; }
+                                }
+                            } else {
+                                if (ans[sub] === true) { tCls += ' active-true selected'; isTrueSelected = true; }
+                                if (ans[sub] === false) { fCls += ' active-false selected'; isFalseSelected = true; }
+                            }
+
+                            return `
+                            <div class="d-flex justify-content-between align-items-center small py-1 px-1 rounded bg-light">
+                                <span class="font-monospace fw-bold text-secondary me-1" style="font-size: 0.75rem;">${sub}:</span>
+                                <div class="d-flex gap-1">
+                                    <div class="${tCls}" ${isTrueSelected ? 'selected data-selected="true"' : ''} onclick="pickTfOption(${q.number}, '${sub}', true)" id="tf_${q.number}_${sub}_t" title="Đúng">
+                                        Đ
+                                    </div>
+                                    <div class="${fCls}" ${isFalseSelected ? 'selected data-selected="true"' : ''} onclick="pickTfOption(${q.number}, '${sub}', false)" id="tf_${q.number}_${sub}_f" title="Sai">
+                                        S
+                                    </div>
+                                </div>
+                            </div>
+                            `;
+                        }).join('')}
+                    </div>
+                </div>
+            </div>
+            `;
+        }).join('');
+
+        // Pad with dummy columns to always show 8 columns
+        if (tfQuestions.length < 8) {
+            for (let i = tfQuestions.length; i < 8; i++) {
+                tfCardsHtml += `
+                <div class="col">
+                    <div class="p-2 bg-white rounded-3 border h-100 shadow-sm text-center" style="opacity: 0.4;">
+                        <div class="fw-bold text-muted mb-2 pb-1 border-bottom small font-monospace">Câu -</div>
+                        <div class="d-flex flex-column">
+                            ${['a', 'b', 'c', 'd'].map(sub => `
+                            <div class="d-flex justify-content-between align-items-center small py-1 px-1 rounded bg-light mb-1">
+                                <span class="font-monospace fw-bold text-secondary me-1" style="font-size: 0.75rem;">${sub}:</span>
+                                <div class="d-flex gap-1">
+                                    <div class="sheet-tf-btn" style="cursor:not-allowed;">Đ</div>
+                                    <div class="sheet-tf-btn" style="cursor:not-allowed;">S</div>
+                                </div>
+                            </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                </div>
+                `;
+            }
+        }
+
+        sec2.innerHTML = `
+            <div class="card-header bg-success bg-opacity-10 py-3 px-4 border-bottom d-flex justify-content-between align-items-center">
+                <h6 class="fw-bold mb-0 text-success d-flex align-items-center gap-2">
+                    <span>🟢 PHẦN II. TRẮC NGHIỆM ĐÚNG / SAI (4 Ý CỘT DỌC)</span>
+                    <span class="badge bg-success text-white rounded-pill small">${tfQuestions.length} câu</span>
+                </h6>
+                <span class="small text-muted">Xếp tối đa 8 câu song song trên hàng</span>
+            </div>
+            <div class="card-body p-3 bg-light bg-opacity-50">
+                <div class="g-2" style="display: grid; grid-template-columns: repeat(8, 1fr); gap: 0.5rem;">
+                    ${tfCardsHtml}
+                </div>
+            </div>
+        `;
+        container.appendChild(sec2);
+    }
+
+    // PHẦN III: NUMERIC (DÀN HÀNG NGANG TỐI ĐA 6 CÂU TRÊN 1 HÀNG)
+    if (numQuestions.length > 0) {
+        const sec3 = document.createElement('div');
+        sec3.className = 'card border-0 shadow-sm rounded-4 mb-4 overflow-hidden';
+
+        let numCardsHtml = numQuestions.map((q, idx) => {
+            let rawVal = '';
+            const rawAns = (q.selected !== undefined && q.selected !== null ? q.selected : studentAnswers[q.number]);
+            if (typeof rawAns === 'string') {
+                rawVal = rawAns;
+            } else if (typeof rawAns === 'number') {
+                rawVal = String(rawAns);
+            }
+            const valChars = rawVal.padEnd(4, ' ').split('');
+            const qDetail = detailMap[q.number];
+            let borderClass = 'border-primary';
+            let numBadge = '';
+            if (qDetail && isKeyMatched) {
+                if (qDetail.is_correct) {
+                    borderClass = 'border-success bg-success bg-opacity-10 text-success';
+                    numBadge = `<span class="badge bg-success text-white py-1 px-2" style="font-size: 0.65rem;">✓ Đúng</span>`;
+                } else {
+                    let corrText = '---';
+                    if (qDetail && (typeof qDetail.correct_ans === 'string' || typeof qDetail.correct_ans === 'number')) {
+                        corrText = String(qDetail.correct_ans);
+                    }
+                    borderClass = 'border-danger bg-danger bg-opacity-10 text-danger';
+                    numBadge = `<span class="badge bg-info text-dark py-1 px-2" style="font-size: 0.65rem;">ĐA: ${corrText}</span>`;
+                }
+            }
+
+            return `
+            <div class="col">
+                <div class="p-2 bg-white rounded-3 border h-100 shadow-sm text-center">
+                    <div class="d-flex justify-content-between align-items-center mb-2 pb-1 border-bottom">
+                        <span class="fw-bold text-dark font-monospace small">Câu ${idx + 1}</span>
+                        ${numBadge}
+                        <input type="text" maxlength="4" 
+                               class="form-control form-control-sm text-center font-monospace fw-bold rounded-2 ${borderClass}" 
+                               style="width: 68px; font-size: 0.85rem; padding: 2px 4px; height: 26px;" 
+                               placeholder="____" 
+                               value="${rawVal}" 
+                               oninput="updateStudentNumericFromInput(${q.number}, this.value)" 
+                               id="num_input_${q.number}">
+                    </div>
+                    <div class="row g-1 text-center justify-content-center">
+                        ${[0, 1, 2, 3].map(boxIdx => {
+                            const activeChar = valChars[boxIdx];
+                            const rows = [
+                                { ch: '-', valid: boxIdx === 0 },
+                                { ch: ',', valid: boxIdx === 1 || boxIdx === 2 },
+                                ...['0','1','2','3','4','5','6','7','8','9'].map(d => ({ ch: d, valid: true }))
+                            ];
+                            return `
+                            <div class="col-3 px-0 border-end border-light">
+                                <div class="text-muted fw-bold mb-1" style="font-size: 0.65rem;">Ô ${boxIdx + 1}</div>
+                                <div class="d-flex flex-column gap-1 align-items-center">
+                                    ${rows.map(r => {
+                                        const safeCh = r.ch === '-' ? 'minus' : (r.ch === ',' ? 'comma' : r.ch);
+                                        const isSel = (activeChar === r.ch);
+                                        if (!r.valid) {
+                                            return `<div class="num-matrix-bubble" style="visibility: hidden; pointer-events: none;"></div>`;
+                                        }
+
+                                        let bubbleCls = 'num-matrix-bubble';
+                                        if (isSel) {
+                                            if (qDetail && isKeyMatched) {
+                                                bubbleCls += qDetail.is_correct ? ' is-correct selected' : ' is-wrong selected';
+                                            } else {
+                                                bubbleCls += ' selected';
+                                            }
+                                        }
+
+                                        return `
+                                        <div class="${bubbleCls}" 
+                                             ${isSel ? 'selected data-selected="true"' : ''}
+                                             id="num_btn_${q.number}_${boxIdx}_${safeCh}"
+                                             onclick="pickNumericBubble(${q.number}, ${boxIdx}, '${r.ch}')">
+                                            ${r.ch}
+                                        </div>
+                                        `;
+                                    }).join('')}
+                                </div>
+                            </div>
+                            `;
+                        }).join('')}
+                    </div>
+                </div>
+            </div>
+            `;
+        }).join('');
+
+        sec3.innerHTML = `
+            <div class="card-header bg-info bg-opacity-10 py-3 px-4 border-bottom d-flex justify-content-between align-items-center">
+                <h6 class="fw-bold mb-0 text-dark d-flex align-items-center gap-2">
+                    <span>🟣 PHẦN III. TRẢ LỜI NGẮN (ĐIỀN SỐ THỰC - MA TRẬN 4 Ô TÔ CHUẨN BỘ GD&ĐT)</span>
+                    <span class="badge bg-info text-dark rounded-pill small">${numQuestions.length} câu</span>
+                </h6>
+                <span class="small text-muted">Dàn ngang ${numQuestions.length} câu song song chuẩn mẫu phiếu thi</span>
+            </div>
+            <div class="card-body p-3 bg-light bg-opacity-50">
+                <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-6 g-2">
+                    ${numCardsHtml}
+                </div>
+            </div>
+        `;
+        container.appendChild(sec3);
+    }
+}
+
+
+function pickSingleOption(qNum, opt) {
+    const q = (currentQuestions || []).find(item => item.number === qNum);
+    if (studentAnswers[qNum] === opt) {
+        delete studentAnswers[qNum];
+        if (q) { q.selected = null; q.seleted = null; }
+    } else {
+        studentAnswers[qNum] = opt;
+        if (q) { q.selected = opt; q.seleted = opt; }
+    }
+    renderOpticalSheet();
+}
+
+function pickTfOption(qNum, sub, val) {
+    if (!studentAnswers[qNum]) studentAnswers[qNum] = {};
+    const q = (currentQuestions || []).find(item => item.number === qNum);
+    if (studentAnswers[qNum][sub] === val) {
+        delete studentAnswers[qNum][sub];
+    } else {
+        studentAnswers[qNum][sub] = val;
+    }
+    if (q) {
+        q.selected = studentAnswers[qNum];
+        q.seleted = studentAnswers[qNum];
+    }
+    renderOpticalSheet();
+}
+
+const NUMERIC_CHARS = ['-', ',', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
+
+function pickNumericBubble(qNum, boxIndex, charVal) {
+    let currVal = (studentAnswers[qNum] || '').padEnd(4, ' ').split('');
+    if (currVal[boxIndex] === charVal) {
+        currVal[boxIndex] = ' ';
+    } else {
+        currVal[boxIndex] = charVal;
+    }
+    let res = currVal.join('').trimEnd();
+    const q = (currentQuestions || []).find(item => item.number === qNum);
+    if (res) {
+        studentAnswers[qNum] = res;
+        if (q) { q.selected = res; q.seleted = res; }
+    } else {
+        delete studentAnswers[qNum];
+        if (q) { q.selected = null; q.seleted = null; }
+    }
+    renderOpticalSheet();
+}
+
+function updateStudentNumericFromInput(qNum, val) {
+    const cleanVal = val.trim().slice(0, 4);
+    const q = (currentQuestions || []).find(item => item.number === qNum);
+    if (cleanVal) {
+        studentAnswers[qNum] = cleanVal;
+        if (q) { q.selected = cleanVal; q.seleted = cleanVal; }
+    } else {
+        delete studentAnswers[qNum];
+        if (q) { q.selected = null; q.seleted = null; }
+    }
+    renderOpticalSheet();
+}
+
+function updateNumericMatrixVisual(qNum) {
+    const valChars = (studentAnswers[qNum] || '').padEnd(4, ' ').split('');
+    for (let cIdx = 0; cIdx < 4; cIdx++) {
+        const activeChar = valChars[cIdx];
+        NUMERIC_CHARS.forEach(ch => {
+            const safeCh = ch === '-' ? 'minus' : (ch === ',' ? 'comma' : ch);
+            const btn = document.getElementById(`num_btn_${qNum}_${cIdx}_${safeCh}`);
+            if (btn) {
+                const isSelected = (activeChar === ch);
+                btn.classList.toggle('selected', isSelected);
+                if (isSelected) {
+                    btn.setAttribute('selected', '');
+                    btn.setAttribute('data-selected', 'true');
+                } else {
+                    btn.removeAttribute('selected');
+                    btn.removeAttribute('data-selected');
+                }
+            }
+        });
+    }
+}
+
+function clearSheet() {
+    if (confirm("Làm mới toàn bộ câu trả lời trên phiếu?")) {
+        studentAnswers = {};
+        if (currentQuestions) {
+            currentQuestions.forEach(q => { q.selected = null; q.seleted = null; });
+        }
+        renderOpticalSheet();
+    }
+}
+
+function fillRandomDemoAnswers() {
+    studentAnswers = {};
+    for (let i = 1; i <= 40; i++) {
+        const q = (currentQuestions || []).find(item => item.number === i);
+        const randOpt = ['A', 'B', 'C', 'D'][Math.floor(Math.random() * 4)];
+        if (q) {
+            if (q.type === 'SINGLE') {
+                const a = Math.random() > 0.3 ? (q.correct_single || 'A') : randOpt;
+                studentAnswers[i] = a;
+                q.selected = a;
+                q.seleted = a;
+            } else if (q.type === 'TF') {
+                studentAnswers[i] = {};
+                ['a', 'b', 'c', 'd'].forEach(sub => {
+                    studentAnswers[i][sub] = Math.random() > 0.3 ? (q.correct_tf && q.correct_tf[sub]) : (Math.random() > 0.5);
+                });
+                q.selected = studentAnswers[i];
+                q.seleted = studentAnswers[i];
+            } else if (q.type === 'NUMERIC') {
+                const n = Math.random() > 0.3 ? (q.correct_numeric || '1.25') : '0.5';
+                studentAnswers[i] = n;
+                q.selected = n;
+                q.seleted = n;
+            }
+        } else {
+            studentAnswers[i] = randOpt;
+        }
+    }
+    renderOpticalSheet();
+}
+
+function submitGrading() {
+    const selectKey = document.getElementById('selectExamKey');
+    let submissionKeyId = currentKey ? currentKey.id : null;
+    let forceZero = false;
+
+    if (!submissionKeyId || (selectKey && !selectKey.value)) {
+        if (confirm("Chưa chọn Mã đề thi! Phiếu này sẽ được lưu với 0 điểm và không có mã đề. Bạn có chắc chắn muốn tiếp tục?")) {
+            forceZero = true;
+        } else {
+            if (selectKey) selectKey.focus();
+            return;
+        }
+    }
+
+    if (!submissionKeyId && !forceZero) {
+        alert("Lỗi: Không có dữ liệu bộ đáp án nào trong hệ thống để thực hiện lưu!");
+        return;
+    }
+
+    const studentId = (document.getElementById('adjustSbdInput')?.value || document.getElementById('inputStudentId')?.value || '').trim();
+    const studentName = (document.getElementById('adjustStudentNameInput')?.value || document.getElementById('inputStudentName')?.value || '').trim();
+    const studentClass = (document.getElementById('inputStudentClass')?.value || '').trim();
+
+    if (!studentId) {
+        alert("Vui lòng nhập Số báo danh (SBD) của thí sinh tại mục Điều chỉnh bên dưới!");
+        const adjSbd = document.getElementById('adjustSbdInput');
+        if (adjSbd) adjSbd.focus();
+        return;
+    }
+    if (!studentName) {
+        alert("Vui lòng nhập Họ và Tên của thí sinh tại mục Điều chỉnh bên dưới!");
+        const adjName = document.getElementById('adjustStudentNameInput');
+        if (adjName) adjName.focus();
+        return;
+    }
+
+    const btn = document.getElementById('btnGradeSubmit');
+    btn.disabled = true;
+    btn.textContent = "⏳ ĐANG CHẤM ĐIỂM...";
+
+    const payload = {
+        key_id: submissionKeyId,
+        student_id: studentId,
+        student_name: studentName,
+        student_class: studentClass,
+        answers: studentAnswers,
+        force_zero: forceZero
+    };
+
+    // Đính kèm ảnh đã chấm điểm có vẽ nhận diện
+    const origImg = document.getElementById('imgPreviewOrig');
+    if (origImg && origImg.src && origImg.src.startsWith('data:image/')) {
+        payload.annotated_image = origImg.src;
+    }
+
+    const sendGradePayload = (pData) => {
+        fetch("{% url 'api_grade_submission' %}", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-CSRFToken": "{{ csrf_token }}",
+                "X-Requested-With": "XMLHttpRequest"
+            },
+            body: JSON.stringify(pData)
+        })
+        .then(r => r.json())
+        .then(data => {
+            btn.disabled = false;
+            btn.textContent = "⚡ CHẤM ĐIỂM & LƯU KẾT QUẢ";
+
+            if (data.status === 'success') {
+                showResultModal(data);
+            } else {
+                alert(data.message || "Có lỗi xảy ra khi chấm bài.");
+            }
+        })
+        .catch(err => {
+            btn.disabled = false;
+            btn.textContent = "⚡ CHẤM ĐIỂM & LƯU KẾT QUẢ";
+            alert("Lỗi kết nối: " + err);
+        });
+    };
+
+    if (window.lastUploadedFile && window.lastUploadedFile instanceof Blob) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            payload.original_image = e.target.result;
+            sendGradePayload(payload);
+        };
+        reader.onerror = function() {
+            sendGradePayload(payload);
+        };
+        reader.readAsDataURL(window.lastUploadedFile);
+    } else {
+        sendGradePayload(payload);
+    }
+}
+
+function showResultModal(data) {
+    document.getElementById('modalScore').textContent = data.total_score;
+    document.getElementById('modalMaxScore').textContent = data.max_score;
+    document.getElementById('modalStudentName').textContent = data.student.name;
+    document.getElementById('modalStudentId').textContent = data.student.id;
+    document.getElementById('modalStudentClass').textContent = data.student.class || '---';
+    document.getElementById('modalSubject').textContent = data.student.subject_name;
+    document.getElementById('modalExamCode').textContent = data.student.exam_code;
+    document.getElementById('modalCorrectCount').textContent = data.correct_count;
+    document.getElementById('modalTotalQ').textContent = data.total_questions;
+    document.getElementById('modalPercent').textContent = data.percent + '%';
+
+    document.getElementById('modalRankBadge').innerHTML = `
+        <span class="badge bg-${data.badge} fs-6 px-3 py-1 rounded-pill">${data.rank}</span>
+    `;
+
+    // Render details table
+    const tbody = document.getElementById('modalDetailsTbody');
+    tbody.innerHTML = '';
+
+    data.details.forEach(item => {
+        const tr = document.createElement('tr');
+        
+        let typeBadge = '';
+        let studentAnsHtml = '';
+        let correctAnsHtml = '';
+        let evalHtml = '';
+
+        if (item.type === 'SINGLE') {
+            typeBadge = '<span class="badge bg-primary bg-opacity-10 text-primary">Single</span>';
+            studentAnsHtml = item.student_ans ? `<span class="badge bg-dark font-monospace">${item.student_ans}</span>` : '<span class="text-muted fst-italic">Bỏ trống</span>';
+            correctAnsHtml = `<span class="badge bg-success font-monospace">${item.correct_ans}</span>`;
+            if (item.is_correct) {
+                evalHtml = '<span class="text-success fw-bold">✓ Đúng</span>';
+            } else {
+                evalHtml = '<span class="text-danger fw-bold">✕ Sai</span>';
+            }
+        } else if (item.type === 'TF') {
+            typeBadge = '<span class="badge bg-success bg-opacity-10 text-success">Đúng/Sai</span>';
+            
+            const subUser = [];
+            const subCorr = [];
+            ['a', 'b', 'c', 'd'].forEach(sub => {
+                const res = item.sub_results ? item.sub_results[sub] : null;
+                const uVal = res && res.user !== null ? (res.user ? 'Đ' : 'S') : '-';
+                const eVal = res && res.expected !== null ? (res.expected ? 'Đ' : 'S') : '-';
+                const isMatch = res && res.is_correct;
+                subUser.push(`<span class="${isMatch ? 'text-success fw-bold' : 'text-danger'}">${sub}:${uVal}</span>`);
+                subCorr.push(`<span>${sub}:${eVal}</span>`);
+            });
+
+            studentAnsHtml = `<small class="font-monospace">${subUser.join(' ')}</small>`;
+            correctAnsHtml = `<small class="font-monospace text-muted">${subCorr.join(' ')}</small>`;
+            evalHtml = `<span class="badge bg-light text-dark border font-monospace fw-semibold">${item.sub_correct_count}/4 ý</span>`;
+        } else if (item.type === 'NUMERIC') {
+            typeBadge = '<span class="badge bg-info bg-opacity-10 text-info">Số thực</span>';
+            studentAnsHtml = item.student_ans ? `<span class="font-monospace fw-bold">${item.student_ans}</span>` : '<span class="text-muted fst-italic">Bỏ trống</span>';
+            correctAnsHtml = `<span class="font-monospace text-success fw-bold">${item.correct_ans}</span>`;
+            if (item.is_correct) {
+                evalHtml = '<span class="text-success fw-bold">✓ Đúng</span>';
+            } else {
+                evalHtml = '<span class="text-danger fw-bold">✕ Sai</span>';
+            }
+        }
+
+        const scoreColor = item.score > 0 ? (item.score === item.max_score ? 'text-success' : 'text-primary') : 'text-danger';
+
+        tr.innerHTML = `
+            <td class="fw-bold">Câu ${item.number}</td>
+            <td>${typeBadge}</td>
+            <td>${studentAnsHtml}</td>
+            <td>${correctAnsHtml}</td>
+            <td>${evalHtml}</td>
+            <td class="fw-bold ${scoreColor}">+${item.score} <small class="text-muted fw-normal">/${item.max_score}</small></td>
+        `;
+        tbody.appendChild(tr);
+    });
+
+    const modal = new bootstrap.Modal(document.getElementById('resultModal'));
+    modal.show();
+}
+
+function getAppliedClasses() {
+    const checkAll = document.getElementById('checkAllClasses');
+    if (checkAll && checkAll.checked) {
+        return '';
+    }
+    const cbs = document.querySelectorAll('.applied-class-cb:checked');
+    const list = [];
+    cbs.forEach(cb => list.push(cb.value));
+    return list.join(',');
+}
+
+function toggleAllClasses(checkbox) {
+    const cbs = document.querySelectorAll('.applied-class-cb');
+    cbs.forEach(cb => {
+        cb.disabled = checkbox.checked;
+        if (checkbox.checked) {
+            cb.checked = false;
+        }
+    });
+    onAppliedClassChange();
+}
+
+function onAppliedClassChange() {
+    const checkedCount = document.querySelectorAll('.applied-class-cb:checked').length;
+    const checkAll = document.getElementById('checkAllClasses');
+    if (checkedCount > 0 && checkAll && checkAll.checked) {
+        checkAll.checked = false;
+    }
+    const sbd = document.getElementById('inputStudentId')?.value;
+    if (sbd) {
+        autoSearchSbd(sbd);
+    }
+}
+
+function autoSearchSbd(sbd) {
+    const sbdInfo = document.getElementById('sbdMatchInfo');
+    const adjMatch = document.getElementById('adjustSbdMatchInfo');
+    if (!sbd || sbd.length < 2) {
+        if (sbdInfo) sbdInfo.classList.add('d-none');
+        if (adjMatch) adjMatch.classList.add('d-none');
+        return;
+    }
+    const appliedClasses = getAppliedClasses();
+    fetch(`/cham-trac-nghiem/api/tim-hoc-sinh/?sbd=${encodeURIComponent(sbd)}&applied_classes=${encodeURIComponent(appliedClasses)}`, {
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.found) {
+            document.getElementById('inputStudentName').value = data.full_name;
+            const adjName = document.getElementById('adjustStudentNameInput');
+            if (adjName) adjName.value = data.full_name;
+
+            if (data.class_name) {
+                document.getElementById('inputStudentClass').value = data.class_name;
+            }
+
+            if (data.class_match === false) {
+                if (sbdInfo) {
+                    sbdInfo.className = 'form-text small text-danger fw-semibold';
+                    sbdInfo.textContent = `⚠️ SBD thuộc lớp ${data.class_name || 'chưa xếp'} (Không thuộc lớp đã chọn cho bài thi)`;
+                    sbdInfo.classList.remove('d-none');
+                }
+                if (adjMatch) {
+                    adjMatch.className = 'text-danger small mt-2 fw-semibold';
+                    adjMatch.textContent = `⚠️ SBD thuộc lớp ${data.class_name || 'chưa xếp'} (Không thuộc lớp đã chọn)`;
+                    adjMatch.classList.remove('d-none');
+                }
+            } else {
+                if (sbdInfo) {
+                    sbdInfo.className = 'form-text small text-success';
+                    sbdInfo.textContent = `✓ Đã tìm thấy học sinh: ${data.full_name} (${data.class_name || 'Chưa lớp'})`;
+                    sbdInfo.classList.remove('d-none');
+                }
+                if (adjMatch) {
+                    adjMatch.className = 'text-success small mt-2 fw-semibold';
+                    adjMatch.textContent = `✓ Đã tìm thấy học sinh: ${data.full_name} (${data.class_name || 'Chưa lớp'})`;
+                    adjMatch.classList.remove('d-none');
+                }
+            }
+        } else {
+            if (sbdInfo) {
+                sbdInfo.className = 'form-text small text-danger fw-semibold';
+                sbdInfo.textContent = `❌ Không tìm thấy SBD "${sbd}" trong danh sách học sinh`;
+                sbdInfo.classList.remove('d-none');
+            }
+            if (adjMatch) {
+                adjMatch.className = 'text-danger small mt-2 fw-semibold';
+                adjMatch.textContent = `❌ Không tìm thấy SBD "${sbd}" trong danh sách học sinh`;
+                adjMatch.classList.remove('d-none');
+            }
+        }
+    });
+}
+
+function uploadBatchImages(inputEl) {
+    if (!inputEl.files || inputEl.files.length === 0) return;
+    uploadedFiles = Array.from(inputEl.files);
+    fileGradingStatus = {};
+    
+    document.getElementById('batchMainRow')?.classList.remove('d-none');
+    document.getElementById('batchQueueWrapper')?.classList.remove('d-none');
+    document.getElementById('imgEditorWrapper')?.classList.remove('d-none');
+    document.getElementById('batchCount').textContent = uploadedFiles.length;
+    document.getElementById('imgUploadStatus').innerHTML = `<span class="badge bg-primary">Đã nạp ${uploadedFiles.length} file ảnh</span>`;
+
+    renderBatchThumbnails();
+    selectBatchImage(0);
+}
+
+// Thêm phiếu mới vào cuối hàng chờ – KHÔNG reset dữ liệu đã chấm
+function appendBatchImages(inputEl) {
+    if (!inputEl.files || inputEl.files.length === 0) return;
+    const newFiles = Array.from(inputEl.files);
+    const startIdx = uploadedFiles.length;
+
+    // Nối tiếp file mới vào mảng hiện có
+    uploadedFiles = uploadedFiles.concat(newFiles);
+    // fileGradingStatus giữ nguyên – chỉ có key mới (startIdx...) là undefined
+
+    document.getElementById('batchMainRow')?.classList.remove('d-none');
+    document.getElementById('batchQueueWrapper')?.classList.remove('d-none');
+    document.getElementById('imgEditorWrapper')?.classList.remove('d-none');
+    document.getElementById('batchCount').textContent = uploadedFiles.length;
+    document.getElementById('imgUploadStatus').innerHTML =
+        `<span class="badge bg-success">Tổng: ${uploadedFiles.length} phiếu (thêm ${newFiles.length} mới)</span>`;
+
+    // Reset input để có thể chọn lại cùng file
+    inputEl.value = '';
+
+    renderBatchThumbnails();
+    // Chuyển sang ảnh mới nhất vừa thêm
+    selectBatchImage(startIdx);
+}
+
+function renderBatchThumbnails() {
+    const container = document.getElementById('batchThumbnails');
+    if (!container) return;
+    container.innerHTML = '';
+
+    let validCount = 0;
+    let errorCount = 0;
+    let pendingCount = 0;
+
+    uploadedFiles.forEach((file, idx) => {
+        const status = fileGradingStatus[idx];
+        const isActive = (idx === currentFileIndex);
+
+        let borderClass = '';
+        let badgeHtml = '';
+        let tooltipText = file.name;
+
+        if (status && status.graded) {
+            if (status.hasError) {
+                borderClass = 'thumb-error';
+                errorCount++;
+                const errListStr = status.errors && status.errors.length > 0 ? status.errors.map(e => `• ${e}`).join('\n') : '• Có lỗi chưa xác định';
+                tooltipText = `[CÓ LỖI - ĐIỂM CÂU ĐÚNG: ${status.score !== undefined ? status.score : 0}/${status.maxScore || 10}đ]\n${file.name}\n${errListStr}`;
+                badgeHtml = `<span class="badge bg-danger position-absolute top-0 end-0 m-1 shadow-sm px-1 py-0" style="font-size: 0.65rem;" title="${status.errors ? status.errors.join(' | ') : 'Lỗi'}">✕ ${status.score !== undefined ? status.score : 0}đ</span>`;
+            } else {
+                borderClass = 'thumb-valid';
+                validCount++;
+                tooltipText = `[HỢP LỆ] ${file.name}\nĐiểm: ${status.score}/${status.maxScore || 10}đ\nSBD: ${status.sbd || '---'} | Đề: ${status.code || '---'}${status.saved ? '\n(Đã lưu)' : ''}`;
+                badgeHtml = `<span class="badge ${status.saved ? 'bg-primary' : 'bg-success'} position-absolute top-0 end-0 m-1 shadow-sm px-1 py-0" style="font-size: 0.65rem;">${status.saved ? '💾' : '✓'} ${status.score}đ</span>`;
+            }
+        } else {
+            pendingCount++;
+            badgeHtml = `<span class="badge bg-secondary position-absolute top-0 end-0 m-1 shadow-sm px-1 py-0" style="font-size: 0.62rem;">Chờ</span>`;
+        }
+
+        const thumbDiv = document.createElement('div');
+        thumbDiv.className = `batch-thumb-item ${borderClass} ${isActive ? 'active-thumb' : ''}`;
+        thumbDiv.title = tooltipText;
+        thumbDiv.onclick = () => selectBatchImage(idx);
+
+        thumbDiv.innerHTML = badgeHtml;
+
+        const img = document.createElement('img');
+        img.className = 'img-fluid rounded mb-1 w-100';
+        img.style.height = '60px';
+        img.style.objectFit = 'cover';
+        img.src = URL.createObjectURL(file);
+        thumbDiv.appendChild(img);
+
+        const infoDiv = document.createElement('div');
+        infoDiv.className = 'text-center';
+        
+        let subText = `<span class="text-muted small font-monospace d-block text-truncate" style="font-size: 0.65rem;">${file.name}</span>`;
+        if (status && status.graded) {
+            if (status.hasError) {
+                subText += `<span class="text-danger fw-bold d-block text-truncate" style="font-size: 0.65rem;">⚠️ ${status.score !== undefined ? status.score : 0}đ (Có lỗi)</span>`;
+            } else {
+                subText += `<span class="text-success fw-bold d-block text-truncate" style="font-size: 0.65rem;">${status.score}đ • ${status.sbd || '---'}</span>`;
+            }
+        }
+        infoDiv.innerHTML = subText;
+        thumbDiv.appendChild(infoDiv);
+
+        container.appendChild(thumbDiv);
+    });
+
+    const statValid = document.getElementById('statValidCount');
+    const statError = document.getElementById('statErrorCount');
+    const statPending = document.getElementById('statPendingCount');
+    if (statValid) statValid.textContent = `✓ ${validCount} hợp lệ`;
+    if (statError) statError.textContent = `❌ ${errorCount} lỗi`;
+    if (statPending) statPending.textContent = `⏳ ${pendingCount} chờ`;
+}
+
+// PHÓNG TO / THU NHỎ / ĐẶT LẠI ẢNH BÀI LÀM ĐÃ NHẬN DIỆN
+let currentOrigZoom = 1.0;
+let _editorZoomNaturalW = 0;
+let _editorZoomNaturalH = 0;
+
+function zoomEditorImage(delta) {
+    currentOrigZoom = Math.max(0.2, Math.min(5.0, Math.round((currentOrigZoom + delta) * 10) / 10));
+    _applyEditorZoom();
+}
+
+function resetEditorZoom() {
+    currentOrigZoom = 1.0;
+    _applyEditorZoom();
+}
+
+function _applyEditorZoom() {
+    const wrapper = document.getElementById('imgZoomWrapper');
+    const img = document.getElementById('imgPreviewOrig');
+    const badge = document.getElementById('txtEditorZoomLevel');
+    if (!wrapper || !img) return;
+
+    const z = currentOrigZoom;
+    wrapper.style.transform = `scale(${z})`;
+    wrapper.style.transformOrigin = 'top left';
+
+    const natW = _editorZoomNaturalW || img.naturalWidth || img.clientWidth;
+    const natH = _editorZoomNaturalH || img.naturalHeight || img.clientHeight;
+    wrapper.style.width = natW + 'px';
+    wrapper.style.height = natH + 'px';
+    wrapper.style.marginRight = (natW * z - natW) + 'px';
+    wrapper.style.marginBottom = (natH * z - natH) + 'px';
+
+    if (badge) badge.textContent = `${Math.round(z * 100)}%`;
+}
+
+// Fit ảnh vừa container (chiều nhỏ hơn được ưu tiên)
+function fitEditorZoom() {
+    const container = document.getElementById('imgPreviewOrigContainer');
+    const natW = _editorZoomNaturalW;
+    const natH = _editorZoomNaturalH;
+    if (!container || !natW || !natH) { resetEditorZoom(); return; }
+
+    const cW = container.clientWidth  - 16;  // trừ padding
+    const cH = container.clientHeight - 16;
+    const scaleW = cW / natW;
+    const scaleH = cH / natH;
+    // Chọn tỷ lệ nhỏ hơn để ảnh không bị crop
+    currentOrigZoom = Math.round(Math.min(scaleW, scaleH) * 10) / 10;
+    currentOrigZoom = Math.max(0.1, Math.min(5.0, currentOrigZoom));
+    _applyEditorZoom();
+}
+
+// Khởi tạo drag-to-pan và wheel-zoom trên container ảnh
+(function initEditorPan() {
+    document.addEventListener('DOMContentLoaded', () => {
+        const container = document.getElementById('imgPreviewOrigContainer');
+        if (!container) return;
+        let isPanning = false, startX = 0, startY = 0, scrollL = 0, scrollT = 0;
+
+        container.addEventListener('mousedown', e => {
+            if (e.button !== 0) return;
+            isPanning = true;
+            startX = e.clientX;
+            startY = e.clientY;
+            scrollL = container.scrollLeft;
+            scrollT = container.scrollTop;
+            container.classList.add('dragging');
+            e.preventDefault();
+        });
+        document.addEventListener('mousemove', e => {
+            if (!isPanning) return;
+            container.scrollLeft = scrollL - (e.clientX - startX);
+            container.scrollTop  = scrollT - (e.clientY - startY);
+        });
+        document.addEventListener('mouseup', () => {
+            isPanning = false;
+            container.classList.remove('dragging');
+        });
+
+        // Wheel zoom
+        container.addEventListener('wheel', e => {
+            if (!e.ctrlKey) return;  // chỉ zoom khi giữ Ctrl
+            e.preventDefault();
+            const delta = e.deltaY < 0 ? 0.2 : -0.2;
+            zoomEditorImage(delta);
+        }, { passive: false });
+    });
+})();
+
+
+function selectBatchImage(idx) {
+    if (idx < 0 || idx >= uploadedFiles.length) return;
+    currentFileIndex = idx;
+    renderBatchThumbnails();
+
+    if (cropperInstance) {
+        cropperInstance.destroy();
+        cropperInstance = null;
+        document.getElementById('btnToggleCrop').classList.replace('btn-primary', 'btn-outline-primary');
+    }
+
+    const file = uploadedFiles[currentFileIndex];
+    document.getElementById('currentImageName').textContent = file.name;
+
+    const statusEl = document.getElementById('imgUploadStatus');
+    statusEl.innerHTML = `<span class="text-primary font-monospace">⏳ Đang xử lý file ${currentFileIndex + 1}/${uploadedFiles.length}...</span>`;
+
+    processFileAndPreview(file);
+}
+
+function processFileAndPreview(fileOrBlob) {
+    // 0. Reset dữ liệu cũ và zoom trước khi nạp bài thi mới
+    resetEditorZoom();
+    studentAnswers = {};
+    window.lastUploadedFile = fileOrBlob;
+    document.getElementById('inputStudentId').value = '';
+    document.getElementById('inputStudentName').value = '';
+    document.getElementById('inputStudentClass').value = '';
+    document.getElementById('sbdMatchInfo').classList.add('d-none');
+    renderOpticalSheet();
+
+    const formData = new FormData();
+    const fileName = fileOrBlob.name || `cropped_${currentFileIndex + 1}.jpg`;
+    formData.append('sheet_image', fileOrBlob, fileName);
+    formData.append('applied_classes', getAppliedClasses());
+    
+    if (currentKey && currentKey.subject_id) {
+        formData.append('subject_id', currentKey.subject_id);
+    } else {
+        const urlParams = new URLSearchParams(window.location.search);
+        const subId = urlParams.get('subject_id');
+        if (subId) formData.append('subject_id', subId);
+    }
+
+    fetch("{% url 'api_process_sheet_image' %}", {
+        method: 'POST',
+        body: formData,
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}',
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(r => r.json())
+    .then(data => {
+        const statusEl = document.getElementById('imgUploadStatus');
+        if (data.status === 'success') {
+            const origImg = document.getElementById('imgPreviewOrig');
+            origImg.src = 'data:image/jpeg;base64,' + data.original_b64;
+            origImg.onload = () => {
+                _editorZoomNaturalW = origImg.naturalWidth;
+                _editorZoomNaturalH = origImg.naturalHeight;
+                fitEditorZoom();  // tự động vừa container
+            };
+            document.getElementById('imgPreviewThresh').src = 'data:image/jpeg;base64,' + data.thresh_b64;
+            document.getElementById('txtImgDpi').textContent = data.dpi;
+
+            // 1. Lưu kết quả chấm và so khớp
+            window.lastGradingDetails = data.grading_details || [];
+            window.lastIsCodeMatched = data.is_code_matched;
+            window.lastScore = data.total_score;
+            window.lastScoreText = data.score_text;
+
+            // 2. Tự động nạp các phương án thí sinh đã tô từ OMR
+            lastDetectedAnswers = data.detected_answers || {};
+            lastRawParts = data.raw_parts || (data.detected_answers ? data.detected_answers._raw_parts : null) || {};
+
+            // 3. Tự động điền Số Báo Danh (SBD - Box 7) & Tra cứu Họ tên học sinh
+            let sbdVal = data.detected_sbd;
+            if (!sbdVal && fileOrBlob.name) {
+                const matchSbd = fileOrBlob.name.match(/\d{4,6}/);
+                if (matchSbd) sbdVal = matchSbd[0];
+            }
+            if (sbdVal) {
+                document.getElementById('inputStudentId').value = sbdVal;
+                autoSearchSbd(sbdVal);
+            }
+
+            // 4. Khớp Mã đề (Box 8) & Nạp câu hỏi bộ đề
+            let keyLoaded = false;
+            const selectKey = document.getElementById('selectExamKey');
+            if (data.matched_key_id && selectKey) {
+                selectKey.value = String(data.matched_key_id);
+                loadExamKey(data.matched_key_id, true);
+                keyLoaded = true;
+            } else if (data.detected_code && selectKey) {
+                for (let opt of selectKey.options) {
+                    if (opt.text.includes(data.detected_code)) {
+                        selectKey.value = opt.value;
+                        loadExamKey(opt.value, true);
+                        keyLoaded = true;
+                        break;
+                    }
+                }
+            }
+
+
+
+            // Áp dụng phương án vào câu hỏi hiện tại
+            applyDetectedAnswers(lastDetectedAnswers, lastRawParts);
+
+            // Cập nhật bảng điều chỉnh OMR & banner thông báo trạng thái chấm
+            updateAdjustmentCardState(data);
+            updateGradingStatusBanner(data);
+
+            // Lưu trạng thái lỗi/hợp lệ cho file hiện tại để hiển thị viền xanh/đỏ
+            fileGradingStatus[currentFileIndex] = {
+                graded: true,
+                hasError: data.has_errors,
+                errors: data.errors || [],
+                sbd: data.detected_sbd,
+                code: data.detected_code,
+                score: data.total_score,
+                maxScore: data.max_score
+            };
+            renderBatchThumbnails();
+
+            const ansCount = Object.keys(studentAnswers).filter(k => !k.startsWith('_')).length;
+            const codeBadgeClass = data.is_code_matched ? 'bg-success' : 'bg-danger';
+            const overallBadge = data.has_errors ? '<span class="badge bg-danger">❌ Có lỗi trên phiếu</span>' : '<span class="badge bg-success">✓ Phiếu hợp lệ</span>';
+            statusEl.innerHTML = `
+                <span class="badge bg-secondary">DPI=${data.dpi}</span>
+                <span class="badge bg-primary">SBD: ${data.detected_sbd || 'Chưa tô'}</span>
+                <span class="badge ${codeBadgeClass}">Mã đề: ${data.detected_code || 'Chưa tô'} ${data.is_code_matched ? '✓' : '⚠️ Không khớp'}</span>
+                <span class="badge bg-warning text-dark">Đã đọc: ${ansCount} câu</span>
+                ${overallBadge}
+            `;
+
+            if (!keyLoaded) {
+                renderOpticalSheet();
+            }
+        } else {
+            statusEl.innerHTML = `<span class="text-danger small">${data.message}</span>`;
+            fileGradingStatus[currentFileIndex] = {
+                graded: true,
+                hasError: true,
+                errors: [data.message || 'Lỗi xử lý file ảnh'],
+                sbd: '',
+                code: '',
+                score: 0,
+                maxScore: 10
+            };
+            renderBatchThumbnails();
+            alert(data.message);
+        }
+    })
+    .catch(err => {
+        document.getElementById('imgUploadStatus').innerHTML = `<span class="text-danger small">Lỗi: ${err}</span>`;
+    });
+}
+
+async function batchGradeAllQueue(autoSave = false) {
+    if (!uploadedFiles || uploadedFiles.length === 0) {
+        alert("Chưa có file ảnh nào trong hàng chờ!");
+        return;
+    }
+
+    const btn = document.getElementById('btnBatchGradeAll');
+    const btnSave = document.getElementById('btnBatchSaveAll');
+    if (btn) btn.disabled = true;
+    if (btnSave) btnSave.disabled = true;
+    if (btn) btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Đang quét & chấm hàng chờ...';
+
+    const pWrap = document.getElementById('batchProgressBarWrapper');
+    const pBar = document.getElementById('batchProgressBar');
+    if (pWrap) pWrap.classList.remove('d-none');
+
+    const total = uploadedFiles.length;
+    const appliedClasses = getAppliedClasses();
+
+    for (let i = 0; i < total; i++) {
+        const pct = Math.round(((i + 1) / total) * 100);
+        if (pBar) {
+            pBar.style.width = pct + '%';
+            pBar.textContent = `${i + 1}/${total} file`;
+        }
+
+        const file = uploadedFiles[i];
+        const formData = new FormData();
+        formData.append('sheet_image', file, file.name);
+        formData.append('applied_classes', appliedClasses);
+
+        if (currentKey && currentKey.subject_id) {
+            formData.append('subject_id', currentKey.subject_id);
+        } else {
+            const urlParams = new URLSearchParams(window.location.search);
+            const subId = urlParams.get('subject_id') || '{{ selected_subject.id }}';
+            if (subId) formData.append('subject_id', subId);
+        }
+
+        try {
+            const res = await fetch("{% url 'api_process_sheet_image' %}", {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}',
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            });
+            const data = await res.json();
+            if (data.status === 'success') {
+                let saved = false;
+                if (autoSave) {
+                    const gradePayload = {
+                        key_id: data.matched_key_id || null,
+                        student_id: data.detected_sbd || "UNKNOWN",
+                        student_name: data.student_info?.full_name || "Thí sinh " + (data.detected_sbd || "UNKNOWN"),
+                        student_class: data.student_info?.class_name || "",
+                        answers: data.detected_answers,
+                        force_zero: !data.matched_key_id,
+                        annotated_image_b64: data.original_b64
+                    };
+                    try {
+                        const sRes = await fetch("{% url 'api_grade_submission' %}", {
+                            method: "POST",
+                            headers: {
+                                "Content-Type": "application/json",
+                                "X-CSRFToken": "{{ csrf_token }}",
+                                "X-Requested-With": "XMLHttpRequest"
+                            },
+                            body: JSON.stringify(gradePayload)
+                        });
+                        const sData = await sRes.json();
+                        if (sData.status === 'success') saved = true;
+                    } catch (e) {
+                        console.error("Lưu thất bại", e);
+                    }
+                }
+                
+                fileGradingStatus[i] = {
+                    graded: true,
+                    saved: saved,
+                    hasError: data.has_errors,
+                    errors: data.errors || [],
+                    sbd: data.detected_sbd,
+                    code: data.detected_code,
+                    score: data.total_score,
+                    maxScore: data.max_score
+                };
+            } else {
+                fileGradingStatus[i] = {
+                    graded: true,
+                    saved: false,
+                    hasError: true,
+                    errors: [data.message || 'Lỗi xử lý file ảnh'],
+                    sbd: '',
+                    code: '',
+                    score: 0,
+                    maxScore: 10
+                };
+            }
+        } catch (err) {
+            fileGradingStatus[i] = {
+                graded: true,
+                hasError: true,
+                errors: ['Lỗi kết nối khi gửi ảnh: ' + err],
+                sbd: '',
+                code: '',
+                score: 0,
+                maxScore: 10
+            };
+        }
+
+        renderBatchThumbnails();
+    }
+
+    if (pWrap) {
+        setTimeout(() => pWrap.classList.add('d-none'), 2500);
+    }
+    if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = '<span>⚡ Quét & Chấm Hết</span>';
+    }
+    if (btnSave) {
+        btnSave.disabled = false;
+    }
+
+    if (uploadedFiles[currentFileIndex]) {
+        selectBatchImage(currentFileIndex);
+    }
+}
+
+function initAdjustCard() {
+    const srcSelect = document.getElementById('selectExamKey');
+    const adjSelect = document.getElementById('adjustKeySelect');
+    if (srcSelect && adjSelect && adjSelect.options.length <= 1) {
+        adjSelect.innerHTML = srcSelect.innerHTML;
+    }
+}
+
+function updateAdjustmentCardState(data) {
+    initAdjustCard();
+    const card = document.getElementById('omrAdjustmentCard');
+    if (card) card.classList.remove('d-none');
+
+    // Lưu giá trị OMR gốc nếu chưa lưu
+    if (data.original_detected_code !== undefined) {
+        window.originalDetectedCode = data.original_detected_code;
+    } else if (window.originalDetectedCode === undefined) {
+        window.originalDetectedCode = data.detected_code || '';
+    }
+
+    if (data.original_detected_sbd !== undefined) {
+        window.originalDetectedSbd = data.original_detected_sbd;
+    } else if (window.originalDetectedSbd === undefined) {
+        window.originalDetectedSbd = data.detected_sbd || '';
+    }
+
+    // Hiển thị OMR gốc đã nhận diện từ phiếu
+    const txtCode = document.getElementById('txtOmrDetectedCode');
+    const txtSbd = document.getElementById('txtOmrDetectedSbd');
+    if (txtCode) txtCode.textContent = window.originalDetectedCode || '(Trống)';
+    if (txtSbd) txtSbd.textContent = window.originalDetectedSbd || '(Trống)';
+
+    // Điền vào các ô điều chỉnh
+    const inputCode = document.getElementById('adjustExamCodeInput');
+    const inputSbd = document.getElementById('adjustSbdInput');
+    const inputName = document.getElementById('adjustStudentNameInput');
+    if (inputCode) inputCode.value = data.detected_code || '';
+    if (inputSbd) inputSbd.value = data.detected_sbd || '';
+    if (inputName) inputName.value = document.getElementById('inputStudentName').value || '';
+
+    // Cập nhật select mã đề
+    const adjSelect = document.getElementById('adjustKeySelect');
+    if (adjSelect) {
+        if (data.matched_key_id) {
+            adjSelect.value = String(data.matched_key_id);
+        } else if (data.detected_code) {
+            let matchedOpt = false;
+            for (let opt of adjSelect.options) {
+                if (opt.text.includes(data.detected_code) || opt.getAttribute('data-code') === data.detected_code) {
+                    adjSelect.value = opt.value;
+                    matchedOpt = true;
+                    break;
+                }
+            }
+            if (!matchedOpt) adjSelect.value = '';
+        }
+    }
+
+    // Badge trạng thái
+    const badge = document.getElementById('badgeOmrMatchStatus');
+    const warning = document.getElementById('examCodeMismatchWarning');
+    if (data.is_code_matched) {
+        if (badge) {
+            badge.className = 'badge bg-success fs-6 px-3 py-2 rounded-pill';
+            badge.innerHTML = `✓ Đã khớp Đề ${data.matched_key_code || data.detected_code}`;
+        }
+        if (warning) warning.classList.add('d-none');
+    } else {
+        if (badge) {
+            badge.className = 'badge bg-danger fs-6 px-3 py-2 rounded-pill';
+            badge.innerHTML = `⚠️ Mã đề "${data.detected_code || '---'}" không khớp (0đ)`;
+        }
+        if (warning) warning.classList.remove('d-none');
+    }
+}
+
+function onAdjustKeySelectChange(keyId) {
+    const srcSelect = document.getElementById('selectExamKey');
+    if (srcSelect && srcSelect.value !== keyId) {
+        srcSelect.value = keyId;
+    }
+
+    const adjSelect = document.getElementById('adjustKeySelect');
+    const selectedOpt = adjSelect ? adjSelect.options[adjSelect.selectedIndex] : null;
+    const warning = document.getElementById('examCodeMismatchWarning');
+
+    if (selectedOpt && selectedOpt.value) {
+        const code = selectedOpt.getAttribute('data-code') || selectedOpt.text.match(/Đề\s*([A-Za-z0-9]+)/i)?.[1] || '';
+        if (code) {
+            const inputCode = document.getElementById('adjustExamCodeInput');
+            if (inputCode) inputCode.value = code;
+        }
+        if (warning) warning.classList.add('d-none');
+        loadExamKey(keyId, true);
+    } else {
+        const inputCode = document.getElementById('adjustExamCodeInput');
+        if (inputCode) inputCode.value = '';
+        if (warning) warning.classList.remove('d-none');
+        loadExamKey('', true);
+    }
+}
+
+function onAdjustCodeInputChange(val) {
+    const cleanVal = (val || '').trim();
+    const adjSelect = document.getElementById('adjustKeySelect');
+    const srcSelect = document.getElementById('selectExamKey');
+    const warning = document.getElementById('examCodeMismatchWarning');
+
+    let foundKeyId = null;
+    if (adjSelect && cleanVal) {
+        for (let opt of adjSelect.options) {
+            if (!opt.value) continue;
+            const optCode = opt.getAttribute('data-code') || opt.text.match(/Đề\s*([A-Za-z0-9]+)/i)?.[1];
+            if (optCode && (optCode === cleanVal || optCode.replace(/^0+/, '') === cleanVal.replace(/^0+/, ''))) {
+                foundKeyId = opt.value;
+                break;
+            }
+            if (opt.text.includes(cleanVal)) {
+                foundKeyId = opt.value;
+                break;
+            }
+        }
+    }
+
+    if (foundKeyId) {
+        if (adjSelect) adjSelect.value = foundKeyId;
+        if (srcSelect) srcSelect.value = foundKeyId;
+        if (warning) warning.classList.add('d-none');
+        loadExamKey(foundKeyId, true);
+    } else {
+        if (adjSelect) adjSelect.value = '';
+        if (cleanVal.length >= 2) {
+            if (warning) warning.classList.remove('d-none');
+        } else {
+            if (warning) warning.classList.add('d-none');
+        }
+        loadExamKey('', true);
+    }
+}
+
+function onAdjustSbdChange(sbd) {
+    const inputStudentId = document.getElementById('inputStudentId');
+    if (inputStudentId) {
+        inputStudentId.value = sbd;
+    }
+    autoSearchSbd(sbd);
+}
+
+function onAdjustNameChange(name) {
+    const inputStudentName = document.getElementById('inputStudentName');
+    if (inputStudentName) {
+        inputStudentName.value = name;
+    }
+}
+
+function onCandidateIdChange(sbd) {
+    autoSearchSbd(sbd);
+    const adj = document.getElementById('adjustSbdInput');
+    if (adj) adj.value = sbd;
+}
+
+function onCandidateNameChange(name) {
+    const adj = document.getElementById('adjustStudentNameInput');
+    if (adj) adj.value = name;
+}
+
+function resetToDetectedValues() {
+    if (window.originalDetectedCode !== undefined) {
+        const inputCode = document.getElementById('adjustExamCodeInput');
+        if (inputCode) inputCode.value = window.originalDetectedCode;
+        onAdjustCodeInputChange(window.originalDetectedCode);
+    }
+    if (window.originalDetectedSbd !== undefined) {
+        const inputSbd = document.getElementById('adjustSbdInput');
+        if (inputSbd) inputSbd.value = window.originalDetectedSbd;
+        onAdjustSbdChange(window.originalDetectedSbd);
+    }
+    reGradeWithAdjustedInfo();
+}
+
+function updateGradingStatusBanner(data) {
+    const bannerContainer = document.getElementById('gradingResultBannerContainer');
+    if (!bannerContainer) return;
+
+    if (data.has_errors && data.errors && data.errors.length > 0) {
+        bannerContainer.innerHTML = `
+            <div class="alert alert-warning border-warning d-flex flex-column gap-2 p-3 rounded-4 shadow-sm mb-4" style="background-color: #fffbeb;">
+                <div class="d-flex align-items-start justify-content-between gap-3 flex-wrap">
+                    <div class="d-flex align-items-start gap-3">
+                        <div class="fs-1 text-warning lh-1">⚠️</div>
+                        <div>
+                            <div class="d-flex align-items-center gap-2 flex-wrap mb-2">
+                                <span class="fw-bold text-dark fs-6">ĐIỂM CÁC CÂU ĐÚNG:</span>
+                                <span class="badge bg-primary fs-5 px-3 py-1 shadow-xs">${data.total_score !== undefined ? data.total_score : 0} / ${data.max_score || 10} điểm</span>
+                                <span class="badge bg-success small">(${data.correct_count !== undefined ? data.correct_count : 0} câu/ý đúng)</span>
+                                ${data.score_text ? `<span class="badge bg-white text-dark border small">Bằng chữ: ${data.score_text}</span>` : ''}
+                            </div>
+                            <div class="text-danger fw-bold small mb-1">⚠️ Phát hiện ${data.errors.length} lỗi trên phiếu thi (các câu/ý/cột sai đã được đóng khung bọc đỏ trên ảnh):</div>
+                            <ul class="mb-2 ps-3 small text-danger">
+                                ${data.errors.map(err => `<li class="fw-semibold">${err}</li>`).join('')}
+                            </ul>
+                            <div class="small text-muted">
+                                Thầy/Cô có thể kiểm tra và điều chỉnh Số báo danh, Mã đề hoặc đáp án ở bảng <strong>"Kiểm Tra & Điều Chỉnh Thông Tin Phiếu Nhận Diện"</strong> bên dưới, sau đó bấm nút <strong>"CHẤM LẠI BÀI NÀY"</strong>.
+                            </div>
+                        </div>
+                    </div>
+                    <button type="button" class="btn btn-warning text-dark fw-bold rounded-pill px-3 py-2 shadow-sm d-flex align-items-center gap-1 flex-shrink-0" onclick="reGradeWithAdjustedInfo()">
+                        <span>🔄 CHẤM LẠI BÀI NÀY</span>
+                    </button>
+                </div>
+            </div>
+        `;
+    } else if (data.is_code_matched === false) {
+        bannerContainer.innerHTML = `
+            <div class="alert alert-danger border-danger d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 p-3 rounded-4 shadow-sm mb-4">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="fs-1 text-danger">⚠️</div>
+                    <div>
+                        <div class="fw-bold text-dark fs-6">Mã đề "${data.detected_code || '---'}" trên phiếu KHÔNG KHỚP với danh sách đề của môn thi!</div>
+                        <div class="text-danger small mt-1">
+                            Hệ thống đã ghi: <strong>0.0 điểm</strong> (Không điểm). Người chấm vui lòng chọn đúng Mã đề ở bảng điều chỉnh và bấm nút <strong>"Chấm Lại"</strong>.
+                        </div>
+                    </div>
+                </div>
+                <button type="button" class="btn btn-warning text-dark fw-bold rounded-pill px-4 py-2 shadow-sm d-flex align-items-center gap-2 flex-shrink-0" onclick="reGradeWithAdjustedInfo()">
+                    <span>🔄 Chấm Lại Sau Khi Sửa</span>
+                </button>
+            </div>
+        `;
+    } else {
+        bannerContainer.innerHTML = `
+            <div class="alert alert-success border-success d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 p-3 rounded-4 shadow-sm mb-4">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="fs-1 text-success">🎯</div>
+                    <div>
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="badge bg-success font-monospace px-2 py-1">Đề ${data.matched_key_code || data.detected_code}</span>
+                            <span class="badge bg-light text-success border border-success px-2 py-1">✓ Phiếu hợp lệ (Viền xanh)</span>
+                            <span class="fw-bold text-dark fs-5">Điểm: <span class="text-danger fw-black">${data.total_score}</span> / ${data.max_score || 10}đ</span>
+                        </div>
+                        <div class="text-secondary small mt-1">
+                            Bằng chữ: <strong class="text-dark">${data.score_text}</strong> &bull; Đúng tuyệt đối: <strong class="text-success">${data.correct_count}</strong> câu
+                            ${data.student_info && data.student_info.full_name ? ` &bull; Thí sinh: <strong>${data.student_info.full_name}</strong> (Lớp ${data.student_info.class_name || 'Chưa lớp'})` : ''}
+                        </div>
+                    </div>
+                </div>
+                <button type="button" class="btn btn-sm btn-outline-warning text-dark fw-bold rounded-pill px-3 py-2 shadow-sm d-flex align-items-center gap-1" onclick="reGradeWithAdjustedInfo()">
+                    <span>🔄 Chấm Lại</span>
+                </button>
+            </div>
+        `;
+    }
+}
+
+function reGradeWithAdjustedInfo() {
+    initAdjustCard();
+    const adjSelect = document.getElementById('adjustKeySelect');
+    const selectKey = document.getElementById('selectExamKey');
+    const selectedKeyId = (adjSelect && adjSelect.value) || (selectKey ? selectKey.value : '');
+    const customExamCode = (document.getElementById('adjustExamCodeInput')?.value || '').trim();
+    const studentId = (document.getElementById('adjustSbdInput')?.value || document.getElementById('inputStudentId')?.value || '').trim();
+    const studentName = (document.getElementById('adjustStudentNameInput')?.value || document.getElementById('inputStudentName')?.value || '').trim();
+
+    if (!selectedKeyId && !customExamCode) {
+        alert('Vui lòng chọn hoặc nhập Mã đề thi trước khi chấm lại.');
+        if (adjSelect) adjSelect.focus();
+        return;
+    }
+
+    if (window.lastUploadedFile) {
+        const formData = new FormData();
+        formData.append('sheet_image', window.lastUploadedFile);
+        formData.append('applied_classes', getAppliedClasses());
+
+        let subId = '';
+        if (currentKey && currentKey.subject_id) {
+            subId = currentKey.subject_id;
+        } else {
+            const urlParams = new URLSearchParams(window.location.search);
+            subId = urlParams.get('subject_id') || '{{ selected_subject.id }}';
+        }
+        if (subId) formData.append('subject_id', subId);
+        if (selectedKeyId) formData.append('key_id', selectedKeyId);
+        if (customExamCode) formData.append('exam_code', customExamCode);
+        if (studentId) formData.append('student_id', studentId);
+        formData.append('student_answers', JSON.stringify(studentAnswers));
+
+        const statusEl = document.getElementById('imgUploadStatus');
+        if (statusEl) statusEl.innerHTML = '<span class="spinner-border spinner-border-sm text-warning"></span> Đang chấm lại theo Mã đề và SBD đã sửa...';
+
+        fetch("{% url 'api_process_sheet_image' %}", {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.status === 'success') {
+                const origImg = document.getElementById('imgPreviewOrig');
+                if (origImg && data.original_b64) {
+                    origImg.src = 'data:image/jpeg;base64,' + data.original_b64;
+                    origImg.onload = () => {
+                        _editorZoomNaturalW = origImg.naturalWidth;
+                        _editorZoomNaturalH = origImg.naturalHeight;
+                        fitEditorZoom();  // tự động vừa container
+                    };
+                }
+
+                window.lastGradingDetails = data.grading_details || [];
+                window.lastIsCodeMatched = data.is_code_matched;
+                window.lastScore = data.total_score;
+                window.lastScoreText = data.score_text;
+
+                updateGradingStatusBanner(data);
+                updateAdjustmentCardState(data);
+
+                // Cập nhật trạng thái viền xanh/đỏ cho thumbnail hiện tại
+                fileGradingStatus[currentFileIndex] = {
+                    graded: true,
+                    hasError: data.has_errors,
+                    errors: data.errors || [],
+                    sbd: data.detected_sbd,
+                    code: data.detected_code,
+                    score: data.total_score,
+                    maxScore: data.max_score
+                };
+                renderBatchThumbnails();
+
+                if (data.matched_key_id) {
+                    if (!currentKey || currentKey.id != data.matched_key_id) {
+                        loadExamKey(data.matched_key_id, true);
+                    } else {
+                        renderOpticalSheet();
+                    }
+                } else {
+                    renderOpticalSheet();
+                }
+
+                if (statusEl) {
+                    const badgeClass = data.is_code_matched ? 'bg-success' : 'bg-danger';
+                    const errorBadge = data.has_errors ? '<span class="badge bg-danger ms-1">❌ Có lỗi</span>' : '<span class="badge bg-success ms-1">✓ Viền xanh</span>';
+                    statusEl.innerHTML = `<span class="badge ${badgeClass}">Đã chấm lại: ${data.total_score}đ (${data.score_text})</span> ${errorBadge}`;
+                }
+            } else {
+                alert(data.message || 'Lỗi khi chấm lại.');
+            }
+        })
+        .catch(err => {
+            alert('Lỗi kết nối khi chấm lại: ' + err);
+        });
+    } else {
+        if (selectedKeyId && (!currentKey || currentKey.id != selectedKeyId)) {
+            loadExamKey(selectedKeyId, true);
+        }
+        submitGrading();
+    }
+}
+
+function rotateImage(deg) {
+    if (cropperInstance) {
+        cropperInstance.rotate(deg);
+        return;
+    }
+
+    const origImg = document.getElementById('imgPreviewOrig');
+    if (!origImg.src) return;
+
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    const tempImg = new Image();
+    tempImg.onload = function() {
+        if (deg === 90 || deg === -90 || deg === 270) {
+            canvas.width = tempImg.height;
+            canvas.height = tempImg.width;
+        } else {
+            canvas.width = tempImg.width;
+            canvas.height = tempImg.height;
+        }
+
+        ctx.translate(canvas.width / 2, canvas.height / 2);
+        ctx.rotate((deg * Math.PI) / 180);
+        ctx.drawImage(tempImg, -tempImg.width / 2, -tempImg.height / 2);
+
+        canvas.toBlob(blob => {
+            const rotatedFile = new File([blob], uploadedFiles[currentFileIndex].name, { type: 'image/jpeg' });
+            uploadedFiles[currentFileIndex] = rotatedFile;
+            processFileAndPreview(rotatedFile);
+        }, 'image/jpeg', 0.95);
+    };
+    tempImg.src = origImg.src;
+}
+
+function toggleCropper() {
+    const origImg = document.getElementById('imgPreviewOrig');
+    const btn = document.getElementById('btnToggleCrop');
+
+    if (cropperInstance) {
+        cropperInstance.destroy();
+        cropperInstance = null;
+        btn.classList.replace('btn-primary', 'btn-outline-primary');
+    } else {
+        cropperInstance = new Cropper(origImg, {
+            viewMode: 1,
+            autoCropArea: 0.9,
+            movable: true,
+            zoomable: true,
+            rotatable: true
+        });
+        btn.classList.replace('btn-outline-primary', 'btn-primary');
+    }
+}
+
+function applyImageCropRotate() {
+    if (cropperInstance) {
+        const canvas = cropperInstance.getCroppedCanvas();
+        canvas.toBlob(blob => {
+            cropperInstance.destroy();
+            cropperInstance = null;
+            document.getElementById('btnToggleCrop').classList.replace('btn-primary', 'btn-outline-primary');
+
+            const croppedFile = new File([blob], uploadedFiles[currentFileIndex].name, { type: 'image/jpeg' });
+            uploadedFiles[currentFileIndex] = croppedFile;
+            processFileAndPreview(croppedFile);
+        }, 'image/jpeg', 0.95);
+    } else {
+        // Simple re-processing current image
+        if (uploadedFiles[currentFileIndex]) {
+            processFileAndPreview(uploadedFiles[currentFileIndex]);
+        }
+    }
+}
+
+function prepareNextStudent() {
+    const modalEl = document.getElementById('resultModal');
+    const modal = bootstrap.Modal.getInstance(modalEl);
+    if (modal) modal.hide();
+
+    document.getElementById('inputStudentId').value = '';
+    document.getElementById('inputStudentName').value = '';
+    document.getElementById('sbdMatchInfo').classList.add('d-none');
+
+    // Advance to next image in batch if available
+    if (currentFileIndex + 1 < uploadedFiles.length) {
+        selectBatchImage(currentFileIndex + 1);
+    } else {
+        document.getElementById('inputStudentId').focus();
+    }
+
+    studentAnswers = {};
+    if (currentQuestions) {
+        currentQuestions.forEach(q => { q.selected = null; q.seleted = null; });
+    }
+    renderOpticalSheet();
+}
+</script>
+{% endblock %}
+

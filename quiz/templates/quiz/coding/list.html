@@ -1,0 +1,164 @@
+{% extends 'quiz/base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="fas fa-code text-primary"></i> Luyện Tập Lập Trình (C++/Python)</h2>
+        <div>
+            <a href="{% url 'coding_exam_list' %}" class="btn btn-outline-warning text-dark fw-bold me-2">
+                <i class="fas fa-trophy"></i> Các Kỳ Thi Lập Trình
+            </a>
+            {% if user.profile.is_coding_contributor %}
+            <a href="{% url 'coding_manage_list' %}" class="btn btn-outline-primary">
+                <i class="fas fa-tasks"></i> Quản lý Bài Tập
+            </a>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-body bg-light">
+            <form method="get" class="row g-3">
+                <div class="col-md-3">
+                    <label class="form-label fw-bold">Tìm kiếm tên bài</label>
+                    <input type="text" name="q" class="form-control" placeholder="Nhập tên bài..." value="{{ q_search }}">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label fw-bold">Mức độ khó</label>
+                    <select name="difficulty" class="form-select" onchange="this.form.submit()">
+                        <option value="">Tất cả</option>
+                        <option value="Dễ" {% if difficulty == 'Dễ' %}selected{% endif %}>Dễ</option>
+                        <option value="Trung bình" {% if difficulty == 'Trung bình' %}selected{% endif %}>Trung bình</option>
+                        <option value="Khó" {% if difficulty == 'Khó' %}selected{% endif %}>Khó</option>
+                        <option value="Rất khó" {% if difficulty == 'Rất khó' %}selected{% endif %}>Rất khó</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label fw-bold">Chủ đề</label>
+                    <select name="topic" class="form-select" onchange="this.form.submit()">
+                        <option value="">Tất cả chủ đề</option>
+                        {% for t in all_topics %}
+                        <option value="{{ t.id }}" {% if topic_id == t.id|stringformat:"s" %}selected{% endif %}>{{ t.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label fw-bold">Tác giả</label>
+                    <input type="text" name="author" class="form-control" placeholder="Tên tác giả..." value="{{ author_q }}">
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary w-100"><i class="fas fa-search"></i> Lọc</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-body p-0">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th width="15%" class="ps-3">Trạng thái</th>
+                        <th width="35%">Tên bài toán</th>
+                        <th width="20%">Độ khó / Chủ đề</th>
+                        <th width="15%">Thời gian / Bộ nhớ</th>
+                        <th width="15%" class="text-center">Hành động</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for q in page_obj %}
+                    <tr>
+                        <td class="ps-3">
+                            {% if q.status == 'solved' %}
+                                <span class="badge bg-success"><i class="fas fa-check"></i> Đã giải</span>
+                            {% elif q.status == 'attempted' %}
+                                <span class="badge bg-warning text-dark"><i class="fas fa-minus"></i> Đang thử</span>
+                            {% else %}
+                                <span class="badge bg-secondary">Chưa làm</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <a href="{% url 'coding_detail' q.id %}" class="text-decoration-none fw-bold fs-6">
+                                {{ q.title }}
+                            </a>
+                            <div class="text-muted small mt-1">Tác giả: 
+                                {% if q.created_by %}
+                                    {{ q.created_by.get_full_name|default:q.created_by.username }}
+                                {% else %}
+                                    Hệ thống
+                                {% endif %}
+                            </div>
+                        </td>
+                        <td>
+                            <div>
+                                {% if q.difficulty == 'Dễ' %}<span class="badge bg-success">Dễ</span>
+                                {% elif q.difficulty == 'Trung bình' %}<span class="badge bg-warning text-dark">Trung bình</span>
+                                {% elif q.difficulty == 'Khó' %}<span class="badge bg-danger">Khó</span>
+                                {% elif q.difficulty == 'Rất khó' %}<span class="badge bg-dark">Rất khó</span>
+                                {% else %}<span class="badge bg-secondary">{{ q.difficulty }}</span>{% endif %}
+                            </div>
+                            <div class="mt-1">
+                                {% for topic in q.topics.all|slice:":2" %}
+                                <span class="badge bg-light text-dark border">{{ topic.name }}</span>
+                                {% endfor %}
+                                {% if q.topics.count > 2 %}
+                                <span class="badge bg-light text-dark border">...</span>
+                                {% endif %}
+                            </div>
+                        </td>
+                        <td>
+                            <small class="text-muted d-block"><i class="fas fa-clock"></i> {{ q.time_limit }}s</small>
+                            <small class="text-muted d-block"><i class="fas fa-memory"></i> {{ q.memory_limit }}MB</small>
+                        </td>
+                        <td class="text-center">
+                            <a href="{% url 'coding_detail' q.id %}" class="btn btn-sm btn-outline-primary">
+                                <i class="fas fa-play"></i> Làm bài
+                            </a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" class="text-center py-4">Chưa có bài toán lập trình nào phù hợp với bộ lọc.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        
+        {% if page_obj.has_other_pages %}
+        <div class="card-footer bg-white d-flex justify-content-center pt-3 pb-1">
+            <nav>
+                <ul class="pagination pagination-sm">
+                    {% if page_obj.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page=1{% if q_search %}&q={{ q_search }}{% endif %}{% if difficulty %}&difficulty={{ difficulty }}{% endif %}{% if topic_id %}&topic={{ topic_id }}{% endif %}{% if author_q %}&author={{ author_q }}{% endif %}">&laquo;</a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if q_search %}&q={{ q_search }}{% endif %}{% if difficulty %}&difficulty={{ difficulty }}{% endif %}{% if topic_id %}&topic={{ topic_id }}{% endif %}{% if author_q %}&author={{ author_q }}{% endif %}">Trước</a>
+                    </li>
+                    {% endif %}
+
+                    {% for num in page_obj.paginator.page_range %}
+                        {% if page_obj.number == num %}
+                            <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+                        {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                            <li class="page-item"><a class="page-link" href="?page={{ num }}{% if q_search %}&q={{ q_search }}{% endif %}{% if difficulty %}&difficulty={{ difficulty }}{% endif %}{% if topic_id %}&topic={{ topic_id }}{% endif %}{% if author_q %}&author={{ author_q }}{% endif %}">{{ num }}</a></li>
+                        {% endif %}
+                    {% endfor %}
+
+                    {% if page_obj.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if q_search %}&q={{ q_search }}{% endif %}{% if difficulty %}&difficulty={{ difficulty }}{% endif %}{% if topic_id %}&topic={{ topic_id }}{% endif %}{% if author_q %}&author={{ author_q }}{% endif %}">Sau</a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if q_search %}&q={{ q_search }}{% endif %}{% if difficulty %}&difficulty={{ difficulty }}{% endif %}{% if topic_id %}&topic={{ topic_id }}{% endif %}{% if author_q %}&author={{ author_q }}{% endif %}">&raquo;</a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </nav>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

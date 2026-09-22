@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bg10" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fb923c"/>
+      <stop offset="100%" stop-color="#c2410c"/>
+    </linearGradient>
+  </defs>
+  <rect width="120" height="120" rx="60" fill="url(#bg10)"/>
+  <!-- Cat Ears -->
+  <polygon points="34,46 44,18 60,38" fill="#ea580c"/>
+  <polygon points="38,44 45,24 56,38" fill="#fed7aa"/>
+  <polygon points="86,46 76,18 60,38" fill="#ea580c"/>
+  <polygon points="82,44 75,24 64,38" fill="#fed7aa"/>
+  <!-- Body -->
+  <path d="M28 120 C28 92, 45 82, 60 82 C75 82, 92 92, 92 120 Z" fill="#fed7aa"/>
+  <!-- Face -->
+  <circle cx="60" cy="60" r="28" fill="#f97316"/>
+  <!-- Glasses -->
+  <rect x="40" y="52" width="16" height="12" rx="3" fill="none" stroke="#0f172a" stroke-width="2.5"/>
+  <rect x="64" y="52" width="16" height="12" rx="3" fill="none" stroke="#0f172a" stroke-width="2.5"/>
+  <line x1="56" y1="58" x2="64" y2="58" stroke="#0f172a" stroke-width="2.5"/>
+  <circle cx="48" cy="58" r="2.5" fill="#0f172a"/>
+  <circle cx="72" cy="58" r="2.5" fill="#0f172a"/>
+  <!-- Nose & Mouth -->
+  <polygon points="60,67 56,64 64,64" fill="#be123c"/>
+  <path d="M56 69 Q60 73 64 69" stroke="#7c2d12" stroke-width="1.8" fill="none"/>
+  <!-- Whiskers -->
+  <line x1="32" y1="64" x2="42" y2="66" stroke="#7c2d12" stroke-width="1.5"/>
+  <line x1="32" y1="70" x2="42" y2="70" stroke="#7c2d12" stroke-width="1.5"/>
+  <line x1="78" y1="66" x2="88" y2="64" stroke="#7c2d12" stroke-width="1.5"/>
+  <line x1="78" y1="70" x2="88" y2="70" stroke="#7c2d12" stroke-width="1.5"/>
+</svg>

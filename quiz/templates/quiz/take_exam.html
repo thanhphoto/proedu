@@ -1,0 +1,794 @@
+{% extends 'quiz/base.html' %}
+
+{% block title %}Làm Bài Thi - {{ quiz.title }} - SmartQuiz Pro{% endblock %}
+
+{% block content %}
+<style>
+    /* Sticky exam header */
+    .exam-header-sticky {
+        position: sticky;
+        top: 0;
+        z-index: 1020;
+        background: rgba(255, 255, 255, 0.96);
+        backdrop-filter: blur(10px);
+        border-bottom: 2px solid #e2e8f0;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+    }
+    .timer-badge {
+        font-size: 1.25rem;
+        font-family: monospace;
+        font-weight: 800;
+        letter-spacing: 1px;
+    }
+    .timer-badge.warning {
+        background-color: #fee2e2 !important;
+        color: #dc2626 !important;
+        animation: pulse 1s infinite;
+    }
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.6; }
+    }
+    /* Question card */
+    .question-card {
+        border: 1px solid #e2e8f0;
+        border-radius: 1rem;
+        background: #ffffff;
+        transition: all 0.2s ease;
+    }
+    .question-card.active-focus {
+        border-color: #4f46e5;
+        box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+    }
+    /* Option label */
+    .option-item {
+        border: 1px solid #cbd5e1;
+        border-radius: 0.75rem;
+        padding: 0.75rem 1rem;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    .option-item:hover {
+        background-color: #f8fafc;
+        border-color: #94a3b8;
+    }
+    .option-item input[type="radio"]:checked + label {
+        color: #4f46e5;
+        font-weight: bold;
+    }
+    .option-item:has(input[type="radio"]:checked) {
+        background-color: #eef2ff;
+        border-color: #6366f1;
+    }
+    /* Palette grid */
+    .nav-btn-q {
+        width: 38px;
+        height: 38px;
+        font-size: 0.85rem;
+        font-weight: 700;
+        border-radius: 0.5rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid #cbd5e1;
+        background: #f8fafc;
+        color: #475569;
+        text-decoration: none;
+        transition: all 0.15s;
+    }
+    .nav-btn-q.answered {
+        background: #10b981 !important;
+        color: #ffffff !important;
+        border-color: #059669 !important;
+    }
+    .nav-btn-q:hover {
+        background: #e2e8f0;
+    }
+</style>
+
+<!-- ==================== TRƯỜNG HỢP 1: BÀI THI ĐÃ HẾT HẠN NỘP ==================== -->
+{% if is_expired %}
+<div class="py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8 col-lg-6">
+            <div class="card border-0 shadow-lg rounded-4 overflow-hidden text-center">
+                <div class="p-4 text-white" style="background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);">
+                    <div class="display-4 mb-2">⏰</div>
+                    <h3 class="fw-bold mb-1">BÀI THI ĐÃ KẾT THÚC</h3>
+                    <span class="badge bg-white text-danger px-3 py-1 font-monospace fs-6">MÃ ĐỀ: {{ quiz.exam_code }}</span>
+                </div>
+                <div class="card-body p-4 p-md-5 bg-white">
+                    <h5 class="fw-bold text-dark mb-3">{{ quiz.title }}</h5>
+                    <div class="alert alert-danger rounded-3 text-start small mb-4">
+                        ⚠️ <strong>Thông báo:</strong> Đã quá thời hạn quy định nộp bài của kỳ thi (Hạn chót: <strong>{{ quiz.deadline|date:'H:i - d/m/Y' }}</strong>). Hệ thống đã khóa bài thi này.
+                    </div>
+                    <div class="d-flex justify-content-center gap-3">
+                        <a href="{% url 'home' %}" class="btn btn-primary rounded-pill px-4 fw-bold shadow-sm">
+                            🏠 Về Trang Chủ
+                        </a>
+                        <a href="{% url 'online_exam' %}" class="btn btn-outline-secondary rounded-pill px-4 fw-bold">
+                            📋 Danh Sách Bài Thi
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ==================== TRƯỜNG HỢP 2: PHÒNG CHỜ (CHƯA ĐẾN GIỜ MỞ ĐỀ) ==================== -->
+{% elif is_before_start %}
+<div class="py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8 col-lg-6">
+            <div class="card border-0 shadow-lg rounded-4 overflow-hidden text-center">
+                <div class="p-4 text-white" style="background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);">
+                    <div class="display-4 mb-2">⏳</div>
+                    <h3 class="fw-bold mb-1">PHÒNG CHỜ BÀI THI</h3>
+                    <span class="badge bg-warning text-dark px-3 py-1 font-monospace fs-6">MÃ ĐỀ: {{ quiz.exam_code }}</span>
+                </div>
+                <div class="card-body p-4 p-md-5 bg-white">
+                    <h4 class="fw-bold text-dark mb-2">{{ quiz.title }}</h4>
+                    <p class="text-muted small mb-4">📚 Môn: <strong>{{ quiz.subject.name }}</strong> | ⏱️ Thời gian: <strong>{{ quiz.duration }} phút</strong></p>
+
+                    <div class="p-4 bg-light rounded-4 border mb-4">
+                        <div class="text-secondary small fw-bold text-uppercase mb-2">Bài thi sẽ chính thức bắt đầu sau:</div>
+                        <div id="waitingCountdownDisplay" class="display-5 fw-extrabold text-primary font-monospace">
+                            --:--:--
+                        </div>
+                        <div class="text-muted small mt-2">
+                            🕒 Thời gian mở đề: <strong>{{ quiz.start_time|date:'H:i - d/m/Y' }}</strong>
+                        </div>
+                    </div>
+
+                    <div class="alert alert-info border-0 rounded-3 small mb-4 text-start">
+                        ℹ️ <strong>Lưu ý:</strong> Vui lòng giữ nguyên trang web. Khi đồng hồ đếm ngược kết thúc, hệ thống sẽ tự động chuyển bạn vào màn hình làm bài thi ngay lập tức.
+                    </div>
+
+                    <a href="{% url 'home' %}" class="btn btn-outline-secondary rounded-pill px-4 fw-semibold">
+                        &larr; Quay lại Trang Chủ
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ==================== TRƯỜNG HỢP 3: ĐÃ ĐẾN GIỜ THI (LÀM BÀI CHÍNH THỨC) ==================== -->
+{% else %}
+<div id="startScreen" class="py-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8 col-lg-6">
+            <div class="card border-0 shadow-lg rounded-4 overflow-hidden">
+                <div class="p-4 text-white text-center" style="background: linear-gradient(135deg, #2563eb 0%, #4f46e5 100%);">
+                    <div class="display-5 mb-2">📝</div>
+                    <h3 class="fw-bold mb-1">{{ quiz.title }}</h3>
+                    <span class="badge bg-warning text-dark px-3 py-1 font-monospace fs-6">MÃ ĐỀ: {{ quiz.exam_code }}</span>
+                </div>
+                <div class="card-body p-4 p-md-5 bg-white">
+                    <div class="p-3 bg-light rounded-3 mb-4">
+                        <div class="row g-2 small text-secondary">
+                            <div class="col-6">📚 Môn: <strong class="text-dark">{{ quiz.subject.name }}</strong></div>
+                            <div class="col-6">⏱️ Thời gian: <strong class="text-dark">{{ quiz.duration }} phút</strong></div>
+                            <div class="col-6">❓ Số lượng: <strong class="text-dark">{{ total_questions }} câu hỏi</strong></div>
+                            <div class="col-6">🎯 Thang điểm: <strong class="text-success">10.0 điểm</strong></div>
+                        </div>
+                        {% if quiz.deadline %}
+                        <div class="mt-2 pt-2 border-top small text-danger">
+                            ⏰ Hạn chót nộp bài: <strong>{{ quiz.deadline|date:'H:i - d/m/Y' }}</strong>
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    {% if is_logged_in %}
+                        <!-- Đã đăng nhập: Tự động nhận diện -->
+                        <div class="alert alert-success border-0 rounded-3 d-flex align-items-center gap-3 mb-4">
+                            <img src="{{ user_profile.avatar_url|default:'/static/quiz/avatars/avatar-1.svg' }}" alt="Avatar" class="rounded-circle border shadow-xs" width="50" height="50" style="background: white; object-fit: contain;">
+                            <div>
+                                <div class="fw-bold fs-6">Thí sinh: {{ user_full_name }}</div>
+                                <small class="text-success-emphasis">Bạn đã đăng nhập với tài khoản <strong>{{ user.username }}</strong>.</small>
+                            </div>
+                        </div>
+                        <button type="button" class="btn btn-primary btn-lg w-100 rounded-pill fw-bold shadow py-3" onclick="startExam()">
+                            🚀 Bắt Đầu Làm Bài Ngay
+                        </button>
+                    {% else %}
+                        <!-- Chưa đăng nhập: BẮT BUỘC NHẬP HỌ TÊN -->
+                        <div class="mb-4">
+                            <div class="alert alert-warning border-0 rounded-3 small mb-3">
+                                ⚠️ <strong>Yêu cầu thí sinh:</strong> Bạn đang tham gia với tư cách thí sinh tự do. Vui lòng nhập <strong>đầy đủ Họ và tên</strong> để bắt đầu làm bài.
+                            </div>
+                            <label class="form-label fw-bold text-dark">Họ và Tên Thí Sinh: <span class="text-danger">*</span></label>
+                            <div class="input-group input-group-lg">
+                                <span class="input-group-text bg-light text-muted">👤</span>
+                                <input type="text" id="candidateNameInput" class="form-control rounded-end-3" placeholder="Nhập họ và tên đầy đủ của bạn..." required autofocus>
+                            </div>
+                            <div id="nameError" class="text-danger small mt-1 d-none">
+                                ❌ Vui lòng nhập đầy đủ Họ và tên trước khi bắt đầu thi!
+                            </div>
+                        </div>
+
+                        <button type="button" class="btn btn-success btn-lg w-100 rounded-pill fw-bold shadow py-3" onclick="validateAndStart()">
+                            ✍️ Xác Nhận & Vào Làm Bài
+                        </button>
+
+                        <div class="text-center mt-3 pt-3 border-top">
+                            <small class="text-muted">
+                                Đã có tài khoản trên hệ thống? 
+                                <a href="{% url 'login' %}?next={% url 'take_exam' quiz.exam_code %}" class="fw-bold text-primary text-decoration-none">Đăng nhập tại đây</a>
+                            </small>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ==================== GIAO DIỆN LÀM BÀI THI CHÍNH THỨC ==================== -->
+<div id="examMainArea" class="d-none">
+    <!-- Sticky header: Đồng hồ & Tiến độ -->
+    <div class="exam-header-sticky py-2 px-3 mb-4 rounded-4 shadow-sm bg-white">
+        <div class="container d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div>
+                <h5 class="fw-bold text-dark mb-0">{{ quiz.title }}</h5>
+                <div class="d-flex align-items-center gap-2 mt-1">
+                    <img src="{{ user_profile.avatar_url|default:'/static/quiz/avatars/avatar-1.svg' }}" alt="Avatar" class="rounded-circle border shadow-xs" width="24" height="24" style="background: white; object-fit: contain;">
+                    <small class="text-muted">
+                        Thí sinh: <strong id="displayCandidateName" class="text-primary">{{ user_full_name }}</strong> 
+                        | Đã làm: <span id="answeredCount" class="fw-bold text-success">0</span>/{{ total_questions }} câu
+                    </small>
+                    <span id="autoSaveBadge" class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-2 py-1 small fw-bold">
+                        💾 Tự động lưu
+                    </span>
+                </div>
+            </div>
+            
+            <div class="d-flex align-items-center gap-3">
+                <!-- Đồng hồ đếm ngược -->
+                <div class="d-flex align-items-center gap-2 px-3 py-1 bg-light rounded-pill border">
+                    <span class="text-muted small fw-bold">⏱️ CÒN LẠI:</span>
+                    <span id="countdownTimer" class="timer-badge text-danger">00:00</span>
+                </div>
+                <!-- Nút nộp bài -->
+                <button type="button" class="btn btn-danger rounded-pill px-4 fw-bold shadow-sm" onclick="confirmSubmit()">
+                    📤 Nộp Bài
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Khung làm bài & Bảng điều hướng câu hỏi -->
+    <form id="examSubmitForm" method="POST" action="{% url 'submit_exam' quiz.exam_code %}">
+        {% csrf_token %}
+        <input type="hidden" name="candidate_name" id="formCandidateName" value="{{ user_full_name }}">
+        <input type="hidden" name="candidate_avatar" id="formCandidateAvatar" value="{{ user_profile.avatar|default:'avatar-1' }}">
+        <input type="hidden" name="time_spent" id="formTimeSpent" value="0">
+
+        <div class="row g-4">
+            <!-- Cột trái: Danh sách các câu hỏi -->
+            <div class="col-lg-8">
+                {% for qq in quiz_questions %}
+                {% with q=qq.bank_question %}
+                <div class="question-card p-4 mb-4 shadow-xs" id="q_card_{{ qq.id }}">
+                    <!-- Header câu hỏi -->
+                    <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom">
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="badge bg-primary rounded-pill fs-6 px-3 py-1">Câu {{ qq.order }}</span>
+                            {% if q.topic %}
+                                <span class="badge bg-light text-dark border">{{ q.topic.name }}</span>
+                            {% endif %}
+                        </div>
+                        <span class="badge bg-secondary-subtle text-secondary rounded-pill small">
+                            {% if q.question_type == 'SINGLE' %}Trắc nghiệm 1 đáp án ({{ quiz.score_single }}đ)
+                            {% elif q.question_type == 'TF' %}Đúng / Sai 4 ý ({{ quiz.score_tf }}đ)
+                            {% elif q.question_type == 'NUMERIC' %}Trả lời ngắn số thực ({{ quiz.score_numeric }}đ)
+                            {% endif %}
+                        </span>
+                    </div>
+
+                    <!-- Nội dung câu hỏi (hỗ trợ MathJax) -->
+                    <div class="question-content fs-5 text-dark mb-3">
+                        {{ q.question_text|linebreaksbr }}
+                    </div>
+
+                    <!-- Hình ảnh câu hỏi (nếu có) -->
+                    {% if q.image %}
+                    <div class="mb-3 text-center">
+                        <img src="{{ q.image.url }}" alt="Hình ảnh câu hỏi" class="img-fluid rounded-3 border shadow-xs" style="max-height: 280px;">
+                    </div>
+                    {% endif %}
+
+                    <!-- CÁC PHƯƠNG ÁN TRẢ LỜI -->
+                    {% if q.question_type == 'SINGLE' %}
+                        <!-- LOẠI 1: SINGLE (Trắc nghiệm 1 đáp án đúng) -->
+                        <div class="options-container d-flex flex-column gap-2">
+                            {% for c in q.choices.all %}
+                            <label class="option-item d-flex align-items-center gap-3 m-0" for="choice_{{ c.id }}">
+                                <input class="form-check-input mt-0" type="radio" name="q_{{ qq.id }}_single" id="choice_{{ c.id }}" value="{{ c.id }}" onchange="markAnswered({{ qq.order }})">
+                                <span class="fw-bold text-secondary">{{ forloop.counter|stringformat:"d" }}.</span>
+                                <span class="text-dark">{{ c.choice_text }}</span>
+                            </label>
+                            {% endfor %}
+                        </div>
+
+                    {% elif q.question_type == 'TF' %}
+                        <!-- LOẠI 2: TF (Đúng / Sai 4 ý a, b, c, d) -->
+                        <div class="p-3 bg-light rounded-3 border">
+                            <small class="text-muted fw-bold d-block mb-2">Chọn Đúng hoặc Sai cho từng phát biểu dưới đây:</small>
+                            <div class="d-flex flex-column gap-2">
+                                {% for c in q.choices.all %}
+                                <div class="d-flex justify-content-between align-items-center p-2 bg-white rounded-3 border">
+                                    <div class="text-dark me-3">
+                                        <span class="badge bg-warning-subtle text-dark fw-bold me-1">
+                                            {% if forloop.counter == 1 %}a)
+                                            {% elif forloop.counter == 2 %}b)
+                                            {% elif forloop.counter == 3 %}c)
+                                            {% elif forloop.counter == 4 %}d)
+                                            {% else %}{{ forloop.counter }})
+                                            {% endif %}
+                                        </span>
+                                        {{ c.choice_text }}
+                                    </div>
+                                    <div class="d-flex gap-3 text-nowrap">
+                                        <div class="form-check form-check-inline m-0">
+                                            <input class="form-check-input" type="radio" name="q_{{ qq.id }}_choice_{{ c.id }}" id="tf_{{ c.id }}_true" value="true" onchange="markAnswered({{ qq.order }})">
+                                            <label class="form-check-label text-success fw-bold small" for="tf_{{ c.id }}_true">Đúng</label>
+                                        </div>
+                                        <div class="form-check form-check-inline m-0">
+                                            <input class="form-check-input" type="radio" name="q_{{ qq.id }}_choice_{{ c.id }}" id="tf_{{ c.id }}_false" value="false" onchange="markAnswered({{ qq.order }})">
+                                            <label class="form-check-label text-danger fw-bold small" for="tf_{{ c.id }}_false">Sai</label>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+
+                    {% elif q.question_type == 'NUMERIC' %}
+                        <!-- LOẠI 3: NUMERIC (Trả lời số thực) -->
+                        <div class="p-3 bg-light rounded-3 border">
+                            <label class="form-label fw-bold text-dark small text-uppercase mb-1">🎯 Điền đáp án số thực của bạn:</label>
+                            <input type="text" name="q_{{ qq.id }}_numeric" class="form-control form-control-lg rounded-3 shadow-xs" placeholder="Ví dụ: 3.5 hoặc -12" oninput="checkNumericAnswered({{ qq.order }}, this.value)">
+                            <small class="text-muted mt-1 d-block">Hệ thống chấp nhận cả dấu phẩy (,) hoặc dấu chấm (.)</small>
+                        </div>
+                    {% endif %}
+
+                </div>
+                {% endwith %}
+                {% endfor %}
+            </div>
+
+            <!-- Cột phải: Bảng điều hướng câu hỏi -->
+            <div class="col-lg-4">
+                <div class="card border-0 shadow-sm rounded-4 p-3 sticky-top" style="top: 80px;">
+                    <h6 class="fw-bold text-dark mb-3 border-bottom pb-2">📋 Bảng Điều Hướng Câu Hỏi</h6>
+                    
+                    <div class="d-flex flex-wrap gap-2 mb-4">
+                        {% for qq in quiz_questions %}
+                        <a href="#q_card_{{ qq.id }}" class="nav-btn-q" id="nav_btn_{{ qq.order }}">
+                            {{ qq.order }}
+                        </a>
+                        {% endfor %}
+                    </div>
+
+                    <div class="p-3 bg-light rounded-3 mb-3 small text-secondary">
+                        <div class="d-flex align-items-center gap-2 mb-1">
+                            <span class="d-inline-block rounded bg-success" style="width: 14px; height: 14px;"></span>
+                            <span>Đã trả lời</span>
+                        </div>
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="d-inline-block rounded bg-light border" style="width: 14px; height: 14px;"></span>
+                            <span>Chưa trả lời</span>
+                        </div>
+                    </div>
+
+                    <button type="button" class="btn btn-danger btn-lg w-100 rounded-pill fw-bold shadow" onclick="confirmSubmit()">
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// =====================================================================
+// XỬ LÝ PHÒNG CHỜ THI (NẾU CHƯA ĐẾN GIỜ MỞ ĐỀ)
+// =====================================================================
+{% if is_before_start %}
+let waitSeconds = {{ seconds_until_start }};
+function updateWaitingCountdown() {
+    if (waitSeconds <= 0) {
+        const display = document.getElementById('waitingCountdownDisplay');
+        if (display) display.innerText = "00:00:00";
+        Swal.fire({
+            title: '🎉 Đã đến giờ làm bài thi!',
+            text: 'Hệ thống đang tự động mở đề thi cho bạn...',
+            icon: 'success',
+            timer: 2000,
+            showConfirmButton: false
+        }).then(() => {
+            window.location.reload();
+        });
+        return;
+    }
+
+    let h = Math.floor(waitSeconds / 3600);
+    let m = Math.floor((waitSeconds % 3600) / 60);
+    let s = waitSeconds % 60;
+    let formatted = (h < 10 ? '0' + h : h) + ':' + (m < 10 ? '0' + m : m) + ':' + (s < 10 ? '0' + s : s);
+    const display = document.getElementById('waitingCountdownDisplay');
+    if (display) display.innerText = formatted;
+
+    waitSeconds--;
+    setTimeout(updateWaitingCountdown, 1000);
+}
+document.addEventListener('DOMContentLoaded', updateWaitingCountdown);
+{% endif %}
+
+// =====================================================================
+// XỬ LÝ LÀM BÀI THI CHÍNH THỨC, LƯU TRỮ CHỐNG MẤT BÀI & ĐẾM NGƯỢC
+// =====================================================================
+{% if not is_expired and not is_before_start %}
+const EXAM_CODE = "{{ quiz.exam_code }}";
+const STORAGE_KEY = "smartquiz_exam_" + EXAM_CODE;
+const totalQuestions = {{ total_questions }};
+const durationMinutes = {{ quiz.duration }};
+const durationSeconds = durationMinutes * 60;
+const deadlineIso = "{{ deadline_iso|default:'' }}";
+const deadlineEpoch = deadlineIso ? new Date(deadlineIso).getTime() : null;
+
+let timerInterval = null;
+let answeredQuestions = new Set();
+let examState = null;
+
+// Khởi tạo và kiểm tra dữ liệu đã lưu trong localStorage khi trang tải xong
+document.addEventListener('DOMContentLoaded', function() {
+    loadSavedExamState();
+    attachInputListeners();
+});
+
+function loadSavedExamState() {
+    try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) {
+            examState = JSON.parse(raw);
+        }
+    } catch (e) {
+        console.error("Lỗi đọc trạng thái thi từ localStorage:", e);
+        examState = null;
+    }
+
+    // Nếu thí sinh ĐÃ TỪNG BẮT ĐẦU LÀM BÀI TRƯỚC ĐÓ (F5 hoặc mất điện):
+    if (examState && examState.start_timestamp) {
+        const now = Date.now();
+        const elapsed = Math.max(0, Math.floor((now - examState.start_timestamp) / 1000));
+        const remDuration = durationSeconds - elapsed;
+        let remDeadline = deadlineEpoch ? Math.floor((deadlineEpoch - now) / 1000) : Infinity;
+        let finalRem = Math.min(remDuration, remDeadline);
+
+        // Trường hợp A: Đã hết giờ trong lúc mất điện hoặc tắt trang
+        if (finalRem <= 0) {
+            // Khôi phục tên và đáp án đã lưu
+            if (examState.candidate_name) {
+                document.getElementById('formCandidateName').value = examState.candidate_name;
+            }
+            restoreAnswersToDOM(examState.answers || {});
+            
+            const reason = (remDuration <= 0) 
+                ? `Thời gian làm bài (${durationMinutes} phút) đã kết thúc trong lúc ngắt kết nối!` 
+                : "Đã quá thời hạn quy định nộp bài của kỳ thi!";
+
+            Swal.fire({
+                title: '⏰ Đã hết thời gian làm bài!',
+                text: `${reason} Hệ thống đang tự động nộp bài thi với các phương án bạn đã chọn...`,
+                icon: 'warning',
+                timer: 3000,
+                showConfirmButton: false
+            }).then(() => {
+                document.getElementById('formTimeSpent').value = Math.min(elapsed, durationSeconds);
+                document.getElementById('examSubmitForm').submit();
+            });
+            return;
+        }
+
+        // Trường hợp B: Còn thời gian làm bài -> Tự động vào thẳng phòng thi và khôi phục bài làm!
+        const candidateName = examState.candidate_name || "{{ user_full_name|escapejs }}";
+        document.getElementById('formCandidateName').value = candidateName;
+        document.getElementById('displayCandidateName').innerText = candidateName;
+
+        // Chuyển màn hình
+        document.getElementById('startScreen').classList.add('d-none');
+        document.getElementById('examMainArea').classList.remove('d-none');
+
+        // Khôi phục các phương án trả lời đã chọn vào form
+        restoreAnswersToDOM(examState.answers || {});
+
+        // MathJax typeset
+        if (window.MathJax && window.MathJax.typesetPromise) {
+            window.MathJax.typesetPromise();
+        }
+
+        // Thông báo cho thí sinh
+        Swal.fire({
+            toast: true,
+            position: 'top-end',
+            icon: 'info',
+            title: '✨ Đã khôi phục phương án trả lời của bạn!',
+            text: 'Thời gian thi vẫn tiếp tục đếm chính xác theo thời gian thực.',
+            showConfirmButton: false,
+            timer: 3500
+        });
+
+        // Tiếp tục đếm ngược
+        startCountdownTimer(examState.start_timestamp);
+    }
+}
+
+// Khôi phục đáp án từ localStorage vào DOM
+function restoreAnswersToDOM(answers) {
+    if (!answers) return;
+    for (const [inputName, val] of Object.entries(answers)) {
+        if (inputName.endsWith('_numeric')) {
+            const el = document.querySelector(`input[name="${inputName}"]`);
+            if (el) el.value = val;
+        } else {
+            const radio = document.querySelector(`input[name="${inputName}"][value="${val}"]`);
+            if (radio) radio.checked = true;
+        }
+    }
+    recalculateAllAnswered();
+}
+
+// Lắng nghe sự kiện để tự động lưu ngay khi thí sinh thao tác
+function attachInputListeners() {
+    const form = document.getElementById('examSubmitForm');
+    if (!form) return;
+
+    form.addEventListener('change', function(e) {
+        if (e.target && e.target.name && e.target.name.startsWith('q_')) {
+            saveSingleAnswer(e.target.name, e.target.value);
+            recalculateAllAnswered();
+        }
+    });
+
+    form.addEventListener('input', function(e) {
+        if (e.target && e.target.name && e.target.name.endsWith('_numeric')) {
+            saveSingleAnswer(e.target.name, e.target.value);
+            recalculateAllAnswered();
+        }
+    });
+}
+
+// Lưu 1 đáp án vào localStorage
+function saveSingleAnswer(name, value) {
+    if (!examState) {
+        examState = {
+            exam_code: EXAM_CODE,
+            candidate_name: document.getElementById('formCandidateName').value,
+            start_timestamp: Date.now(),
+            answers: {}
+        };
+    }
+    if (!examState.answers) examState.answers = {};
+    examState.answers[name] = value;
+
+    try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(examState));
+        flashAutoSaveBadge();
+    } catch (e) {
+        console.error("Lỗi lưu vào localStorage:", e);
+    }
+}
+
+// Hiệu ứng biểu tượng tự động lưu
+function flashAutoSaveBadge() {
+    const badge = document.getElementById('autoSaveBadge');
+    if (!badge) return;
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    badge.innerHTML = `💾 Đã lưu (${timeStr})`;
+    badge.classList.remove('bg-success-subtle', 'text-success');
+    badge.classList.add('bg-success', 'text-white');
+    setTimeout(() => {
+        badge.classList.remove('bg-success', 'text-white');
+        badge.classList.add('bg-success-subtle', 'text-success');
+    }, 600);
+}
+
+// Tính lại các câu đã trả lời để cập nhật bảng điều hướng
+function recalculateAllAnswered() {
+    answeredQuestions.clear();
+
+    // 1. Kiểm tra Single & Numeric
+    document.querySelectorAll('.question-card').forEach(card => {
+        const idParts = card.id.split('_');
+        const qqId = idParts[idParts.length - 1];
+        const orderBadge = card.querySelector('.badge.bg-primary');
+        if (!orderBadge) return;
+        const orderText = orderBadge.innerText.replace(/\D/g, '');
+        const order = parseInt(orderText);
+
+        // Kiểm tra Single
+        const singleChecked = card.querySelector(`input[name="q_${qqId}_single"]:checked`);
+        if (singleChecked) {
+            answeredQuestions.add(order);
+            return;
+        }
+
+        // Kiểm tra Numeric
+        const numericInput = card.querySelector(`input[name="q_${qqId}_numeric"]`);
+        if (numericInput && numericInput.value.trim() !== '') {
+            answeredQuestions.add(order);
+            return;
+        }
+
+        // Kiểm tra TF (nếu có ít nhất 1 ý đã chọn thì tính hoặc chọn đủ)
+        const tfChecked = card.querySelectorAll(`input[name^="q_${qqId}_choice_"]:checked`);
+        if (tfChecked.length > 0) {
+            answeredQuestions.add(order);
+            return;
+        }
+    });
+
+    updateAnsweredUI();
+}
+
+function updateAnsweredUI() {
+    // Reset tất cả các nút về trạng thái chưa làm
+    document.querySelectorAll('.nav-btn-q').forEach(btn => {
+        btn.classList.remove('answered');
+    });
+
+    // Bật xanh cho các câu đã làm
+    answeredQuestions.forEach(order => {
+        const btn = document.getElementById(`nav_btn_${order}`);
+        if (btn) btn.classList.add('answered');
+    });
+
+    const countSpan = document.getElementById('answeredCount');
+    if (countSpan) countSpan.innerText = answeredQuestions.size;
+}
+
+// Bắt đầu làm bài (khi nhấn Xác nhận ở màn hình khởi động)
+function validateAndStart() {
+    const input = document.getElementById('candidateNameInput');
+    const nameVal = input ? input.value.trim() : '';
+    const errDiv = document.getElementById('nameError');
+
+    if (!nameVal) {
+        if (errDiv) errDiv.classList.remove('d-none');
+        if (input) input.focus();
+        return;
+    }
+
+    if (errDiv) errDiv.classList.add('d-none');
+    document.getElementById('formCandidateName').value = nameVal;
+    document.getElementById('displayCandidateName').innerText = nameVal;
+    startExam();
+}
+
+function startExam() {
+    const candidateName = document.getElementById('formCandidateName').value;
+
+    // Khởi tạo state và lưu vào localStorage
+    const startTs = Date.now();
+    examState = {
+        exam_code: EXAM_CODE,
+        candidate_name: candidateName,
+        start_timestamp: startTs,
+        answers: {}
+    };
+    try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(examState));
+    } catch(e) {
+        console.error("Lỗi ghi localStorage:", e);
+    }
+
+    document.getElementById('startScreen').classList.add('d-none');
+    document.getElementById('examMainArea').classList.remove('d-none');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+
+    if (window.MathJax && window.MathJax.typesetPromise) {
+        window.MathJax.typesetPromise();
+    }
+
+    startCountdownTimer(startTs);
+}
+
+// Vòng lặp đếm ngược thời gian làm bài (dựa vào timestamp thực tế)
+function startCountdownTimer(startTs) {
+    if (timerInterval) clearInterval(timerInterval);
+
+    const timerDisplay = document.getElementById('countdownTimer');
+
+    function tick() {
+        const now = Date.now();
+        const elapsed = Math.max(0, Math.floor((now - startTs) / 1000));
+        document.getElementById('formTimeSpent').value = elapsed;
+
+        const remDuration = durationSeconds - elapsed;
+        let remDeadline = deadlineEpoch ? Math.floor((deadlineEpoch - now) / 1000) : Infinity;
+        let remaining = Math.min(remDuration, remDeadline);
+
+        // Kiểm tra điều kiện kết thúc 1 & 2: Hết thời gian làm bài HOẶC Hết hạn nộp bài
+        if (remaining <= 0) {
+            clearInterval(timerInterval);
+            timerDisplay.innerText = "00:00";
+
+            let reasonTitle = '⏰ Hết thời gian làm bài!';
+            let reasonDesc = `Thời gian làm bài thi (${durationMinutes} phút) đã kết thúc.`;
+            if (remDeadline <= 0 && remDuration > 0) {
+                reasonTitle = '⏰ Hết thời hạn nộp bài!';
+                reasonDesc = 'Đã đến thời hạn chót quy định nộp bài của kỳ thi.';
+            }
+
+            Swal.fire({
+                title: reasonTitle,
+                text: `${reasonDesc} Hệ thống đang tự động nộp bài thi của bạn...`,
+                icon: 'warning',
+                timer: 2500,
+                showConfirmButton: false
+            }).then(() => {
+                document.getElementById('examSubmitForm').submit();
+            });
+            return;
+        }
+
+        // Định dạng hiển thị thời gian
+        let mins = Math.floor(remaining / 60);
+        let secs = remaining % 60;
+        let formatted = (mins < 10 ? "0" + mins : mins) + ":" + (secs < 10 ? "0" + secs : secs);
+        if (mins >= 60) {
+            let hrs = Math.floor(mins / 60);
+            let remM = mins % 60;
+            formatted = (hrs < 10 ? "0" + hrs : hrs) + ":" + (remM < 10 ? "0" + remM : remM) + ":" + (secs < 10 ? "0" + secs : secs);
+        }
+        timerDisplay.innerText = formatted;
+
+        // Cảnh báo nếu còn dưới 3 phút
+        if (remaining < 180) {
+            timerDisplay.classList.add('warning');
+        } else {
+            timerDisplay.classList.remove('warning');
+        }
+    }
+
+    tick();
+    timerInterval = setInterval(tick, 1000);
+}
+
+// Trường hợp kết thúc 3: Thí sinh tự nhấn nút nộp bài
+function confirmSubmit() {
+    recalculateAllAnswered();
+    const answered = answeredQuestions.size;
+    const unanswered = totalQuestions - answered;
+
+    let warningHtml = '';
+    if (unanswered > 0) {
+        warningHtml = `<p class="text-danger fw-bold">⚠️ Bạn còn <strong>${unanswered}</strong> câu chưa làm!</p>`;
+    } else {
+        warningHtml = `<p class="text-success fw-bold">✨ Bạn đã trả lời toàn bộ ${totalQuestions} câu hỏi!</p>`;
+    }
+
+    Swal.fire({
+        title: 'Xác nhận nộp bài thi?',
+        html: `${warningHtml}<p class="mb-0 text-muted">Bạn có chắc chắn muốn kết thúc bài thi và nộp bài để chấm điểm ngay bây giờ?</p>`,
+        icon: unanswered > 0 ? 'warning' : 'question',
+        showCancelButton: true,
+        confirmButtonText: 'Đồng ý nộp bài',
+        cancelButtonText: 'Tiếp tục làm bài',
+        confirmButtonColor: '#dc2626',
+        cancelButtonColor: '#4f46e5'
+    }).then(result => {
+        if (result.isConfirmed) {
+            if (timerInterval) clearInterval(timerInterval);
+            document.getElementById('examSubmitForm').submit();
+        }
+    });
+}
+{% endif %}
+</script>
+{% endblock %}

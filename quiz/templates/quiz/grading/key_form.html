@@ -1,0 +1,774 @@
+{% extends 'quiz/grading/layout.html' %}
+
+{% block grading_title %}{% if key_obj %}Sửa Bộ Đáp Án Đề {{ key_obj.code }}{% else %}Tạo Bộ Đáp Án Chuẩn Mới{% endif %}{% endblock %}
+
+{% block grading_content %}
+<div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
+    <div>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-1 small">
+                {% if selected_subject %}
+                <li class="breadcrumb-item"><a href="{% url 'subject_workspace_view' selected_subject.id %}?tab=keys" class="text-decoration-none">Môn {{ selected_subject.name }}</a></li>
+                {% else %}
+                <li class="breadcrumb-item"><a href="{% url 'grading_key_list' %}" class="text-decoration-none">Đáp Án Chuẩn</a></li>
+                {% endif %}
+                <li class="breadcrumb-item active" aria-current="page">{% if key_obj %}Sửa Đề {{ key_obj.code }}{% else %}Tạo Mới{% endif %}</li>
+            </ol>
+        </nav>
+        <h4 class="fw-bold mb-0 text-dark">
+            📝 {% if key_obj %}Chỉnh Sửa Bộ Đáp Án Mã Đề: <span class="text-primary">{{ key_obj.code }}</span>{% else %}Thiết Lập Bộ Đáp Án Chuẩn Mới{% endif %}
+        </h4>
+    </div>
+    <div class="d-flex gap-2">
+        {% if selected_subject %}
+        <a href="{% url 'subject_workspace_view' selected_subject.id %}?tab=keys" class="btn btn-outline-secondary rounded-pill px-4">
+            Quay lại
+        </a>
+        {% else %}
+        <a href="{% url 'grading_key_list' %}" class="btn btn-outline-secondary rounded-pill px-4">
+            Quay lại
+        </a>
+        {% endif %}
+        <button type="button" id="btnSaveTop" class="btn btn-success rounded-pill px-4 fw-bold shadow-sm">
+            💾 Lưu Bộ Đáp Án
+        </button>
+    </div>
+</div>
+
+<!-- FORM HEADER SETTINGS -->
+<div class="card border-0 shadow-sm rounded-4 mb-4">
+    <div class="card-header bg-white py-3 px-4 border-bottom">
+        <h5 class="fw-bold mb-0 text-dark">⚙️ Thông Tin Kỳ Thi & Mã Đề</h5>
+    </div>
+    <div class="card-body p-4">
+        <div class="row g-3">
+            <div class="col-md-5">
+                <label class="form-label fw-semibold">Môn Thi & Kỳ Thi <span class="text-danger">*</span></label>
+                {% if selected_subject %}
+                    <div class="input-group">
+                        <span class="input-group-text bg-light border-secondary border-opacity-25 text-primary">🔒</span>
+                        <input type="text" class="form-control rounded-end-3 bg-light border-secondary border-opacity-25 text-dark fw-bold" 
+                               value="{{ selected_subject.name }} (Mã môn: {{ selected_subject.code }}) — {{ selected_subject.exam_period.name }}" 
+                               readonly title="Môn thi đã được chọn cố định, không thể sửa">
+                    </div>
+                    <input type="hidden" id="selectSubject" value="{{ selected_subject.id }}">
+                {% else %}
+                    <select id="selectSubject" class="form-select rounded-3" required>
+                        <option value="">-- Chọn Môn Thi --</option>
+                        {% for p in periods %}
+                            <optgroup label="{{ p.name }}">
+                                {% for s in p.subjects.all %}
+                                <option value="{{ s.id }}" {% if target_subject_id == s.id %}selected{% endif %}>
+                                    {{ s.name }} (Mã: {{ s.code }}) - {{ p.name }}
+                                </option>
+                                {% endfor %}
+                            </optgroup>
+                        {% endfor %}
+                    </select>
+                {% endif %}
+            </div>
+            <div class="col-md-3">
+                <label class="form-label fw-semibold">Mã Đề Thi <span class="text-danger">*</span></label>
+                <input type="text" id="inputCode" class="form-control rounded-3 font-monospace fw-bold text-uppercase border-primary" 
+                       placeholder="Ví dụ: 101, 102..." value="{{ key_obj.code|default:'' }}" required autofocus>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label fw-semibold">Tiêu Đề / Tên Bộ Đề</label>
+                <input type="text" id="inputTitle" class="form-control rounded-3" 
+                       placeholder="Ví dụ: Đề thi chính thức đợt 1" value="{{ key_obj.title|default:'' }}">
+            </div>
+            <div class="col-12">
+                <label class="form-label fw-semibold">Ghi chú (Tùy chọn)</label>
+                <input type="text" id="inputDesc" class="form-control rounded-3" 
+                       placeholder="Ghi chú thêm về cấu trúc đề..." value="{{ key_obj.description|default:'' }}">
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- REAL-TIME STATS BAR -->
+<div class="card border-0 shadow-sm rounded-4 mb-4 bg-primary text-white p-3">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+        <div class="d-flex align-items-center gap-4">
+            <div>
+                <span class="small text-white-50">Tổng câu hỏi:</span>
+                <span class="fs-4 fw-bold ms-1" id="statTotalQuestions">0</span>
+            </div>
+            <div>
+                <span class="small text-white-50">SingleChoose:</span>
+                <span class="fw-bold ms-1" id="statSingleCount">0</span>
+                <span class="small text-white-50" id="statSingleScoreInfo"></span>
+            </div>
+            <div>
+                <span class="small text-white-50">Đúng/Sai (TF):</span>
+                <span class="fw-bold ms-1" id="statTfCount">0</span>
+                <span class="small text-white-50">(1.0đ/câu)</span>
+            </div>
+            <div>
+                <span class="small text-white-50">Điền số thực:</span>
+                <span class="fw-bold ms-1" id="statNumCount">0</span>
+                <span class="small text-white-50" id="statNumScoreInfo"></span>
+            </div>
+        </div>
+        <div>
+            <span class="small text-white-50 text-uppercase fw-semibold">Tổng điểm môn thi:</span>
+            <span class="fs-3 fw-bold text-warning ms-2" id="statTotalScore">0.00</span> <span class="fs-6">điểm</span>
+        </div>
+    </div>
+</div>
+
+<!-- TOOLBAR ACTIONS -->
+<div class="card border-0 shadow-sm rounded-4 mb-4">
+    <div class="card-body p-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <!-- ADD BUTTONS -->
+        <div class="d-flex flex-wrap gap-2">
+            <button type="button" class="btn btn-outline-primary rounded-pill fw-semibold btn-sm px-3" onclick="addQuestion('SINGLE')">
+                ➕ Thêm SingleChoose
+            </button>
+            <button type="button" class="btn btn-outline-success rounded-pill fw-semibold btn-sm px-3" onclick="addQuestion('TF')">
+                ➕ Thêm Đúng/Sai (TF)
+            </button>
+            <button type="button" class="btn btn-outline-info rounded-pill fw-semibold btn-sm px-3" onclick="addQuestion('NUMERIC')">
+                ➕ Thêm Điền Số Thực
+            </button>
+            <div class="dropdown">
+                <button class="btn btn-light border rounded-pill btn-sm px-3 dropdown-toggle fw-semibold" type="button" data-bs-toggle="dropdown">
+                    ⚡ Thêm Nhanh
+                </button>
+                <ul class="dropdown-menu shadow border-0">
+                    <li><a class="dropdown-item" href="javascript:void(0)" onclick="addMultipleQuestions('SINGLE', 6)">➕ 6 câu SingleChoose</a></li>
+                    <li><a class="dropdown-item" href="javascript:void(0)" onclick="addMultipleQuestions('SINGLE', 24)">➕ 24 câu SingleChoose (4 cột)</a></li>
+                    <li><a class="dropdown-item fw-semibold text-primary" href="javascript:void(0)" onclick="addMultipleQuestions('SINGLE', 40)">➕ 40 câu SingleChoose (4 cột x 10 câu)</a></li>
+                    <li><a class="dropdown-item" href="javascript:void(0)" onclick="addMultipleQuestions('TF', 4)">➕ 4 câu Đúng/Sai (TF)</a></li>
+                    <li><a class="dropdown-item" href="javascript:void(0)" onclick="addMultipleQuestions('NUMERIC', 6)">➕ 6 câu Điền số thực (1 cột)</a></li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li><a class="dropdown-item text-primary fw-bold" href="javascript:void(0)" onclick="loadStandard2025Template()">⭐ Cấu trúc Mẫu Chuẩn (24 Single + 4 TF + 6 Số)</a></li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- UTILITY ACTIONS -->
+        <div class="d-flex flex-wrap gap-2">
+            <button type="button" class="btn btn-outline-secondary rounded-pill btn-sm px-3" data-bs-toggle="modal" data-bs-target="#quickPasteModal">
+                📋 Nhập Nhanh Chuỗi
+            </button>
+            <button type="button" class="btn btn-outline-danger rounded-pill btn-sm px-3" onclick="clearAllQuestions()" title="Xóa toàn bộ câu hỏi">
+                🗑️ Xóa hết
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- GRID SECTIONS CONTAINER -->
+<div class="d-flex flex-column gap-4 mb-4">
+    <!-- SECTION I: SINGLE CHOOSE -->
+    <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
+        <div class="card-header bg-primary bg-opacity-10 py-3 px-4 border-bottom d-flex justify-content-between align-items-center">
+            <div>
+                <h5 class="fw-bold mb-0 text-primary d-flex align-items-center gap-2">
+                    <span>🔵 PHẦN I. TRẮC NGHIỆM 4 LỰA CHỌN (SINGLE CHOOSE)</span>
+                    <span class="badge bg-primary text-white rounded-pill fs-6 ms-2" id="badgeSingleCount">0 câu</span>
+                </h5>
+                <div class="small text-muted mt-1">Gióng hàng dọc: 6 câu/cột, tối đa 4 cột ngang. Điểm mỗi câu tự động chia từ điểm tối đa môn.</div>
+            </div>
+            <button type="button" class="btn btn-sm btn-primary rounded-pill px-3 fw-bold" onclick="addQuestion('SINGLE')">
+                + Thêm Câu Single
+            </button>
+        </div>
+        <div class="card-body p-3 bg-light bg-opacity-50">
+            <div id="gridSingleQuestions" class="row g-2 row-cols-1 row-cols-sm-2 row-cols-md-4">
+                <!-- Rendered dynamically as vertical columns of 6 questions -->
+            </div>
+            <div id="emptySingleNotice" class="text-center py-4 text-muted small d-none">
+                Chưa có câu hỏi SingleChoose nào trong bộ đề.
+            </div>
+        </div>
+    </div>
+
+    <!-- SECTION II: TRUE / FALSE -->
+    <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
+        <div class="card-header bg-success bg-opacity-10 py-3 px-4 border-bottom d-flex justify-content-between align-items-center">
+            <div>
+                <h5 class="fw-bold mb-0 text-success d-flex align-items-center gap-2">
+                    <span>🟢 PHẦN II. TRẮC NGHIỆM ĐÚNG / SAI (TRUE FALSE)</span>
+                    <span class="badge bg-success text-white rounded-pill fs-6 ms-2" id="badgeTfCount">0 câu</span>
+                </h5>
+                <div class="small text-muted mt-1">Gióng hàng ngang: Tối đa 8 câu/hàng, các ý a, b, c, d xếp theo cột dọc trong từng câu.</div>
+            </div>
+            <button type="button" class="btn btn-sm btn-success rounded-pill px-3 fw-bold" onclick="addQuestion('TF')">
+                + Thêm Câu Đúng/Sai
+            </button>
+        </div>
+        <div class="card-body p-3 bg-light bg-opacity-50">
+            <div id="gridTfQuestions" class="row g-2 row-cols-2 row-cols-sm-4 row-cols-md-8">
+                <!-- Rendered dynamically: max 8 columns, sub-items stacked vertically -->
+            </div>
+            <div id="emptyTfNotice" class="text-center py-4 text-muted small d-none">
+                Chưa có câu hỏi Đúng/Sai nào trong bộ đề.
+            </div>
+        </div>
+    </div>
+
+    <!-- SECTION III: NUMERIC -->
+    <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
+        <div class="card-header bg-info bg-opacity-10 py-3 px-4 border-bottom d-flex justify-content-between align-items-center">
+            <div>
+                <h5 class="fw-bold mb-0 text-dark d-flex align-items-center gap-2">
+                    <span>🟣 PHẦN III. TRẢ LỜI NGẮN (ĐIỀN SỐ THỰC - TỐI ĐA 4 KÝ TỰ)</span>
+                    <span class="badge bg-info text-dark rounded-pill fs-6 ms-2" id="badgeNumericCount">0 câu</span>
+                </h5>
+                <div class="small text-muted mt-1">Gióng hàng dọc: 6 câu/cột, tối đa 4 cột ngang. Mỗi ô nhập tối đa 4 ký tự.</div>
+            </div>
+            <button type="button" class="btn btn-sm btn-info rounded-pill px-3 fw-bold text-dark" onclick="addQuestion('NUMERIC')">
+                + Thêm Câu Điền Số
+            </button>
+        </div>
+        <div class="card-body p-3 bg-light bg-opacity-50">
+            <div id="gridNumericQuestions" class="row g-2 row-cols-1 row-cols-sm-2 row-cols-md-4">
+                <!-- Rendered dynamically as vertical columns of 6 questions -->
+            </div>
+            <div id="emptyNumericNotice" class="text-center py-4 text-muted small d-none">
+                Chưa có câu hỏi Điền số thực nào trong bộ đề.
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- BOTTOM ACTIONS -->
+<div class="d-flex justify-content-between align-items-center py-4 border-top">
+    <div class="text-muted small">
+        * Đáp án đã được sắp xếp đồng nhất theo mẫu chấm. Nhấn <strong>Lưu Bộ Đáp Án</strong> để ghi nhận.
+    </div>
+    <div class="d-flex gap-2">
+        {% if selected_subject %}
+        <a href="{% url 'subject_workspace_view' selected_subject.id %}?tab=keys" class="btn btn-outline-secondary rounded-pill px-4">
+            Quay lại
+        </a>
+        {% else %}
+        <a href="{% url 'grading_key_list' %}" class="btn btn-outline-secondary rounded-pill px-4">
+            Quay lại
+        </a>
+        {% endif %}
+        <button type="button" id="btnSaveBottom" class="btn btn-success btn-lg rounded-pill px-5 fw-bold shadow-sm">
+            💾 Lưu Bộ Đáp Án
+        </button>
+    </div>
+</div>
+
+<!-- QUICK PASTE MODAL -->
+<div class="modal fade" id="quickPasteModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content rounded-4 border-0 shadow">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title fw-bold text-dark">📋 Nhập Nhanh Đáp Án Bằng Chuỗi Văn Bản</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <p class="small text-muted mb-2">
+                    Dán chuỗi đáp án liên tục hoặc cách nhau bằng dấu cách/dòng mới. Hệ thống sẽ tự động gán đáp án theo số thứ tự:
+                </p>
+                <div class="bg-light p-3 rounded-3 small font-monospace text-secondary mb-3">
+                    Ví dụ cho SingleChoose: <strong>1A 2B 3C 4D 5A 6B...</strong> hoặc <strong>ABCD ABCD...</strong>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Chuỗi đáp án:</label>
+                    <textarea id="quickPasteText" class="form-control font-monospace rounded-3" rows="5" placeholder="1A 2B 3C 4D 5A 6B..."></textarea>
+                </div>
+                <div class="d-flex justify-content-end gap-2">
+                    <button type="button" class="btn btn-light rounded-pill px-3" data-bs-dismiss="modal">Đóng</button>
+                    <button type="button" class="btn btn-primary rounded-pill px-4 fw-bold" onclick="applyQuickPaste()">Áp Dụng Đáp Án</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let questions = [];
+let subjectsConfig = {};
+
+try {
+    const subjectsStr = '{{ subjects_config_json|escapejs }}';
+    subjectsConfig = subjectsStr ? JSON.parse(subjectsStr) : {};
+} catch(e) {
+    console.error("Error parsing subjectsConfig:", e);
+}
+
+// Initialize questions data
+try {
+    const questionsStr = '{{ questions_json|escapejs }}';
+    if (questionsStr) {
+        const rawQuestions = JSON.parse(questionsStr);
+        if (Array.isArray(rawQuestions) && rawQuestions.length > 0) {
+            questions = rawQuestions;
+        }
+    }
+} catch (e) {
+    console.error("Error parsing initial questions:", e);
+}
+
+// Helper to chunk array
+function chunkArray(array, size) {
+    const results = [];
+    for (let i = 0; i < array.length; i += size) {
+        results.push(array.slice(i, i + size));
+    }
+    return results;
+}
+
+// If empty, default to standard template
+if (questions.length === 0) {
+    for (let i = 1; i <= 24; i++) {
+        questions.push({
+            number: i,
+            type: 'SINGLE',
+            correct_single: ['A', 'B', 'C', 'D'][(i - 1) % 4],
+            correct_tf: { a: true, b: false, c: true, d: false },
+            correct_numeric: ''
+        });
+    }
+    for (let i = 25; i <= 28; i++) {
+        questions.push({
+            number: i,
+            type: 'TF',
+            correct_single: 'A',
+            correct_tf: { a: true, b: false, c: true, d: false },
+            correct_numeric: ''
+        });
+    }
+    for (let i = 29; i <= 34; i++) {
+        questions.push({
+            number: i,
+            type: 'NUMERIC',
+            correct_single: 'A',
+            correct_tf: { a: true, b: false, c: true, d: false },
+            correct_numeric: '1.25'
+        });
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    renderQuestions();
+    updateStats();
+
+    const selectSub = document.getElementById('selectSubject');
+    if (selectSub) {
+        selectSub.addEventListener('change', function() {
+            const subId = parseInt(this.value);
+            if (subId && subjectsConfig[subId]) {
+                const cfg = subjectsConfig[subId];
+                if (confirm(`Tạo lại danh sách câu hỏi theo cấu hình của Môn thi đã chọn (${cfg.num_single} Single + ${cfg.num_tf} Đúng/Sai + ${cfg.num_numeric} Điền số)?`)) {
+                    generateQuestionsFromConfig(cfg);
+                } else {
+                    updateStats();
+                }
+            } else {
+                updateStats();
+            }
+        });
+    }
+
+    document.getElementById('btnSaveTop').addEventListener('click', saveGradingKey);
+    document.getElementById('btnSaveBottom').addEventListener('click', saveGradingKey);
+});
+
+function generateQuestionsFromConfig(cfg) {
+    questions = [];
+    let qIdx = 1;
+    for (let i = 0; i < cfg.num_single; i++) {
+        questions.push({
+            number: qIdx,
+            type: 'SINGLE',
+            correct_single: ['A', 'B', 'C', 'D'][(qIdx - 1) % 4],
+            correct_tf: { a: true, b: false, c: true, d: false },
+            correct_numeric: ''
+        });
+        qIdx++;
+    }
+    for (let i = 0; i < cfg.num_tf; i++) {
+        questions.push({
+            number: qIdx,
+            type: 'TF',
+            correct_single: 'A',
+            correct_tf: { a: true, b: false, c: true, d: false },
+            correct_numeric: ''
+        });
+        qIdx++;
+    }
+    for (let i = 0; i < cfg.num_numeric; i++) {
+        questions.push({
+            number: qIdx,
+            type: 'NUMERIC',
+            correct_single: 'A',
+            correct_tf: { a: true, b: false, c: true, d: false },
+            correct_numeric: '1.25'
+        });
+        qIdx++;
+    }
+    renderQuestions();
+    updateStats();
+}
+
+function updateStats() {
+    let singleCount = 0;
+    let tfCount = 0;
+    let numCount = 0;
+
+    questions.forEach(q => {
+        if (q.type === 'SINGLE') singleCount++;
+        else if (q.type === 'TF') tfCount++;
+        else if (q.type === 'NUMERIC') numCount++;
+    });
+
+    const selectSub = document.getElementById('selectSubject');
+    const subId = selectSub ? parseInt(selectSub.value) : null;
+    const cfg = (subId && subjectsConfig[subId]) ? subjectsConfig[subId] : null;
+
+    let scorePerSingle = cfg ? cfg.score_per_single : 0.25;
+    let scorePerNumeric = cfg ? cfg.score_per_numeric : 0.5;
+
+    let totalScore = (singleCount * scorePerSingle) + (tfCount * 1.0) + (numCount * scorePerNumeric);
+
+    document.getElementById('statTotalQuestions').textContent = questions.length;
+    document.getElementById('statSingleCount').textContent = singleCount;
+    document.getElementById('statTfCount').textContent = tfCount;
+    document.getElementById('statNumCount').textContent = numCount;
+    document.getElementById('statTotalScore').textContent = totalScore.toFixed(2);
+
+    document.getElementById('statSingleScoreInfo').textContent = `(${scorePerSingle.toFixed(2)}đ/câu)`;
+    document.getElementById('statNumScoreInfo').textContent = `(${scorePerNumeric.toFixed(2)}đ/câu)`;
+
+    document.getElementById('badgeSingleCount').textContent = `${singleCount} câu`;
+    document.getElementById('badgeTfCount').textContent = `${tfCount} câu`;
+    document.getElementById('badgeNumericCount').textContent = `${numCount} câu`;
+}
+
+function renderQuestions() {
+    const gridSingle = document.getElementById('gridSingleQuestions');
+    const gridTf = document.getElementById('gridTfQuestions');
+    const gridNumeric = document.getElementById('gridNumericQuestions');
+
+    gridSingle.innerHTML = '';
+    gridTf.innerHTML = '';
+    gridNumeric.innerHTML = '';
+
+    // Attach original array index & question number to each question
+    let singleList = [];
+    let tfList = [];
+    let numericList = [];
+
+    questions.forEach((q, index) => {
+        q.number = index + 1;
+        const itemData = { ...q, origIndex: index };
+        if (q.type === 'SINGLE') singleList.push(itemData);
+        else if (q.type === 'TF') tfList.push(itemData);
+        else if (q.type === 'NUMERIC') numericList.push(itemData);
+    });
+
+    // 1. RENDER SINGLE CHOOSE (6 câu/cột, tối đa 4 cột)
+    const singleChunks = chunkArray(singleList, 6);
+    singleChunks.forEach(chunk => {
+        const col = document.createElement('div');
+        col.className = 'col';
+
+        let chunkHtml = `
+            <div class="border rounded-3 p-2 bg-white h-100 shadow-sm">
+                <div class="d-flex flex-column gap-2">
+        `;
+
+        chunk.forEach(q => {
+            chunkHtml += `
+                <div class="d-flex align-items-center justify-content-between p-1 bg-light rounded border">
+                    <span class="fw-bold me-1 text-nowrap text-dark" style="font-size: 0.85rem; min-width: 52px;">Câu ${q.number}</span>
+                    <div class="d-flex gap-1 flex-grow-1 justify-content-center">
+                        ${['A', 'B', 'C', 'D'].map(opt => `
+                            <input type="radio" class="btn-check" name="single_q_${q.origIndex}" id="opt_${q.origIndex}_${opt}" value="${opt}" ${q.correct_single === opt ? 'checked' : ''} onchange="setSingleChoice(${q.origIndex}, '${opt}')">
+                            <label class="btn btn-sm py-0 px-2 fw-bold ${q.correct_single === opt ? 'btn-primary' : 'btn-outline-secondary'}" style="font-size: 0.8rem;" for="opt_${q.origIndex}_${opt}">${opt}</label>
+                        `).join('')}
+                    </div>
+                    <button type="button" class="btn btn-sm text-danger p-0 ms-1 border-0" onclick="removeQuestion(${q.origIndex})" title="Xóa câu">✕</button>
+                </div>
+            `;
+        });
+
+        chunkHtml += `
+                </div>
+            </div>
+        `;
+        col.innerHTML = chunkHtml;
+        gridSingle.appendChild(col);
+    });
+
+    // 2. RENDER TRUE / FALSE (cột dọc các ý a,b,c,d; tối đa 8 câu trên hàng ngang)
+    tfList.forEach(q => {
+        const col = document.createElement('div');
+        col.className = 'col';
+
+        const tfData = q.correct_tf || { a: true, b: false, c: true, d: false };
+
+        col.innerHTML = `
+            <div class="card border rounded-3 shadow-sm h-100 bg-white">
+                <div class="card-body p-2 d-flex flex-column">
+                    <div class="d-flex justify-content-between align-items-center mb-1 pb-1 border-bottom">
+                        <span class="fw-bold text-dark" style="font-size: 0.85rem;">Câu ${q.number}</span>
+                        <button type="button" class="btn btn-sm text-danger p-0 border-0" onclick="removeQuestion(${q.origIndex})" title="Xóa câu">✕</button>
+                    </div>
+                    <div class="d-flex flex-column gap-1 flex-grow-1">
+                        ${['a', 'b', 'c', 'd'].map(sub => `
+                            <div class="d-flex align-items-center justify-content-between p-1 bg-light rounded" style="font-size: 0.75rem;">
+                                <span class="fw-bold text-uppercase me-1 text-secondary">${sub}:</span>
+                                <div class="btn-group btn-group-sm" role="group">
+                                    <input type="radio" class="btn-check" name="tf_${q.origIndex}_${sub}" id="tf_true_${q.origIndex}_${sub}" ${tfData[sub] === true ? 'checked' : ''} onchange="setTfChoice(${q.origIndex}, '${sub}', true)">
+                                    <label class="btn btn-outline-success py-0 px-1 fw-bold" style="font-size: 0.7rem;" for="tf_true_${q.origIndex}_${sub}">Đ</label>
+                                    
+                                    <input type="radio" class="btn-check" name="tf_${q.origIndex}_${sub}" id="tf_false_${q.origIndex}_${sub}" ${tfData[sub] === false ? 'checked' : ''} onchange="setTfChoice(${q.origIndex}, '${sub}', false)">
+                                    <label class="btn btn-outline-danger py-0 px-1 fw-bold" style="font-size: 0.7rem;" for="tf_false_${q.origIndex}_${sub}">S</label>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            </div>
+        `;
+        gridTf.appendChild(col);
+    });
+
+    // 3. RENDER NUMERIC (6 câu/cột, tối đa 4 cột)
+    const numericChunks = chunkArray(numericList, 6);
+    numericChunks.forEach(chunk => {
+        const col = document.createElement('div');
+        col.className = 'col';
+
+        let chunkHtml = `
+            <div class="border rounded-3 p-2 bg-white h-100 shadow-sm">
+                <div class="d-flex flex-column gap-2">
+        `;
+
+        chunk.forEach(q => {
+            chunkHtml += `
+                <div class="d-flex align-items-center justify-content-between p-1 bg-light rounded border gap-2">
+                    <span class="fw-bold me-1 text-nowrap text-dark" style="font-size: 0.85rem; min-width: 52px;">Câu ${q.number}</span>
+                    <input type="text" maxlength="4" class="form-control form-control-sm text-center font-monospace fw-bold rounded-2 border-info" 
+                           placeholder="____" value="${q.correct_numeric || ''}" 
+                           oninput="updateNumericAnswer(${q.origIndex}, this.value)">
+                    <button type="button" class="btn btn-sm text-danger p-0 border-0" onclick="removeQuestion(${q.origIndex})" title="Xóa câu">✕</button>
+                </div>
+            `;
+        });
+
+        chunkHtml += `
+                </div>
+            </div>
+        `;
+        col.innerHTML = chunkHtml;
+        gridNumeric.appendChild(col);
+    });
+
+    document.getElementById('emptySingleNotice').classList.toggle('d-none', singleList.length > 0);
+    document.getElementById('emptyTfNotice').classList.toggle('d-none', tfList.length > 0);
+    document.getElementById('emptyNumericNotice').classList.toggle('d-none', numericList.length > 0);
+}
+
+function setSingleChoice(qIndex, choice) {
+    questions[qIndex].correct_single = choice;
+}
+
+function setTfChoice(qIndex, sub, val) {
+    if (!questions[qIndex].correct_tf) {
+        questions[qIndex].correct_tf = {};
+    }
+    questions[qIndex].correct_tf[sub] = val;
+}
+
+function updateNumericAnswer(qIndex, val) {
+    questions[qIndex].correct_numeric = val.trim().slice(0, 4);
+}
+
+function addQuestion(type) {
+    questions.push({
+        number: questions.length + 1,
+        type: type,
+        correct_single: 'A',
+        correct_tf: { a: true, b: false, c: true, d: false },
+        correct_numeric: ''
+    });
+    renderQuestions();
+    updateStats();
+}
+
+function addMultipleQuestions(type, count) {
+    for (let i = 0; i < count; i++) {
+        questions.push({
+            number: questions.length + 1,
+            type: type,
+            correct_single: 'A',
+            correct_tf: { a: true, b: false, c: true, d: false },
+            correct_numeric: ''
+        });
+    }
+    renderQuestions();
+    updateStats();
+}
+
+function removeQuestion(index) {
+    if (confirm(`Bạn có chắc muốn xóa Câu ${index + 1}?`)) {
+        questions.splice(index, 1);
+        renderQuestions();
+        updateStats();
+    }
+}
+
+function clearAllQuestions() {
+    if (confirm("Bạn có chắc muốn xóa toàn bộ câu hỏi trong danh sách?")) {
+        questions = [];
+        renderQuestions();
+        updateStats();
+    }
+}
+
+function loadStandard2025Template() {
+    if (confirm("Tải cấu trúc bộ đáp án chuẩn Bộ GD&ĐT:\n- 24 câu SingleChoose (4 cột)\n- 4 câu Đúng/Sai\n- 6 câu Số thực (1 cột)?")) {
+        questions = [];
+        for (let i = 1; i <= 24; i++) {
+            questions.push({
+                number: i,
+                type: 'SINGLE',
+                correct_single: ['A', 'B', 'C', 'D'][(i - 1) % 4],
+                correct_tf: { a: true, b: false, c: true, d: false },
+                correct_numeric: ''
+            });
+        }
+        for (let i = 25; i <= 28; i++) {
+            questions.push({
+                number: i,
+                type: 'TF',
+                correct_single: 'A',
+                correct_tf: { a: true, b: false, c: true, d: false },
+                correct_numeric: ''
+            });
+        }
+        for (let i = 29; i <= 34; i++) {
+            questions.push({
+                number: i,
+                type: 'NUMERIC',
+                correct_single: 'A',
+                correct_tf: { a: true, b: false, c: true, d: false },
+                correct_numeric: '1.25'
+            });
+        }
+        renderQuestions();
+        updateStats();
+    }
+}
+
+function applyQuickPaste() {
+    const text = document.getElementById('quickPasteText').value.trim();
+    if (!text) return;
+
+    const tokens = text.split(/[\s,]+/);
+    let matchedSingle = 0;
+
+    tokens.forEach(tok => {
+        const match = tok.match(/^(\d+)?:?([A-Da-d])$/);
+        if (match) {
+            const opt = match[2].toUpperCase();
+            if (match[1]) {
+                const idx = parseInt(match[1]) - 1;
+                if (questions[idx] && questions[idx].type === 'SINGLE') {
+                    questions[idx].correct_single = opt;
+                    matchedSingle++;
+                }
+            } else {
+                if (questions[matchedSingle] && questions[matchedSingle].type === 'SINGLE') {
+                    questions[matchedSingle].correct_single = opt;
+                    matchedSingle++;
+                }
+            }
+        }
+    });
+
+    renderQuestions();
+    const modal = bootstrap.Modal.getInstance(document.getElementById('quickPasteModal'));
+    if (modal) modal.hide();
+    alert(`Đã nhận diện và áp dụng đáp án cho ${matchedSingle} câu trắc nghiệm!`);
+}
+
+function saveGradingKey() {
+    const subjectId = document.getElementById('selectSubject').value;
+    const code = document.getElementById('inputCode').value.trim();
+    const title = document.getElementById('inputTitle').value.trim();
+    const description = document.getElementById('inputDesc').value.trim();
+
+    if (!subjectId) {
+        alert("Vui lòng chọn Môn thi!");
+        document.getElementById('selectSubject').focus();
+        return;
+    }
+    if (!code) {
+        alert("Vui lòng nhập Mã đề thi (Ví dụ: 101)!");
+        document.getElementById('inputCode').focus();
+        return;
+    }
+    if (questions.length === 0) {
+        alert("Bộ đáp án phải có ít nhất 1 câu hỏi!");
+        return;
+    }
+
+    const keyIdStr = "{{ key_obj.id|default_if_none:'' }}";
+    const payload = {
+        key_id: keyIdStr ? parseInt(keyIdStr) : null,
+        subject_id: subjectId,
+        code: code,
+        title: title,
+        description: description,
+        questions: questions
+    };
+
+    const btnSaveTop = document.getElementById('btnSaveTop');
+    const btnSaveBottom = document.getElementById('btnSaveBottom');
+    btnSaveTop.disabled = true;
+    btnSaveBottom.disabled = true;
+    btnSaveTop.textContent = "Đang lưu...";
+    btnSaveBottom.textContent = "Đang lưu...";
+
+    fetch("{% url 'api_save_grading_key' %}", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": "{{ csrf_token }}",
+            "X-Requested-With": "XMLHttpRequest"
+        },
+        body: JSON.stringify(payload)
+    })
+    .then(r => r.json())
+    .then(data => {
+        btnSaveTop.disabled = false;
+        btnSaveBottom.disabled = false;
+        btnSaveTop.textContent = "💾 Lưu Bộ Đáp Án";
+        btnSaveBottom.textContent = "💾 Lưu Bộ Đáp Án";
+
+        if (data.status === 'success') {
+            alert(data.message);
+            if (data.redirect_url) {
+                window.location.href = data.redirect_url;
+            } else if (data.subject_id) {
+                window.location.href = `/cham-trac-nghiem/mon-thi/${data.subject_id}/?tab=keys`;
+            } else if (payload.subject_id) {
+                window.location.href = `/cham-trac-nghiem/mon-thi/${payload.subject_id}/?tab=keys`;
+            } else {
+                window.location.href = "{% url 'grading_key_list' %}";
+            }
+        } else {
+            alert(data.message || "Có lỗi xảy ra khi lưu đáp án.");
+        }
+    })
+    .catch(err => {
+        btnSaveTop.disabled = false;
+        btnSaveBottom.disabled = false;
+        btnSaveTop.textContent = "💾 Lưu Bộ Đáp Án";
+        btnSaveBottom.textContent = "💾 Lưu Bộ Đáp Án";
+        alert("Lỗi kết nối: " + err);
+    });
+}
+</script>
+{% endblock %}

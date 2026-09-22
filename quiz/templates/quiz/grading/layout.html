@@ -1,0 +1,193 @@
+{% extends 'quiz/base.html' %}
+{% load static %}
+
+{% block title %}{% block grading_title %}Hệ Thống Chấm Trắc Nghiệm{% endblock %} - SmartQuiz Pro{% endblock %}
+
+{% block extra_head %}
+<style>
+    /* Grading Layout Specific Styles */
+    .grading-hero {
+        background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 50%, #06b6d4 100%);
+        border-radius: 1rem;
+        color: white;
+        padding: 2rem 2.5rem;
+        margin-bottom: 2rem;
+        box-shadow: 0 10px 25px -5px rgba(30, 58, 138, 0.25);
+        position: relative;
+        overflow: hidden;
+    }
+    .grading-hero::before {
+        content: '';
+        position: absolute;
+        top: -50px;
+        right: -50px;
+        width: 220px;
+        height: 220px;
+        background: rgba(255, 255, 255, 0.08);
+        border-radius: 50%;
+        pointer-events: none;
+    }
+    .grading-nav-pills .nav-link {
+        color: #4b5563;
+        font-weight: 600;
+        padding: 0.75rem 1.25rem;
+        border-radius: 0.75rem;
+        transition: all 0.2s ease;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        border: 1px solid transparent;
+    }
+    .grading-nav-pills .nav-link:hover {
+        background: #f1f5f9;
+        color: #1e3a8a;
+    }
+    .grading-nav-pills .nav-link.active {
+        background: #1e3a8a;
+        color: #ffffff;
+        box-shadow: 0 4px 12px rgba(30, 58, 138, 0.2);
+    }
+    .card-stat {
+        border: none;
+        border-radius: 1rem;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+    }
+    .card-stat:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+    }
+    .stat-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.4rem;
+    }
+
+    /* Bubble Sheet Styling */
+    .bubble-btn {
+        width: 38px;
+        height: 38px;
+        border-radius: 50%;
+        font-weight: 700;
+        font-size: 0.95rem;
+        border: 2px solid #cbd5e1;
+        background: #ffffff;
+        color: #475569;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        user-select: none;
+    }
+    .bubble-btn:hover {
+        border-color: #3b82f6;
+        color: #1d4ed8;
+        background: #eff6ff;
+    }
+    .bubble-btn.active {
+        background: #2563eb;
+        border-color: #1d4ed8;
+        color: #ffffff;
+        box-shadow: 0 2px 6px rgba(37, 99, 235, 0.35);
+    }
+
+    /* TF Toggle Buttons */
+    .tf-btn {
+        min-width: 38px;
+        height: 32px;
+        border-radius: 6px;
+        font-weight: 700;
+        font-size: 0.85rem;
+        border: 1px solid #cbd5e1;
+        background: #ffffff;
+        color: #64748b;
+        cursor: pointer;
+        transition: all 0.15s ease;
+    }
+    .tf-btn.true-active {
+        background: #16a34a;
+        border-color: #15803d;
+        color: #ffffff;
+    }
+    .tf-btn.false-active {
+        background: #dc2626;
+        border-color: #b91c1c;
+        color: #ffffff;
+    }
+
+    /* Numeric 4-char input box */
+    .numeric-input-4 {
+        font-family: monospace;
+        font-size: 1.1rem;
+        font-weight: 700;
+        letter-spacing: 2px;
+        text-align: center;
+        max-width: 140px;
+        border: 2px solid #cbd5e1;
+        border-radius: 8px;
+        padding: 0.35rem 0.5rem;
+        transition: border-color 0.15s ease;
+    }
+    .numeric-input-4:focus {
+        border-color: #2563eb;
+        outline: none;
+        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-lg-4 py-3">
+    <!-- HERO HEADER -->
+    <div class="grading-hero d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+        <div>
+            <div class="d-flex align-items-center gap-2 mb-2">
+                <span class="badge bg-white text-primary fw-bold px-3 py-1 rounded-pill">Chấm Thi Chuẩn 2025</span>
+                <span class="badge bg-info text-dark fw-semibold px-2 py-1 rounded-pill">SingleChoose &bull; TrueFalse &bull; Số Thực</span>
+            </div>
+            <h2 class="fw-bold mb-1">🎯 Hệ Thống Chấm Điểm Trắc Nghiệm</h2>
+            <p class="mb-0 text-white-50">Tạo kỳ thi, quản lý môn thi, nạp bộ đáp án 3 dạng câu hỏi và chấm bài trực tiếp tự động theo thang điểm chuẩn Bộ GD&ĐT.</p>
+        </div>
+        <div class="d-flex flex-wrap gap-2">
+            <a href="{% url 'grading_sheet_view' %}" class="btn btn-warning fw-bold px-4 py-2 rounded-pill shadow-sm">
+                ✍️ Chấm Bài Ngay
+            </a>
+            <a href="{% url 'grading_key_create' %}" class="btn btn-light text-primary fw-bold px-3 py-2 rounded-pill shadow-sm">
+                ➕ Nhập Đáp Án
+            </a>
+        </div>
+    </div>
+
+    <!-- NAVIGATION TABS -->
+    <div class="card border-0 shadow-sm rounded-4 mb-4">
+        <div class="card-body p-2">
+            <ul class="nav grading-nav-pills nav-fill flex-column flex-md-row gap-1">
+                <li class="nav-item">
+                    <a class="nav-link {% if active_tab == 'dashboard' %}active{% endif %}" href="{% url 'grading_dashboard' %}">
+                        🏠 Tổng Quan
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if active_tab == 'students' %}active{% endif %}" href="{% url 'master_students_view' %}">
+                        👥 Học Sinh & Lớp
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if active_tab == 'exams' %}active{% endif %}" href="{% url 'grading_manage_exams' %}">
+                        🏛️ Kỳ Thi & Môn Thi
+                    </a>
+                </li>
+            </ul>
+        </div>
+    </div>
+
+
+    <!-- MAIN GRADING CONTENT -->
+    {% block grading_content %}{% endblock %}
+</div>
+{% endblock %}

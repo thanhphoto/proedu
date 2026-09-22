@@ -1,0 +1,743 @@
+{% extends 'quiz/grading/layout.html' %}
+
+{% block grading_title %}Bảng Điểm & Kết Quả Chấm Thi{% endblock %}
+
+{% block grading_content %}
+<div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
+    <div>
+        <h4 class="fw-bold mb-1 text-dark">📊 Bảng Điểm & Kết Quả Chấm Thi</h4>
+        <p class="text-muted small mb-0">Quản lý toàn bộ danh sách thí sinh đã được chấm bài, xem lại chi tiết bài làm và xuất bảng điểm Excel.</p>
+    </div>
+    <div class="d-flex gap-2">
+        <a href="{% url 'export_grading_results_excel' %}?period_id={{ filter_period }}&subject_id={{ filter_subject }}&key_id={{ filter_key }}" 
+           class="btn btn-success rounded-pill px-4 fw-bold shadow-sm">
+            📥 Xuất Bảng Điểm Excel
+        </a>
+        <a href="{% url 'grading_sheet_view' %}" class="btn btn-warning rounded-pill px-4 fw-bold shadow-sm">
+            ✍️ Chấm Bài Mới
+        </a>
+    </div>
+</div>
+
+<!-- STATS SUMMARY CARDS -->
+<div class="row g-3 mb-4">
+    <div class="col-sm-6 col-xl-3">
+        <div class="card card-stat p-3 bg-white">
+            <div class="d-flex align-items-center gap-3">
+                <div class="stat-icon bg-primary bg-opacity-10 text-primary">👥</div>
+                <div>
+                    <h6 class="text-muted small mb-1">Tổng Thí Sinh</h6>
+                    <h3 class="fw-bold mb-0 text-dark">{{ stats.count|default:"0" }}</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+        <div class="card card-stat p-3 bg-white">
+            <div class="d-flex align-items-center gap-3">
+                <div class="stat-icon bg-success bg-opacity-10 text-success">⭐</div>
+                <div>
+                    <h6 class="text-muted small mb-1">Điểm Cao Nhất</h6>
+                    <h3 class="fw-bold mb-0 text-success">{{ stats.max_score|floatformat:2|default:"0.00" }}</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+        <div class="card card-stat p-3 bg-white">
+            <div class="d-flex align-items-center gap-3">
+                <div class="stat-icon bg-info bg-opacity-10 text-info">📈</div>
+                <div>
+                    <h6 class="text-muted small mb-1">Điểm Trung Bình</h6>
+                    <h3 class="fw-bold mb-0 text-info">{{ stats.avg_score|floatformat:2|default:"0.00" }}</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+        <div class="card card-stat p-3 bg-white">
+            <div class="d-flex align-items-center gap-3">
+                <div class="stat-icon bg-warning bg-opacity-10 text-warning">📉</div>
+                <div>
+                    <h6 class="text-muted small mb-1">Điểm Thấp Nhất</h6>
+                    <h3 class="fw-bold mb-0 text-warning">{{ stats.min_score|floatformat:2|default:"0.00" }}</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- FILTER BAR -->
+<div class="card border-0 shadow-sm rounded-4 mb-4">
+    <div class="card-body p-3">
+        <form method="GET" class="row g-2 align-items-center">
+            <div class="col-md-3">
+                <select name="period_id" class="form-select rounded-3" onchange="this.form.submit()">
+                    <option value="">-- Tất cả Kỳ thi --</option>
+                    {% for p in periods %}
+                    <option value="{{ p.id }}" {% if filter_period == p.id|stringformat:"s" %}selected{% endif %}>
+                        {{ p.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <select name="subject_id" class="form-select rounded-3" onchange="this.form.submit()">
+                    <option value="">-- Tất cả Môn thi --</option>
+                    {% for p in periods %}
+                        <optgroup label="{{ p.name }}">
+                            {% for s in p.subjects.all %}
+                            <option value="{{ s.id }}" {% if filter_subject == s.id|stringformat:"s" %}selected{% endif %}>
+                                {{ s.name }} ({{ s.code }})
+                            </option>
+                            {% endfor %}
+                        </optgroup>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-4">
+                <input type="text" name="q" class="form-control rounded-3" 
+                       placeholder="Tìm theo SBD, Tên thí sinh, Lớp..." value="{{ search_q }}">
+            </div>
+            <div class="col-md-2 d-flex gap-2">
+                <button type="submit" class="btn btn-outline-primary rounded-3 w-100 fw-semibold">
+                    🔍 Tìm
+                </button>
+                {% if filter_period or filter_subject or search_q %}
+                <a href="{% url 'grading_results_list' %}" class="btn btn-light rounded-3 text-danger">✕</a>
+                {% endif %}
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- SUBMISSIONS TABLE -->
+<div class="card border-0 shadow-sm rounded-4 overflow-hidden">
+    <div class="card-body p-0">
+        {% if page_obj %}
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light text-muted small">
+                    <tr>
+                        <th class="ps-4">Thí Sinh</th>
+                        <th>Kỳ Thi & Môn Thi</th>
+                        <th class="text-center">Mã Đề</th>
+                        <th class="text-center">Điểm Đạt Được</th>
+                        <th class="text-center">Số Câu Đúng</th>
+                        <th class="text-center">Xếp Loại</th>
+                        <th>Thời Gian</th>
+                        <th class="text-end pe-4">Thao Tác</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in page_obj %}
+                    <tr id="record-row-{{ r.id }}">
+                        <td class="ps-4">
+                            <div class="fw-bold text-dark d-flex align-items-center gap-2">
+                                <span>{{ r.student_name }}</span>
+                                {% if r.annotated_image %}
+                                    <span class="badge bg-info bg-opacity-10 text-info border border-info border-opacity-25 rounded-pill small" title="Có ảnh bài làm scan">📷 Có ảnh</span>
+                                {% endif %}
+                            </div>
+                            <div class="small text-muted">
+                                SBD: <span class="badge bg-light text-dark font-monospace border">{{ r.student_id }}</span>
+                            </div>
+                        </td>
+                        <td>
+                            <span class="badge bg-light text-secondary border font-monospace">
+                                {{ r.student_class|default:"---" }}
+                            </span>
+                        </td>
+                        <td>
+                            <div class="fw-semibold text-dark">{{ r.key.subject.name }}</div>
+                            <div class="small text-muted">{{ r.key.subject.exam_period.name }}</div>
+                        </td>
+                        <td class="text-center">
+                            <span class="badge bg-secondary text-white font-monospace px-2 py-1">
+                                Đề {{ r.exam_code }}
+                            </span>
+                        </td>
+                        <td class="text-center" id="record-score-{{ r.id }}">
+                            <span class="fs-5 fw-bold text-primary">{{ r.total_score }}</span>
+                            <span class="small text-muted">/{{ r.max_score }}</span>
+                        </td>
+                        <td class="text-center">
+                            <span class="badge bg-light text-success border font-monospace fw-bold px-2 py-1">
+                                {{ r.correct_count }} câu
+                            </span>
+                        </td>
+                        <td class="text-center" id="record-rank-{{ r.id }}">
+                            {% widthratio r.total_score r.max_score 100 as pct %}
+                            {% if pct >= 85 %}
+                                <span class="badge bg-success bg-opacity-10 text-success fw-bold px-3 py-1 rounded-pill">Xuất sắc</span>
+                            {% elif pct >= 70 %}
+                                <span class="badge bg-primary bg-opacity-10 text-primary fw-bold px-3 py-1 rounded-pill">Khá</span>
+                            {% elif pct >= 50 %}
+                                <span class="badge bg-warning bg-opacity-10 text-warning fw-bold px-3 py-1 rounded-pill">Trung bình</span>
+                            {% else %}
+                                <span class="badge bg-danger bg-opacity-10 text-danger fw-bold px-3 py-1 rounded-pill">Chưa đạt</span>
+                            {% endif %}
+                        </td>
+                        <td class="small text-muted">
+                            {{ r.created_at|date:"H:i d/m/Y" }}
+                        </td>
+                        <td class="text-end pe-4">
+                            <div class="d-flex justify-content-end gap-1">
+                                <button class="btn btn-sm btn-outline-primary rounded-pill px-3 fw-semibold" 
+                                        onclick="viewRecordDetail('{{ r.id }}')">
+                                    🔍 Xem & Chấm lại
+                                </button>
+                                <button class="btn btn-sm btn-outline-danger rounded-pill px-2 btn-delete-record" 
+                                        data-record-id="{{ r.id }}" 
+                                        data-student-name="{{ r.student_name }}">
+                                    🗑️
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- PAGINATION -->
+        {% if page_obj.has_other_pages %}
+        <div class="p-3 border-top d-flex justify-content-between align-items-center">
+            <span class="small text-muted">
+                Trang {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}
+            </span>
+            <ul class="pagination pagination-sm mb-0">
+                {% if page_obj.has_previous %}
+                <li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}">&laquo;</a></li>
+                {% endif %}
+                {% for num in page_obj.paginator.page_range %}
+                <li class="page-item {% if page_obj.number == num %}active{% endif %}">
+                    <a class="page-link" href="?page={{ num }}">{{ num }}</a>
+                </li>
+                {% endfor %}
+                {% if page_obj.has_next %}
+                <li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}">&raquo;</a></li>
+                {% endif %}
+            </ul>
+        </div>
+        {% endif %}
+
+        {% else %}
+        <div class="text-center py-5">
+            <div class="fs-1 mb-2">📊</div>
+            <h5 class="fw-bold text-dark">Chưa có bài chấm nào phù hợp</h5>
+            <p class="text-muted small mb-3">Chưa có thí sinh nào được chấm bài hoặc không tìm thấy theo bộ lọc hiện tại.</p>
+            <a href="{% url 'grading_sheet_view' %}" class="btn btn-warning rounded-pill px-4 fw-bold shadow-sm">
+                ✍️ Vào Chấm Bài Ngay
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- ENHANCED RECORD DETAIL & RE-GRADING MODAL -->
+<div class="modal fade" id="detailModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-xl modal-fullscreen-lg-down">
+        <div class="modal-content rounded-4 border-0 shadow-lg overflow-hidden">
+            <div class="modal-header bg-dark text-white border-0 py-3 px-4 d-flex align-items-center justify-content-between">
+                <div class="d-flex align-items-center gap-3">
+                    <span class="fs-4">📋</span>
+                    <div>
+                        <h5 class="modal-title fw-bold mb-0 text-white" id="modalStudentTitle">Chi Tiết Bài Chấm & Sửa Đáp Án</h5>
+                        <small class="text-white-50" id="modalSubtitle">Xem lại ảnh bài thi và chấm lại kết quả</small>
+                    </div>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <span class="badge bg-primary fs-6 px-3 py-2 rounded-pill" id="modalHeaderScore">0.0 / 10.0đ</span>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+            </div>
+            <div class="modal-body p-0" id="detailModalBody">
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <div class="mt-2 text-muted">Đang tải thông tin bài chấm...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let currentModalRecordId = null;
+let currentModalRecord = null;
+let currentModalAnswers = {};
+let currentModalZoom = 1.0;
+
+function adjustZoom(delta) {
+    currentModalZoom = Math.max(0.5, Math.min(3.0, currentModalZoom + delta));
+    const img = document.getElementById('imgModalSheet');
+    if (img) {
+        img.style.transform = `scale(${currentModalZoom})`;
+    }
+}
+
+function resetZoom() {
+    currentModalZoom = 1.0;
+    const img = document.getElementById('imgModalSheet');
+    if (img) {
+        img.style.transform = 'scale(1)';
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Xóa bài chấm
+    document.querySelectorAll('.btn-delete-record').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const recordId = this.dataset.recordId;
+            const studentName = this.dataset.studentName;
+            if (confirm(`Bạn có chắc muốn xóa kết quả bài chấm của thí sinh "${studentName}"?`)) {
+                fetch(`/cham-trac-nghiem/api/xoa-bai-cham/${recordId}/`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': '{{ csrf_token }}',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        const row = document.getElementById(`record-row-${recordId}`);
+                        if (row) row.remove();
+                    } else {
+                        alert(data.message);
+                    }
+                });
+            }
+        });
+    });
+});
+
+function viewRecordDetail(recordId) {
+    currentModalRecordId = recordId;
+    currentModalZoom = 1.0;
+    const modalEl = document.getElementById('detailModal');
+    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    modal.show();
+
+    const body = document.getElementById('detailModalBody');
+    body.innerHTML = `
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status"></div>
+            <div class="mt-2 text-muted">Đang tải bài thi và ảnh nhận diện...</div>
+        </div>
+    `;
+
+    fetch(`/cham-trac-nghiem/api/chi-tiet-bai-cham/${recordId}/`, {
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.status === 'success') {
+            currentModalRecord = data.record;
+            currentModalAnswers = JSON.parse(JSON.stringify(data.record.student_answers || {}));
+            renderRecordDetailModal(data.record);
+        } else {
+            body.innerHTML = `<div class="alert alert-danger m-4">${data.message || 'Lỗi tải dữ liệu bài chấm.'}</div>`;
+        }
+    })
+    .catch(err => {
+        body.innerHTML = `<div class="alert alert-danger m-4">Lỗi kết nối máy chủ: ${err}</div>`;
+    });
+}
+
+function renderRecordDetailModal(rec) {
+    document.getElementById('modalStudentTitle').textContent = `${rec.student_name} (SBD: ${rec.student_id})`;
+    document.getElementById('modalSubtitle').textContent = `Môn: ${rec.subject_name} &bull; Đề ${rec.exam_code} &bull; Ngày chấm: ${rec.graded_at}`;
+    document.getElementById('modalHeaderScore').textContent = `${rec.total_score} / ${rec.max_score}đ (${rec.percent}%)`;
+
+    const body = document.getElementById('detailModalBody');
+    const hasImage = !!rec.annotated_image_url || !!rec.original_image_url;
+    const displayImgUrl = rec.annotated_image_url || rec.original_image_url || '';
+
+    body.innerHTML = `
+        <div class="row g-0">
+            <!-- CỘT TRÁI: ẢNH BÀI LÀM ĐÃ CHẤM (VẼ VÙNG NHẬN DIỆN OMR) -->
+            <div class="col-lg-6 col-xl-7 bg-dark border-end d-flex flex-column" style="min-height: 580px;">
+                <!-- Toolbar ảnh -->
+                <div class="p-2 px-3 bg-white border-bottom d-flex flex-wrap justify-content-between align-items-center gap-2">
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="fw-bold text-dark small">📸 Ảnh Phiếu Thi (Vùng Nhận Diện OMR)</span>
+                        <span class="badge ${hasImage ? 'bg-success' : 'bg-secondary'} rounded-pill font-monospace" id="modalImgBadge">
+                            ${hasImage ? '✓ Đã vẽ nhận diện' : 'Chưa có ảnh'}
+                        </span>
+                    </div>
+                    <div class="d-flex align-items-center gap-1">
+                        <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill px-2" onclick="adjustZoom(-0.2)" title="Thu nhỏ">➖</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill px-2" onclick="resetZoom()" title="Về 100%">100%</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill px-2" onclick="adjustZoom(0.2)" title="Phóng to">➕</button>
+                        <a id="modalImgNewTabBtn" href="${displayImgUrl || '#'}" target="_blank" class="btn btn-sm btn-outline-primary rounded-pill px-2 ${hasImage ? '' : 'disabled'}" title="Mở ảnh kích thước gốc trong tab mới">
+                            ↗️ Tab mới
+                        </a>
+                        <label class="btn btn-sm btn-outline-warning text-dark fw-bold rounded-pill px-2 mb-0" style="cursor: pointer;" title="Tải lên ảnh bài thi để hệ thống nhận diện lại">
+                            📁 Tải/Đổi Ảnh
+                            <input type="file" accept="image/jpeg,image/tiff,image/png" onchange="uploadModalSheetImage(this.files[0])" class="d-none">
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Khung hiển thị ảnh có Zoom / Pan -->
+                <div class="flex-grow-1 p-3 d-flex align-items-center justify-content-center position-relative overflow-auto" id="modalImageWrapper" style="max-height: 72vh; min-height: 480px; background: #121416;">
+                    <img id="imgModalSheet" src="${displayImgUrl}" alt="Ảnh phiếu thi" class="img-fluid rounded shadow transition-all ${hasImage ? '' : 'd-none'}" style="max-height: 70vh; object-fit: contain; transform-origin: top center; transition: transform 0.15s ease;" />
+                    
+                    <div id="modalNoImageAlert" class="text-center text-white py-5 ${hasImage ? 'd-none' : ''}">
+                        <div class="fs-1 mb-2">📄</div>
+                        <h6 class="fw-bold">Chưa có file ảnh bài làm đính kèm</h6>
+                        <p class="text-white-50 small mb-3">Bài thi này được chấm trước đây hoặc chưa nạp ảnh scan.</p>
+                        <label class="btn btn-warning text-dark fw-bold rounded-pill px-4 shadow-sm">
+                            📁 Tải Lên Ảnh Phiếu Thi
+                            <input type="file" accept="image/jpeg,image/tiff,image/png" onchange="uploadModalSheetImage(this.files[0])" class="d-none">
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CỘT PHẢI: BẢNG SỬA TRỰC TIẾP ĐÁP ÁN & CHẤM LẠI -->
+            <div class="col-lg-6 col-xl-5 d-flex flex-column bg-white" style="min-height: 580px;">
+                <!-- Thông tin thí sinh tóm tắt -->
+                <div class="p-3 border-bottom bg-light">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <div>
+                            <h5 class="fw-bold text-dark mb-0" id="txtModalName">${rec.student_name}</h5>
+                            <div class="small text-muted">
+                                SBD: <span class="font-monospace fw-bold text-dark" id="txtModalSbd">${rec.student_id}</span> &bull; 
+                                Lớp: <span class="fw-semibold text-dark" id="txtModalClass">${rec.student_class || '---'}</span>
+                            </div>
+                        </div>
+                        <div class="text-end">
+                            <div class="fs-4 fw-bold text-primary" id="txtModalScore">${rec.total_score} <small class="text-muted fs-6">/${rec.max_score}đ</small></div>
+                            <span class="badge bg-primary bg-opacity-10 text-primary fw-bold px-3 py-1 rounded-pill" id="txtModalRankBadge">${rec.percent}%</span>
+                        </div>
+                    </div>
+                    <div class="d-flex flex-wrap justify-content-between align-items-center small text-muted">
+                        <span>Mã đề: <span class="badge bg-secondary font-monospace">Đề ${rec.exam_code}</span></span>
+                        <span>Đúng tuyệt đối: <strong class="text-success" id="txtModalCorrect">${rec.correct_count}</strong> câu</span>
+                    </div>
+                </div>
+
+                <!-- Thông báo khi chấm lại thành công -->
+                <div id="regradeAlert" class="mx-3 mt-2 alert alert-success d-none py-2 px-3 small rounded-3 border-success"></div>
+
+                <!-- Danh sách câu hỏi có thể chỉnh sửa trực tiếp -->
+                <div class="p-3 bg-white border-bottom d-flex justify-content-between align-items-center">
+                    <span class="fw-bold text-dark small">✏️ DANH SÁCH ĐÁP ÁN (BẤM ĐỂ ĐỔI)</span>
+                    <small class="text-muted">Click chọn đáp án thí sinh thực tế tô</small>
+                </div>
+
+                <div class="flex-grow-1 p-3 overflow-auto" id="modalQuestionsList" style="max-height: 50vh;">
+                    ${renderQuestionsEditor(rec.questions || [], currentModalAnswers, rec.details || [])}
+                </div>
+
+                <!-- Footer hành động -->
+                <div class="p-3 border-top bg-light mt-auto d-flex gap-2">
+                    <button type="button" class="btn btn-secondary rounded-pill px-4" data-bs-dismiss="modal">Đóng</button>
+                    <button type="button" class="btn btn-warning text-dark fw-bold rounded-pill px-4 shadow-sm flex-grow-1" id="btnRegradeSubmit" onclick="submitRegrade()">
+                        ⚡ CHẤM LẠI & CẬP NHẬT ĐIỂM
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function renderQuestionsEditor(questions, answers, details) {
+    if (!questions || questions.length === 0) {
+        return '<div class="text-center text-muted py-4">Không tìm thấy câu hỏi của đề thi.</div>';
+    }
+
+    const detailMap = {};
+    if (details && details.length > 0) {
+        details.forEach(d => { detailMap[d.number] = d; });
+    }
+
+    let html = '';
+
+    questions.forEach(q => {
+        const qNum = String(q.number);
+        const ans = answers[qNum];
+        const d = detailMap[q.number] || {};
+        const isCorr = d.is_correct || false;
+        const qScore = d.score !== undefined ? d.score : 0;
+        const qMax = q.score_weight || (q.type === 'TF' ? 1.0 : 0.25);
+
+        let isError = false;
+        if (q.type === 'SINGLE') {
+            const uOpts = String(ans || '').toUpperCase().split(',').map(s=>s.trim()).filter(s=>s);
+            if (uOpts.length !== 1 || !['A','B','C','D'].includes(uOpts[0])) isError = true;
+        } else if (q.type === 'TF') {
+            if (!ans || typeof ans !== 'object') {
+                isError = true;
+            } else {
+                ['a','b','c','d'].forEach(sub => {
+                    if (ans[sub] === undefined || ans[sub] === null || String(ans[sub]) === 'ERROR') isError = true;
+                });
+            }
+        } else if (q.type === 'NUMERIC') {
+            if (!ans || String(ans).trim() === '' || String(ans).includes('ERROR')) isError = true;
+        }
+
+        let cardCls = 'bg-light';
+        if (isError) cardCls = 'border-danger bg-danger bg-opacity-10';
+        else if (isCorr) cardCls = 'border-success bg-success bg-opacity-10';
+
+        html += `
+            <div class="p-2 mb-2 rounded-3 border ${cardCls}" id="q_card_${q.number}">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                    <span class="fw-bold text-dark small">
+                        Câu ${q.number} 
+                        <span class="badge bg-secondary font-monospace" style="font-size: 0.7rem;">${q.type}</span>
+                    </span>
+                    <div class="d-flex align-items-center gap-1">
+                        <span class="small fw-bold ${qScore > 0 ? 'text-success' : 'text-danger'}" id="q_score_${q.number}">+${qScore}/${qMax}đ</span>
+                    </div>
+                </div>
+        `;
+
+        if (q.type === 'SINGLE') {
+            const correctOpt = (q.correct_single || '').toUpperCase();
+            html += `
+                <div class="d-flex align-items-center justify-content-between gap-2 mt-1">
+                    <div class="btn-group btn-group-sm" role="group">
+                        ${['A', 'B', 'C', 'D'].map(opt => {
+                            const uOpts = String(ans || '').toUpperCase().split(',').map(s=>s.trim()).filter(s=>s);
+                            const isSelected = uOpts.includes(opt);
+                            let btnCls = 'btn-outline-secondary';
+                            if (isSelected) {
+                                if (uOpts.length > 1) {
+                                    btnCls = 'btn-danger text-white fw-bold';
+                                } else if (opt === correctOpt) {
+                                    btnCls = 'btn-success text-white fw-bold';
+                                } else {
+                                    btnCls = 'btn-primary text-white fw-bold';
+                                }
+                            }
+                            return `<button type="button" class="btn btn-sm ${btnCls} font-monospace px-2" onclick="setSingleAnswer(${q.number}, '${opt}')">${opt}</button>`;
+                        }).join('')}
+                        <button type="button" class="btn btn-sm btn-outline-dark px-1" onclick="setSingleAnswer(${q.number}, '')" title="Bỏ chọn">✕</button>
+                    </div>
+                    <div class="small">
+                        Đ/A chuẩn: <span class="badge bg-success font-monospace">${correctOpt || '---'}</span>
+                    </div>
+                </div>
+            `;
+        } else if (q.type === 'TF') {
+            const corrTf = q.correct_tf || {};
+            const userTf = (typeof ans === 'object' && ans !== null) ? ans : {};
+            html += `
+                <div class="mt-1 d-flex flex-column gap-1">
+                    ${['a', 'b', 'c', 'd'].map(sub => {
+                        const uVal = userTf[sub];
+                        const expVal = corrTf[sub];
+                        const expText = expVal === true || expVal === 'True' || expVal === '1' ? 'Đúng' : (expVal === false || expVal === 'False' || expVal === '0' ? 'Sai' : '-');
+                        
+                        const isDung = (uVal === true || uVal === 'true' || uVal === '1' || uVal === 'T' || uVal === 'Đ');
+                        const isSai = (uVal === false || uVal === 'false' || uVal === '0' || uVal === 'F' || uVal === 'S');
+
+                        return `
+                            <div class="d-flex align-items-center justify-content-between small">
+                                <span class="font-monospace fw-bold">${sub})</span>
+                                <div class="btn-group btn-group-sm" role="group">
+                                    <button type="button" class="btn btn-sm ${isDung ? 'btn-primary fw-bold text-white' : 'btn-outline-secondary'} py-0 px-2" onclick="setTfAnswer(${q.number}, '${sub}', true)">Đúng</button>
+                                    <button type="button" class="btn btn-sm ${isSai ? 'btn-dark fw-bold text-white' : 'btn-outline-secondary'} py-0 px-2" onclick="setTfAnswer(${q.number}, '${sub}', false)">Sai</button>
+                                    <button type="button" class="btn btn-sm btn-outline-dark py-0 px-1" onclick="setTfAnswer(${q.number}, '${sub}', null)">-</button>
+                                </div>
+                                <span class="text-muted" style="font-size: 0.75rem;">Đề: <strong>${expText}</strong></span>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            `;
+        } else if (q.type === 'NUMERIC') {
+            const corrNum = q.correct_numeric || '';
+            html += `
+                <div class="d-flex align-items-center gap-2 mt-1">
+                    <input type="text" class="form-control form-control-sm font-monospace fw-bold" value="${ans || ''}" placeholder="Nhập số..." oninput="setNumericAnswer(${q.number}, this.value)" style="max-width: 140px;">
+                    <div class="small ms-auto">
+                        Đ/A chuẩn: <span class="badge bg-success font-monospace">${corrNum || '---'}</span>
+                    </div>
+                </div>
+            `;
+        }
+
+        html += `</div>`;
+    });
+
+    return html;
+}
+
+function setSingleAnswer(qNum, opt) {
+    if (!opt) {
+        delete currentModalAnswers[String(qNum)];
+    } else {
+        currentModalAnswers[String(qNum)] = opt;
+    }
+    refreshQuestionsUI();
+}
+
+function setTfAnswer(qNum, sub, val) {
+    const key = String(qNum);
+    if (!currentModalAnswers[key] || typeof currentModalAnswers[key] !== 'object') {
+        currentModalAnswers[key] = {};
+    }
+    if (val === null) {
+        delete currentModalAnswers[key][sub];
+    } else {
+        currentModalAnswers[key][sub] = val;
+    }
+    refreshQuestionsUI();
+}
+
+function setNumericAnswer(qNum, val) {
+    const key = String(qNum);
+    const clean = val.trim();
+    if (!clean) {
+        delete currentModalAnswers[key];
+    } else {
+        currentModalAnswers[key] = clean;
+    }
+}
+
+function refreshQuestionsUI() {
+    if (!currentModalRecord) return;
+    const container = document.getElementById('modalQuestionsList');
+    if (container) {
+        container.innerHTML = renderQuestionsEditor(
+            currentModalRecord.questions || [],
+            currentModalAnswers,
+            currentModalRecord.details || []
+        );
+    }
+}
+
+function submitRegrade() {
+    if (!currentModalRecordId) return;
+
+    const btn = document.getElementById('btnRegradeSubmit');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Đang chấm lại...';
+
+    const payload = {
+        answers: currentModalAnswers
+    };
+
+    fetch(`/cham-trac-nghiem/api/cham-lai/${currentModalRecordId}/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': '{{ csrf_token }}',
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: JSON.stringify(payload)
+    })
+    .then(r => r.json())
+    .then(data => {
+        btn.disabled = false;
+        btn.innerHTML = '⚡ CHẤM LẠI & CẬP NHẬT ĐIỂM';
+
+        if (data.status === 'success') {
+            const rec = data.record;
+            currentModalRecord.total_score = rec.total_score;
+            currentModalRecord.correct_count = rec.correct_count;
+            currentModalRecord.percent = rec.percent;
+            currentModalRecord.details = rec.details;
+            if (rec.annotated_image_url) {
+                currentModalRecord.annotated_image_url = rec.annotated_image_url;
+                const img = document.getElementById('imgModalSheet');
+                if (img) img.src = rec.annotated_image_url;
+            }
+
+            // Cập nhật giao diện modal
+            document.getElementById('modalHeaderScore').textContent = `${rec.total_score} / ${rec.max_score}đ (${rec.percent}%)`;
+            document.getElementById('txtModalScore').innerHTML = `${rec.total_score} <small class="text-muted fs-6">/${rec.max_score}đ</small>`;
+            document.getElementById('txtModalCorrect').textContent = rec.correct_count;
+            document.getElementById('txtModalRankBadge').innerHTML = `<span class="badge bg-${rec.badge} text-white fw-bold px-3 py-1 rounded-pill">${rec.rank} (${rec.percent}%)</span>`;
+
+            // Cập nhật dòng của thí sinh trên bảng danh sách bên ngoài
+            const scoreCell = document.getElementById(`record-score-${rec.id}`);
+            if (scoreCell) {
+                scoreCell.innerHTML = `<span class="fs-5 fw-bold text-primary">${rec.total_score}</span><span class="small text-muted">/${rec.max_score}</span>`;
+            }
+            const rankCell = document.getElementById(`record-rank-${rec.id}`);
+            if (rankCell) {
+                rankCell.innerHTML = `<span class="badge bg-${rec.badge} bg-opacity-10 text-${rec.badge} fw-bold px-3 py-1 rounded-pill">${rec.rank}</span>`;
+            }
+
+            // Hiện thông báo
+            const alertEl = document.getElementById('regradeAlert');
+            if (alertEl) {
+                alertEl.textContent = `✓ ${data.message}`;
+                alertEl.classList.remove('d-none');
+                setTimeout(() => alertEl.classList.add('d-none'), 4000);
+            }
+
+            refreshQuestionsUI();
+        } else {
+            alert(data.message || 'Lỗi khi chấm lại bài thi.');
+        }
+    })
+    .catch(err => {
+        btn.disabled = false;
+        btn.innerHTML = '⚡ CHẤM LẠI & CẬP NHẬT ĐIỂM';
+        alert('Lỗi kết nối máy chủ: ' + err);
+    });
+}
+
+function uploadModalSheetImage(file) {
+    if (!file || !currentModalRecordId) return;
+
+    const formData = new FormData();
+    formData.append('sheet_image', file, file.name);
+
+    const badge = document.getElementById('modalImgBadge');
+    if (badge) {
+        badge.className = 'badge bg-warning text-dark rounded-pill font-monospace';
+        badge.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Đang tải ảnh...';
+    }
+
+    fetch(`/cham-trac-nghiem/api/tai-anh-bai-cham/${currentModalRecordId}/`, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}',
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: formData
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.status === 'success') {
+            const img = document.getElementById('imgModalSheet');
+            const alertNone = document.getElementById('modalNoImageAlert');
+            const newTabBtn = document.getElementById('modalImgNewTabBtn');
+
+            if (img && data.annotated_image_url) {
+                img.src = data.annotated_image_url;
+                img.classList.remove('d-none');
+            }
+            if (alertNone) alertNone.classList.add('d-none');
+            if (newTabBtn && data.annotated_image_url) {
+                newTabBtn.href = data.annotated_image_url;
+                newTabBtn.classList.remove('disabled');
+            }
+            if (badge) {
+                badge.className = 'badge bg-success rounded-pill font-monospace';
+                badge.textContent = '✓ Đã vẽ nhận diện';
+            }
+            alert(data.message || 'Đã tải lên và vẽ nhận diện ảnh thành công!');
+        } else {
+            if (badge) {
+                badge.className = 'badge bg-danger rounded-pill font-monospace';
+                badge.textContent = 'Lỗi tải ảnh';
+            }
+            alert(data.message || 'Lỗi xử lý file ảnh.');
+        }
+    })
+    .catch(err => {
+        alert('Lỗi kết nối khi tải ảnh: ' + err);
+    });
+}
+</script>
+{% endblock %}

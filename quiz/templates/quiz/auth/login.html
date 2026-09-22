@@ -1,0 +1,77 @@
+{% extends 'quiz/base.html' %}
+
+{% block title %}Đăng Nhập Hệ Thống - SmartQuiz Pro{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center py-4">
+    <div class="col-md-6 col-lg-5">
+        <div class="card border-0 shadow-lg rounded-4 overflow-hidden">
+            <!-- Header Card -->
+            <div class="p-4 text-white text-center" style="background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);">
+                <div class="display-6 mb-2">🔐</div>
+                <h3 class="fw-bold mb-1">Đăng Nhập</h3>
+                <p class="small text-white-50 mb-0">Hệ Thống Khảo Thí Thông Minh SmartQuiz Pro</p>
+            </div>
+
+            <!-- Body Card -->
+            <div class="card-body p-4 p-md-5 bg-white">
+                {% if messages %}
+                    {% for message in messages %}
+                        <div class="alert alert-{{ message.tags }} alert-dismissible fade show rounded-3 shadow-sm mb-4" role="alert">
+                            {{ message }}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                        </div>
+                    {% endfor %}
+                {% endif %}
+
+                <form method="POST" action="{% url 'login' %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="next" value="{{ next }}">
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold text-secondary small text-uppercase">Tên đăng nhập</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-light border-end-0 rounded-start-3 text-muted">👤</span>
+                            {{ form.username }}
+                        </div>
+                        {% if form.username.errors %}
+                            <div class="text-danger small mt-1">{{ form.username.errors.0 }}</div>
+                        {% endif %}
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold text-secondary small text-uppercase">Mật khẩu</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-light border-end-0 rounded-start-3 text-muted">🔑</span>
+                            {{ form.password }}
+                        </div>
+                        {% if form.password.errors %}
+                            <div class="text-danger small mt-1">{{ form.password.errors.0 }}</div>
+                        {% endif %}
+                    </div>
+
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        <div class="form-check">
+                            {{ form.remember_me }}
+                            <label class="form-check-label small text-secondary" for="{{ form.remember_me.id_for_label }}">
+                                Ghi nhớ đăng nhập
+                            </label>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary btn-lg w-100 rounded-pill fw-bold shadow-sm py-2">
+                        🚀 Đăng Nhập
+                    </button>
+                </form>
+
+                <div class="text-center mt-4 pt-3 border-top">
+                    <p class="text-muted small mb-0">
+                        Chưa có tài khoản? 
+                        <a href="{% url 'register' %}" class="fw-bold text-primary text-decoration-none">Đăng ký ngay tại đây</a>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

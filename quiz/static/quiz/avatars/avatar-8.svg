@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bg8" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f97316"/>
+      <stop offset="100%" stop-color="#ea580c"/>
+    </linearGradient>
+  </defs>
+  <rect width="120" height="120" rx="60" fill="url(#bg8)"/>
+  <!-- T-shirt -->
+  <path d="M25 120 C25 90, 45 80, 60 80 C75 80, 95 90, 95 120 Z" fill="#0284c7"/>
+  <circle cx="60" cy="55" r="24" fill="#ffedd5"/>
+  <circle cx="49" cy="54" r="2.5" fill="#0f172a"/>
+  <circle cx="71" cy="54" r="2.5" fill="#0f172a"/>
+  <path d="M53 65 Q60 72 67 65" stroke="#9a3412" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+  <!-- Backward cap -->
+  <path d="M35 50 C35 30, 85 30, 85 50 Z" fill="#e11d48"/>
+  <ellipse cx="60" cy="50" rx="26" ry="6" fill="#be123c"/>
+  <path d="M70 48 Q85 46 92 50 Q85 55 70 52 Z" fill="#9f1239"/>
+</svg>

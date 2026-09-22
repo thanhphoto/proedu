@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bg9" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#14b8a6"/>
+      <stop offset="100%" stop-color="#0f766e"/>
+    </linearGradient>
+  </defs>
+  <rect width="120" height="120" rx="60" fill="url(#bg9)"/>
+  <!-- Hair back -->
+  <circle cx="38" cy="62" r="16" fill="#18181b"/>
+  <circle cx="82" cy="62" r="16" fill="#18181b"/>
+  <!-- Striped shirt -->
+  <path d="M25 120 C25 90, 45 80, 60 80 C75 80, 95 90, 95 120 Z" fill="#f8fafc"/>
+  <line x1="30" y1="95" x2="90" y2="95" stroke="#0f172a" stroke-width="3"/>
+  <line x1="26" y1="108" x2="94" y2="108" stroke="#0f172a" stroke-width="3"/>
+  <circle cx="60" cy="56" r="24" fill="#fed7aa"/>
+  <circle cx="48" cy="54" r="2.5" fill="#0f172a"/>
+  <circle cx="72" cy="54" r="2.5" fill="#0f172a"/>
+  <path d="M54 65 Q60 70 66 65" stroke="#be123c" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+  <!-- Beret -->
+  <ellipse cx="60" cy="38" rx="28" ry="12" fill="#dc2626"/>
+  <circle cx="60" cy="26" r="2" fill="#991b1b"/>
+</svg>

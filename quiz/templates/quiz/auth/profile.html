@@ -1,0 +1,395 @@
+{% extends 'quiz/base.html' %}
+{% load static %}
+
+{% block title %}Thông Tin Cá Nhân - SmartQuiz Pro{% endblock %}
+
+{% block content %}
+<style>
+    .profile-header-card {
+        background: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #4338ca 100%);
+        border-radius: 1.5rem;
+        color: #ffffff;
+    }
+    .avatar-preview-lg {
+        width: 110px;
+        height: 110px;
+        border-radius: 50%;
+        border: 4px solid #ffffff;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+        background-color: #ffffff;
+        transition: transform 0.2s ease;
+    }
+    .avatar-preview-lg:hover {
+        transform: scale(1.05);
+    }
+    .avatar-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(105px, 1fr));
+        gap: 1rem;
+    }
+    .avatar-option-card {
+        cursor: pointer;
+        border: 2px solid #e2e8f0;
+        border-radius: 1rem;
+        padding: 0.75rem 0.5rem;
+        background: #ffffff;
+        transition: all 0.2s ease;
+        text-align: center;
+        position: relative;
+    }
+    .avatar-option-card:hover {
+        border-color: #6366f1;
+        transform: translateY(-3px);
+        box-shadow: 0 8px 18px rgba(99, 102, 241, 0.15);
+    }
+    .avatar-option-card.selected {
+        border-color: #4f46e5;
+        background-color: #eef2ff;
+        box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.35);
+    }
+    .avatar-option-card .check-badge {
+        position: absolute;
+        top: 6px;
+        right: 6px;
+        background-color: #4f46e5;
+        color: white;
+        border-radius: 50%;
+        width: 20px;
+        height: 20px;
+        font-size: 11px;
+        display: none;
+        align-items: center;
+        justify-content: center;
+    }
+    .avatar-option-card.selected .check-badge {
+        display: flex;
+    }
+    .avatar-img-sm {
+        width: 58px;
+        height: 58px;
+        border-radius: 50%;
+        object-fit: contain;
+    }
+</style>
+
+<div class="container py-4">
+    <!-- Messages Notification -->
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show rounded-3 shadow-sm mb-4" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <!-- Profile Header Hero -->
+    <div class="profile-header-card p-4 p-md-5 mb-4 shadow-sm">
+        <div class="row align-items-center g-4">
+            <div class="col-auto text-center">
+                <img src="{{ profile.avatar_url }}" alt="Avatar" id="headerAvatarPreview" class="avatar-preview-lg">
+            </div>
+            <div class="col">
+                <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+                    <h2 class="fw-bold mb-0 text-white">{{ user.get_full_name|default:user.username }}</h2>
+                    {% if is_admin %}
+                        <span class="badge bg-danger px-3 py-1 rounded-pill small">🛡️ Quản Trị Viên</span>
+                    {% elif is_manager %}
+                        <span class="badge bg-warning text-dark px-3 py-1 rounded-pill small">💼 Quản Lý Khảo Thí</span>
+                    {% else %}
+                        <span class="badge bg-success-subtle text-success px-3 py-1 rounded-pill small">👤 Thí Sinh</span>
+                    {% endif %}
+                </div>
+                <p class="text-white-50 mb-3 small">
+                    Tên đăng nhập: <strong class="text-white">@{{ user.username }}</strong> 
+                    {% if user.email %} | Email: <strong class="text-white">{{ user.email }}</strong>{% endif %}
+                    | Tham gia: <strong>{{ user.date_joined|date:"d/m/Y" }}</strong>
+                </p>
+
+                <!-- Mini stats -->
+                <div class="d-flex flex-wrap gap-4 text-white">
+                    <div>
+                        <div class="fs-4 fw-bold">{{ total_exams }}</div>
+                        <div class="small text-white-50">Bài thi đã làm</div>
+                    </div>
+                    {% if total_exams > 0 %}
+                    <div class="border-start ps-4 border-white-50">
+                        <div class="fs-4 fw-bold text-warning">{{ avg_score }}đ</div>
+                        <div class="small text-white-50">Điểm trung bình</div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Navigation Tabs -->
+    <ul class="nav nav-pills nav-fill bg-white p-2 rounded-4 shadow-sm mb-4 border" id="profileTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active rounded-pill fw-bold py-2" id="info-tab" data-bs-toggle="tab" data-bs-target="#tab-info" type="button" role="tab" aria-controls="tab-info" aria-selected="true">
+                👤 Thông Tin & Avatar
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link rounded-pill fw-bold py-2" id="password-tab" data-bs-toggle="tab" data-bs-target="#tab-password" type="button" role="tab" aria-controls="tab-password" aria-selected="false">
+                🔒 Thay Đổi Mật Khẩu
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link rounded-pill fw-bold py-2" id="history-tab" data-bs-toggle="tab" data-bs-target="#tab-history" type="button" role="tab" aria-controls="tab-history" aria-selected="false">
+                📋 Lịch Sử Làm Bài ({{ total_exams }})
+            </button>
+        </li>
+    </ul>
+
+    <!-- Tab Contents -->
+    <div class="tab-content" id="profileTabsContent">
+        <!-- TAB 1: SỬA THÔNG TIN & CHỌN AVATAR -->
+        <div class="tab-pane fade show active" id="tab-info" role="tabpanel" aria-labelledby="info-tab">
+            <form method="POST" action="{% url 'profile' %}" id="profileForm">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="update_profile">
+                <input type="hidden" name="avatar" id="selectedAvatarInput" value="{{ profile.avatar }}">
+
+                <div class="row g-4">
+                    <!-- Cột 1: Thông tin cá nhân -->
+                    <div class="col-lg-5">
+                        <div class="card border-0 shadow-sm rounded-4 p-4 h-100 bg-white">
+                            <h5 class="fw-bold text-dark mb-3 border-bottom pb-2">
+                                📝 Chỉnh Sửa Thông Tin
+                            </h5>
+
+                            <div class="mb-3">
+                                <label class="form-label text-muted small fw-bold">Tên đăng nhập (Username):</label>
+                                <input type="text" class="form-control bg-light font-monospace" value="{{ user.username }}" readonly disabled>
+                                <small class="text-muted">Tên đăng nhập cố định không thể thay đổi.</small>
+                            </div>
+
+                            <div class="row g-2 mb-3">
+                                <div class="col-6">
+                                    <label class="form-label fw-bold text-dark small">Họ và tên đệm:</label>
+                                    <input type="text" name="last_name" class="form-control rounded-3" value="{{ user.last_name }}" placeholder="Ví dụ: Nguyễn Văn">
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label fw-bold text-dark small">Tên:</label>
+                                    <input type="text" name="first_name" class="form-control rounded-3" value="{{ user.first_name }}" placeholder="Ví dụ: An">
+                                </div>
+                            </div>
+
+                            <div class="mb-4">
+                                <label class="form-label fw-bold text-dark small">Địa chỉ Email:</label>
+                                <div class="input-group">
+                                    <span class="input-group-text bg-light">📧</span>
+                                    <input type="email" name="email" class="form-control rounded-end-3" value="{{ user.email }}" placeholder="nhapemail@domain.com">
+                                </div>
+                                <small class="text-muted">Email dùng để nhận thông báo và hỗ trợ tài khoản.</small>
+                            </div>
+
+                            <div class="mt-auto">
+                                <button type="submit" class="btn btn-primary btn-lg w-100 rounded-pill fw-bold shadow-sm">
+                                    💾 Lưu Thay Đổi
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Cột 2: Bộ sưu tập Avatar có sẵn -->
+                    <div class="col-lg-7">
+                        <div class="card border-0 shadow-sm rounded-4 p-4 bg-white">
+                            <div class="d-flex justify-content-between align-items-center mb-3 border-bottom pb-2">
+                                <div>
+                                    <h5 class="fw-bold text-dark mb-0">🎨 Chọn Ảnh Đại Diện (Avatar có sẵn)</h5>
+                                    <small class="text-muted">Click chọn avatar yêu thích để hiển thị trong phòng thi và bảng điểm kết quả.</small>
+                                </div>
+                                <span class="badge bg-primary-subtle text-primary rounded-pill px-3 py-2 fw-bold">16 Avatar</span>
+                            </div>
+
+                            <!-- Avatar Grid -->
+                            <div class="avatar-grid mb-4">
+                                {% for item in preset_avatars %}
+                                <div class="avatar-option-card {% if profile.avatar == item.id %}selected{% endif %}" 
+                                     data-avatar-id="{{ item.id }}" 
+                                     data-avatar-url="{{ item.url }}"
+                                     onclick="selectAvatar('{{ item.id }}', '{{ item.url }}')">
+                                    <span class="check-badge">✓</span>
+                                    <img src="{{ item.url }}" alt="{{ item.name }}" class="avatar-img-sm mb-2">
+                                    <div class="fw-bold small text-dark text-truncate" title="{{ item.name }}">{{ item.name }}</div>
+                                </div>
+                                {% endfor %}
+                            </div>
+
+                            <div class="alert alert-light border rounded-3 small mb-0 d-flex align-items-center gap-2">
+                                <span>💡</span>
+                                <span>Avatar bạn chọn sẽ hiển thị trên thanh điều hướng, trong phòng làm bài thi và bảng kết quả xếp hạng.</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        <!-- TAB 2: THAY ĐỔI MẬT KHẨU -->
+        <div class="tab-pane fade" id="tab-password" role="tabpanel" aria-labelledby="password-tab">
+            <div class="row justify-content-center">
+                <div class="col-md-8 col-lg-6">
+                    <div class="card border-0 shadow-sm rounded-4 p-4 p-md-5 bg-white">
+                        <div class="text-center mb-4">
+                            <div class="fs-1 mb-2">🔒</div>
+                            <h4 class="fw-bold text-dark mb-1">Thay Đổi Mật Khẩu</h4>
+                            <p class="text-muted small">Cập nhật mật khẩu định kỳ giúp bảo vệ tài khoản và kết quả thi của bạn.</p>
+                        </div>
+
+                        <form method="POST" action="{% url 'profile' %}">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="change_password">
+
+                            <div class="mb-3">
+                                <label class="form-label fw-bold text-dark small">Mật khẩu hiện tại: <span class="text-danger">*</span></label>
+                                <input type="password" name="old_password" class="form-control rounded-3" placeholder="Nhập mật khẩu bạn đang dùng..." required>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label fw-bold text-dark small">Mật khẩu mới: <span class="text-danger">*</span></label>
+                                <input type="password" name="new_password" class="form-control rounded-3" placeholder="Tối thiểu 6 ký tự..." minlength="6" required>
+                            </div>
+
+                            <div class="mb-4">
+                                <label class="form-label fw-bold text-dark small">Xác nhận mật khẩu mới: <span class="text-danger">*</span></label>
+                                <input type="password" name="confirm_password" class="form-control rounded-3" placeholder="Nhập lại mật khẩu mới..." minlength="6" required>
+                            </div>
+
+                            <button type="submit" class="btn btn-warning btn-lg w-100 rounded-pill fw-bold shadow-sm text-dark" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: #ffffff !important;">
+                                🔑 Cập Nhật Mật Khẩu Mới
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 3: LỊCH SỬ LÀM BÀI THI -->
+        <div class="tab-pane fade" id="tab-history" role="tabpanel" aria-labelledby="history-tab">
+            <div class="card border-0 shadow-sm rounded-4 overflow-hidden bg-white">
+                <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
+                    <h5 class="fw-bold text-dark mb-0">📊 Lịch Sử Tham Gia Khảo Thí Của Bạn</h5>
+                    <span class="badge bg-primary-subtle text-primary rounded-pill px-3 py-2">Tổng số: {{ total_exams }} lần thi</span>
+                </div>
+
+                <div class="card-body p-0">
+                    {% if my_results %}
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle mb-0">
+                                <thead class="table-light small text-uppercase">
+                                    <tr>
+                                        <th class="ps-4">Bài thi</th>
+                                        <th>Môn thi</th>
+                                        <th class="text-center">Số câu đúng</th>
+                                        <th class="text-center">Điểm số</th>
+                                        <th class="text-center">Thời gian làm</th>
+                                        <th class="text-center">Thời gian nộp</th>
+                                        <th class="text-end pe-4">Thao tác</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for r in my_results %}
+                                    <tr>
+                                        <td class="ps-4">
+                                            <div class="fw-bold text-dark">{{ r.quiz.title }}</div>
+                                            <span class="badge bg-light text-secondary font-monospace border">Mã: {{ r.quiz.exam_code }}</span>
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-secondary-subtle text-secondary">{{ r.quiz.subject.name }}</span>
+                                        </td>
+                                        <td class="text-center">
+                                            <span class="fw-bold text-dark">{{ r.correct_count }}</span>/{{ r.total_questions }}
+                                        </td>
+                                        <td class="text-center">
+                                            <span class="badge {% if r.score >= 8.0 %}bg-success{% elif r.score >= 5.0 %}bg-primary{% else %}bg-danger{% endif %} rounded-pill px-3 py-2 fs-6 fw-bold">
+                                                {{ r.score }}đ
+                                            </span>
+                                        </td>
+                                        <td class="text-center text-muted small">
+                                            ⏱️ {{ r.time_spent }}s
+                                        </td>
+                                        <td class="text-center text-muted small">
+                                            {{ r.completed_at|date:"H:i - d/m/Y" }}
+                                        </td>
+                                        <td class="text-end pe-4">
+                                            <a href="{% url 'take_exam' r.quiz.exam_code %}" class="btn btn-sm btn-outline-primary rounded-pill px-3 fw-bold">
+                                                Làm lại &rarr;
+                                            </a>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="p-5 text-center">
+                            <div class="display-4 text-muted mb-3">📝</div>
+                            <h5 class="fw-bold text-secondary">Bạn chưa tham gia bài thi trực tuyến nào</h5>
+                            <p class="text-muted small mb-3">Hãy nhập mã bài thi hoặc chọn một bài thi đang mở để bắt đầu ôn luyện kiến thức.</p>
+                            <a href="{% url 'online_exam' %}" class="btn btn-primary rounded-pill px-4 fw-bold">
+                                🚀 Xem Danh Sách Bài Thi Đang Mở
+                            </a>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function selectAvatar(avatarId, avatarUrl) {
+    // Cập nhật input ẩn
+    document.getElementById('selectedAvatarInput').value = avatarId;
+
+    // Cập nhật giao diện thẻ chọn
+    document.querySelectorAll('.avatar-option-card').forEach(card => {
+        card.classList.remove('selected');
+    });
+    const clickedCard = document.querySelector(`.avatar-option-card[data-avatar-id="${avatarId}"]`);
+    if (clickedCard) clickedCard.classList.add('selected');
+
+    // Cập nhật preview lớn ở Header
+    const headerImg = document.getElementById('headerAvatarPreview');
+    if (headerImg) headerImg.src = avatarUrl;
+
+    // Gọi AJAX lưu ngay để tăng trải nghiệm người dùng
+    const formData = new FormData();
+    formData.append('avatar', avatarId);
+    formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+
+    fetch("{% url 'api_update_avatar' %}", {
+        method: 'POST',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: formData
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.status === 'success') {
+            // Cập nhật avatar trên navbar nếu có
+            const navAvatar = document.getElementById('navbarUserAvatar');
+            if (navAvatar) navAvatar.src = avatarUrl;
+
+            Swal.fire({
+                toast: true,
+                position: 'top-end',
+                icon: 'success',
+                title: 'Đã đổi ảnh đại diện!',
+                showConfirmButton: false,
+                timer: 2000
+            });
+        }
+    })
+    .catch(err => {
+        console.error("Lỗi cập nhật avatar:", err);
+    });
+}
+</script>
+{% endblock %}

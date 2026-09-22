@@ -1,0 +1,195 @@
+{% extends 'quiz/base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2>Kết quả kỳ thi: {{ exam.title }}</h2>
+            <p class="text-muted mb-0">Trạng thái: <strong>{{ status_text }}</strong></p>
+        </div>
+        <div>
+            <a href="?export=excel{% if search_query %}&q={{ search_query }}{% endif %}" class="btn btn-success me-2">
+                <i class="fas fa-file-excel"></i> Xuất Excel
+            </a>
+            <a href="?export=pdf{% if search_query %}&q={{ search_query }}{% endif %}" class="btn btn-danger me-2">
+                <i class="fas fa-file-pdf"></i> Xuất PDF
+            </a>
+            <a href="{% url 'coding_exam_detail' exam.id %}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> Quay lại
+            </a>
+        </div>
+    </div>
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <form method="GET" action="" class="mb-4">
+                <div class="input-group">
+                    <input type="text" name="q" class="form-control" placeholder="Tìm kiếm theo Tên / Username..." value="{{ search_query }}">
+                    <button class="btn btn-primary" type="submit"><i class="fas fa-search"></i> Tìm kiếm</button>
+                    {% if search_query %}
+                    <a href="?" class="btn btn-outline-secondary">Xóa</a>
+                    {% endif %}
+                </div>
+            </form>
+
+            <div class="table-responsive">
+                <table class="table table-bordered table-hover align-middle text-nowrap">
+                    <thead class="table-light text-center">
+                        <tr>
+                            <th width="80">Hạng</th>
+                            <th>Mã số</th>
+                            <th>Họ và tên / Username</th>
+                            {% for q in questions %}
+                                <th>Câu {{ forloop.counter }}</th>
+                            {% endfor %}
+                            <th>Tổng điểm</th>
+                            <th>Thời gian làm bài</th>
+                            <th>Thời gian bắt đầu</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for attempt in attempts %}
+                        <tr>
+                            <td class="text-center">
+                                {% with rank=attempts.start_index|add:forloop.counter0|add:"-1" %}
+                                    {% if rank == 0 %}
+                                        <i class="fas fa-trophy text-warning fs-5"></i> 1
+                                    {% elif rank == 1 %}
+                                        <i class="fas fa-trophy text-secondary fs-5"></i> 2
+                                    {% elif rank == 2 %}
+                                        <i class="fas fa-trophy" style="color: #cd7f32; font-size: 1.25rem;"></i> 3
+                                    {% else %}
+                                        {{ attempts.start_index|add:forloop.counter0 }}
+                                    {% endif %}
+                                {% endwith %}
+                            </td>
+                            <td class="text-center fw-bold">{{ attempt.user.profile.student_code }}</td>
+                            <td>{{ attempt.user.get_full_name|default:attempt.user.username }}</td>
+                            {% for qs in attempt.question_scores %}
+                                <td class="text-center">
+                                    {% if exam_ended and qs.submission_id %}
+                                        <a href="#" class="view-code-btn text-decoration-none" data-url="{% url 'api_get_submission_code' qs.submission_id %}">
+                                            {{ qs.score }}
+                                        </a>
+                                    {% else %}
+                                        {{ qs.score }}
+                                    {% endif %}
+                                </td>
+                            {% endfor %}
+                            <td class="text-center fw-bold text-primary">{{ attempt.total_score }}</td>
+                            <td class="text-center">{{ attempt.time_taken_str }}</td>
+                            <td class="text-center">{{ attempt.start_time|date:"d/m/Y H:i" }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="{{ questions|length|add:5 }}" class="text-center text-muted py-4">Chưa có kết quả nào phù hợp.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            {% if attempts.has_other_pages %}
+            <nav aria-label="Page navigation" class="mt-4">
+                <ul class="pagination justify-content-center">
+                    {% if attempts.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ attempts.previous_page_number }}{% if search_query %}&q={{ search_query }}{% endif %}">Trang trước</a>
+                    </li>
+                    {% else %}
+                    <li class="page-item disabled"><span class="page-link">Trang trước</span></li>
+                    {% endif %}
+
+                    {% for i in attempts.paginator.page_range %}
+                        {% if attempts.number == i %}
+                        <li class="page-item active"><span class="page-link">{{ i }}</span></li>
+                        {% else %}
+                        <li class="page-item"><a class="page-link" href="?page={{ i }}{% if search_query %}&q={{ search_query }}{% endif %}">{{ i }}</a></li>
+                        {% endif %}
+                    {% endfor %}
+
+                    {% if attempts.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ attempts.next_page_number }}{% if search_query %}&q={{ search_query }}{% endif %}">Trang tiếp</a>
+                    </li>
+                    {% else %}
+                    <li class="page-item disabled"><span class="page-link">Trang tiếp</span></li>
+                    {% endif %}
+                </ul>
+            </nav>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Code View Modal -->
+<div class="modal fade" id="codeViewModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Nội dung bài làm</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body p-0">
+          <div id="codeLoading" class="text-center p-4">
+              <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+              </div>
+          </div>
+          <pre id="codeContainer" class="d-none m-0" style="background-color: #1e1e1e; color: #d4d4d4; padding: 15px;"><code id="codeBlock" class="language-cpp"></code></pre>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Highlight.js for Syntax Highlighting -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/vs2015.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
+
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    const codeModal = new bootstrap.Modal(document.getElementById('codeViewModal'));
+    const viewBtns = document.querySelectorAll('.view-code-btn');
+    
+    viewBtns.forEach(btn => {
+        btn.addEventListener('click', function(e) {
+            e.preventDefault();
+            const fetchUrl = this.getAttribute('data-url');
+            if(!fetchUrl) return;
+            
+            document.getElementById('codeLoading').classList.remove('d-none');
+            document.getElementById('codeContainer').classList.add('d-none');
+            codeModal.show();
+            
+            fetch(fetchUrl)
+                .then(response => {
+                    if(!response.ok) throw new Error("Lỗi mạng hoặc không có quyền.");
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.error) {
+                        alert(data.error);
+                        codeModal.hide();
+                        return;
+                    }
+                    const codeBlock = document.getElementById('codeBlock');
+                    codeBlock.textContent = data.code;
+                    codeBlock.className = 'language-' + (data.language === 'python' ? 'python' : 'cpp');
+                    
+                    document.getElementById('codeLoading').classList.add('d-none');
+                    document.getElementById('codeContainer').classList.remove('d-none');
+                    
+                    // Re-highlight
+                    delete codeBlock.dataset.highlighted;
+                    hljs.highlightElement(codeBlock);
+                })
+                .catch(err => {
+                    alert(err.message);
+                    codeModal.hide();
+                });
+        });
+    });
+});
+</script>
+{% endblock %}

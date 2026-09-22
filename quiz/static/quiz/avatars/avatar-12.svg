@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bg12" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f59e0b"/>
+      <stop offset="100%" stop-color="#b45309"/>
+    </linearGradient>
+  </defs>
+  <rect width="120" height="120" rx="60" fill="url(#bg12)"/>
+  <!-- Fox Ears -->
+  <polygon points="32,45 42,16 58,38" fill="#ea580c"/>
+  <polygon points="36,42 43,22 54,36" fill="#ffffff"/>
+  <polygon points="88,45 78,16 62,38" fill="#ea580c"/>
+  <polygon points="84,42 77,22 66,36" fill="#ffffff"/>
+  <!-- Head & Cheeks -->
+  <circle cx="60" cy="60" r="28" fill="#ea580c"/>
+  <path d="M34 60 C34 76, 52 82, 60 72 C68 82, 86 76, 86 60 Z" fill="#ffffff"/>
+  <!-- Eyes -->
+  <ellipse cx="48" cy="54" rx="3" ry="2" fill="#0f172a"/>
+  <ellipse cx="72" cy="54" rx="3" ry="2" fill="#0f172a"/>
+  <!-- Nose -->
+  <circle cx="60" cy="68" r="3" fill="#0f172a"/>
+  <path d="M56 73 Q60 76 64 73" stroke="#0f172a" stroke-width="1.5" fill="none"/>
+</svg>

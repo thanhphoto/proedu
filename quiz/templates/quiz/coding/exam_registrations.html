@@ -1,0 +1,123 @@
+{% extends 'quiz/base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2>Quản lý Đăng ký: {{ exam.title }}</h2>
+            <p class="text-muted mb-0">Loại kỳ thi: <strong>Có đăng ký & kiểm duyệt</strong></p>
+        </div>
+        <a href="{% url 'coding_exam_detail' exam.id %}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left"></i> Quay lại kỳ thi
+        </a>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-bordered table-hover align-middle text-center">
+                    <thead class="table-light">
+                        <tr>
+                            <th>STT</th>
+                            <th>Thí sinh</th>
+                            <th>Ngày đăng ký</th>
+                            <th>Trạng thái</th>
+                            <th>Thao tác</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for reg in registrations %}
+                        <tr id="reg-row-{{ reg.id }}">
+                            <td>{{ forloop.counter }}</td>
+                            <td>
+                                <strong>{{ reg.user.username }}</strong><br>
+                                <small class="text-muted">{{ reg.user.get_full_name }}</small>
+                            </td>
+                            <td>{{ reg.created_at|date:"d/m/Y H:i:s" }}</td>
+                            <td>
+                                <span class="badge 
+                                    {% if reg.status == 'pending' %}bg-warning text-dark
+                                    {% elif reg.status == 'approved' %}bg-success
+                                    {% else %}bg-danger{% endif %} reg-status-badge">
+                                    {{ reg.get_status_display }}
+                                </span>
+                            </td>
+                            <td>
+                                <button class="btn btn-sm btn-success btn-approve" data-id="{{ reg.id }}" {% if reg.status == 'approved' %}disabled{% endif %}>
+                                    <i class="fas fa-check"></i> Duyệt
+                                </button>
+                                <button class="btn btn-sm btn-danger btn-reject" data-id="{{ reg.id }}" {% if reg.status == 'rejected' %}disabled{% endif %}>
+                                    <i class="fas fa-times"></i> Từ chối
+                                </button>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="5" class="text-muted py-4">Chưa có lượt đăng ký nào.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    function updateStatus(id, status, btnGroup) {
+        const url = "{% url 'api_coding_approve_registration' %}";
+        fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            body: JSON.stringify({
+                registration_id: id,
+                status: status
+            })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if(data.success) {
+                const row = document.getElementById('reg-row-' + id);
+                const badge = row.querySelector('.reg-status-badge');
+                const btnApprove = row.querySelector('.btn-approve');
+                const btnReject = row.querySelector('.btn-reject');
+                
+                if (status === 'approved') {
+                    badge.className = 'badge bg-success reg-status-badge';
+                    badge.textContent = 'Đã duyệt';
+                    btnApprove.disabled = true;
+                    btnReject.disabled = false;
+                } else {
+                    badge.className = 'badge bg-danger reg-status-badge';
+                    badge.textContent = 'Từ chối';
+                    btnReject.disabled = true;
+                    btnApprove.disabled = false;
+                }
+            } else {
+                alert(data.error);
+            }
+        })
+        .catch(err => {
+            alert('Có lỗi xảy ra: ' + err.message);
+        });
+    }
+
+    document.querySelectorAll('.btn-approve').forEach(btn => {
+        btn.addEventListener('click', function() {
+            updateStatus(this.getAttribute('data-id'), 'approved', this.parentElement);
+        });
+    });
+
+    document.querySelectorAll('.btn-reject').forEach(btn => {
+        btn.addEventListener('click', function() {
+            updateStatus(this.getAttribute('data-id'), 'rejected', this.parentElement);
+        });
+    });
+});
+</script>
+{% endblock %}

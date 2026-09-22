@@ -1,0 +1,184 @@
+{% extends 'quiz/grading/layout.html' %}
+{% load static %}
+
+{% block grading_title %}Bảng Điểm Kỳ Thi: {{ period.name }}{% endblock %}
+
+{% block grading_content %}
+<div class="card border-0 shadow-sm rounded-4 mb-4" id="scorecard-content">
+    <div class="card-header bg-white py-3 px-4 border-bottom d-flex flex-wrap justify-content-between align-items-start gap-3">
+        <div>
+            <h4 class="fw-bold mb-0 text-primary">🏆 Bảng Điểm: {{ period.name }}</h4>
+            <span class="text-muted small">Tổng số thí sinh: {{ records|length }}</span>
+        </div>
+        <div class="d-flex flex-wrap align-items-start gap-2">
+            <!-- Form Lọc & Sắp xếp -->
+            <form method="GET" class="d-flex flex-wrap gap-2 m-0" id="filterForm">
+                <div>
+                    <label class="form-label small text-muted mb-1 fw-bold">Môn thi</label>
+                    <div class="dropdown">
+                        <button class="btn btn-outline-secondary dropdown-toggle rounded-3 shadow-sm bg-white text-dark w-100 text-start d-flex justify-content-between align-items-center" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" style="min-width: 150px;">
+                            <span class="text-truncate">{% if selected_subject_ids %}Đã chọn ({{ selected_subject_ids|length }}){% else %}Tất cả môn{% endif %}</span>
+                        </button>
+                        <ul class="dropdown-menu p-2 shadow" style="max-height: 300px; overflow-y: auto; min-width: 200px;">
+                            {% for sub in subjects %}
+                            <li>
+                                <div class="form-check mb-1">
+                                    <input class="form-check-input" type="checkbox" name="subject_ids" value="{{ sub.id }}" id="sub_{{ sub.id }}" {% if sub.id in selected_subject_ids %}checked{% endif %} onchange="document.getElementById('filterForm').submit()">
+                                    <label class="form-check-label w-100" for="sub_{{ sub.id }}">{{ sub.name }}</label>
+                                </div>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                </div>
+                <div>
+                    <label class="form-label small text-muted mb-1 fw-bold">Lớp</label>
+                    <div class="dropdown">
+                        <button class="btn btn-outline-secondary dropdown-toggle rounded-3 shadow-sm bg-white text-dark w-100 text-start d-flex justify-content-between align-items-center" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" style="min-width: 150px;">
+                            <span class="text-truncate">{% if selected_class_names %}Đã chọn ({{ selected_class_names|length }}){% else %}Tất cả lớp{% endif %}</span>
+                        </button>
+                        <ul class="dropdown-menu p-2 shadow" style="max-height: 300px; overflow-y: auto; min-width: 200px;">
+                            {% for cls in all_classes %}
+                            <li>
+                                <div class="form-check mb-1">
+                                    <input class="form-check-input" type="checkbox" name="class_names" value="{{ cls }}" id="cls_{{ forloop.counter }}" {% if cls in selected_class_names %}checked{% endif %} onchange="document.getElementById('filterForm').submit()">
+                                    <label class="form-check-label w-100" for="cls_{{ forloop.counter }}">{{ cls }}</label>
+                                </div>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                </div>
+                <div>
+                    <label class="form-label small text-muted mb-1 fw-bold">Sắp xếp</label>
+                    <select name="sort_by" class="form-select form-select-sm rounded-pill px-3 shadow-sm" style="min-width: 180px;" onchange="document.getElementById('filterForm').submit()">
+                        <option value="score_desc" {% if sort_by == 'score_desc' %}selected{% endif %}>Điểm cao xuống thấp</option>
+                        <option value="sbd_asc" {% if sort_by == 'sbd_asc' %}selected{% endif %}>Số báo danh (A-Z)</option>
+                    </select>
+                </div>
+            </form>
+            
+            <div class="btn-group shadow-sm mt-4">
+                <button type="button" onclick="exportExcel()" class="btn btn-outline-success px-3 fw-bold" title="Xuất file Excel">
+                    📥 Xuất Excel
+                </button>
+                <button onclick="window.print()" class="btn btn-outline-danger px-3 fw-bold" title="In / Lưu PDF">
+                    🖨️ Xuất PDF
+                </button>
+            </div>
+            <a href="{% url 'grading_manage_exams' %}" class="btn btn-secondary rounded-pill px-3 ms-2 mt-4">
+                Quay lại
+            </a>
+        </div>
+    </div>
+    
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0 table-striped">
+                <thead class="table-light">
+                    <tr>
+                        <th class="text-center" style="width: 80px;">Hạng</th>
+                        <th>Số Báo Danh</th>
+                        <th>Họ & Tên</th>
+                        <th>Lớp</th>
+                        {% for s in display_subjects %}
+                        <th class="text-center">Điểm {{ s.name }}</th>
+                        {% endfor %}
+                        <th class="text-center text-primary">Tổng Điểm</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in records %}
+                    <tr>
+                        <td class="text-center fw-bold fs-5">
+                            {% if r.rank == 1 %}
+                                <span title="Hạng 1">🥇</span>
+                            {% elif r.rank == 2 %}
+                                <span title="Hạng 2">🥈</span>
+                            {% elif r.rank == 3 %}
+                                <span title="Hạng 3">🥉</span>
+                            {% else %}
+                                <span class="text-muted fs-6">{{ r.rank }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="font-monospace fw-bold">{{ r.student_id|default:"---" }}</td>
+                        <td class="fw-semibold">{{ r.student_name|default:"Chưa xác định" }}</td>
+                        <td><span class="badge bg-light text-secondary border">{{ r.student_class|default:"---" }}</span></td>
+                        {% for score in r.scores_list %}
+                        <td class="text-center font-monospace fw-semibold">
+                            {% if score != None %}
+                                {{ score|floatformat:2 }}
+                            {% else %}
+                                <span class="text-muted small">---</span>
+                            {% endif %}
+                        </td>
+                        {% endfor %}
+                        <td class="text-center">
+                            <span class="badge {% if r.total_score >= 15.0 %}bg-success{% elif r.total_score >= 10.0 %}bg-primary{% else %}bg-warning text-dark{% endif %} rounded-pill fs-6 px-3 py-2">
+                                {{ r.total_score|floatformat:2 }}
+                            </span>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="text-center py-5 text-muted">
+                            <div class="fs-1 mb-2">📭</div>
+                            <h5>Chưa có dữ liệu chấm thi</h5>
+                            <p>Vui lòng thử điều chỉnh bộ lọc hoặc chấm bài để hiển thị.</p>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<style>
+    /* Ẩn các nút không cần thiết khi in PDF */
+    @media print {
+        body * {
+            visibility: hidden;
+        }
+        #scorecard-content, #scorecard-content * {
+            visibility: visible;
+        }
+        #scorecard-content {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+        }
+        .btn, form, select, a.btn-secondary {
+            display: none !important;
+        }
+        .card {
+            border: none !important;
+            box-shadow: none !important;
+        }
+    }
+</style>
+
+<script>
+    function exportExcel() {
+        const form = document.getElementById('filterForm');
+        const oldAction = form.action;
+        
+        // Tạo input ẩn cho period_id
+        let hiddenInput = document.createElement('input');
+        hiddenInput.type = 'hidden';
+        hiddenInput.name = 'period_id';
+        hiddenInput.value = '{{ period.id }}';
+        form.appendChild(hiddenInput);
+        
+        form.action = "{% url 'export_aggregated_scorecard_excel' %}";
+        form.submit();
+        
+        // Khôi phục form về trạng thái cũ để lỡ người dùng đổi filter thì vẫn hoạt động bth
+        setTimeout(() => {
+            form.action = oldAction;
+            form.removeChild(hiddenInput);
+        }, 500);
+    }
+</script>
+{% endblock %}

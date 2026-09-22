@@ -1,0 +1,247 @@
+{% extends 'quiz/base.html' %}
+
+{% block title %}Trang Chủ - SmartQuiz Pro{% endblock %}
+
+{% block content %}
+<!-- Hiển thị thông báo messages -->
+{% if messages %}
+    {% for message in messages %}
+        <div class="alert alert-{{ message.tags }} alert-dismissible fade show rounded-3 shadow-sm mb-4" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    {% endfor %}
+{% endif %}
+
+<!-- Hero Section -->
+<div class="p-5 mb-5 rounded-4 shadow-sm text-center bg-white border">
+    {% if is_admin %}
+        <span class="badge bg-danger-subtle text-danger px-3 py-2 rounded-pill fw-bold mb-3">🛡️ Quản Trị Viên Hệ Thống</span>
+    {% elif is_manager %}
+        <span class="badge bg-warning-subtle text-warning px-3 py-2 rounded-pill fw-bold mb-3">💼 Bảng Điều Khiển Quản Lý Khảo Thí</span>
+    {% elif user.is_authenticated %}
+        <span class="badge bg-success-subtle text-success px-3 py-2 rounded-pill fw-bold mb-3">👤 Không Gian Ôn Luyện Trực Tuyến</span>
+    {% else %}
+        <span class="badge bg-primary-subtle text-primary px-3 py-2 rounded-pill fw-bold mb-3">Hệ Thống Đột Phá 2026</span>
+    {% endif %}
+
+    <h1 class="display-4 fw-extrabold text-primary mb-3">Hệ Thống Khảo Thí Thông Minh</h1>
+    <p class="lead text-secondary max-w-2xl mx-auto mb-4">
+        {% if is_manager %}
+            Quản lý ngân hàng câu hỏi đa dạng, tự động phân tích file Word (.docx), tạo ma trận đề thi chuẩn và chấm điểm phiếu bài làm tự động với thuật toán xử lý ảnh OpenCV.
+        {% else %}
+            Nền tảng thi trắc nghiệm trực tuyến chuẩn hóa, hỗ trợ câu hỏi toán học MathJax/LaTeX, đồng hồ đếm ngược thông minh và chấm điểm tức thì.
+        {% endif %}
+    </p>
+
+    <div class="d-flex flex-wrap justify-content-center align-items-center gap-3">
+        <!-- NÚT VÀO THI NỔI BẬT CHO THÍ SINH (CÓ MODAL NHẬP MÃ 6 SỐ) -->
+        <button type="button" class="btn btn-warning btn-lg rounded-pill px-5 py-3 shadow-lg fw-extrabold border-2 border-white text-dark d-inline-flex align-items-center gap-2 pulse-hover" data-bs-toggle="modal" data-bs-target="#enterExamCodeModal" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: #ffffff !important; text-shadow: 0 1px 2px rgba(0,0,0,0.2);">
+            <span class="fs-4">⚡</span>
+            <span class="fs-5">VÀO THI</span>
+            <span class="badge bg-white text-dark rounded-pill px-2 py-1 small font-monospace">Nhập mã 6 số</span>
+        </button>
+
+        {% if is_manager %}
+            <a href="{% url 'manage_question_bank' %}" class="btn btn-primary btn-lg rounded-pill px-4 shadow-sm fw-bold">
+                📚 Ngân Hàng Đề
+            </a>
+            <a href="{% url 'create_exam' %}" class="btn btn-outline-primary btn-lg rounded-pill px-4 shadow-sm fw-bold">
+                📊 Tạo Bài Thi Từ Ma Trận
+            </a>
+            <a href="{% url 'exam_list' %}" class="btn btn-outline-secondary btn-lg rounded-pill px-4 fw-bold">
+                📋 Quản Lý Đề Thi
+            </a>
+            {% if is_admin %}
+                <a href="{% url 'user_management' %}" class="btn btn-danger btn-lg rounded-pill px-4 shadow-sm fw-bold">
+                    🛡️ Quản Lý Người Dùng
+                </a>
+            {% endif %}
+        {% else %}
+            <a href="{% url 'online_exam' %}" class="btn btn-outline-primary btn-lg rounded-pill px-4 shadow-sm fw-bold">
+                📝 Danh Sách Bài Thi
+            </a>
+            <a href="{% url 'scan_sheet' %}" class="btn btn-outline-secondary btn-lg rounded-pill px-4 fw-bold">
+                📸 Chấm Điểm Phiếu Quét
+            </a>
+            {% if not user.is_authenticated %}
+                <a href="{% url 'login' %}" class="btn btn-outline-warning btn-lg rounded-pill px-4 fw-bold text-dark">
+                    🔑 Đăng Nhập Tài Khoản
+                </a>
+            {% endif %}
+        {% endif %}
+    </div>
+</div>
+
+<!-- Features Grid -->
+<div class="row g-4 mb-4">
+    <!-- Dành cho học sinh & tất cả người dùng -->
+    <div class="col-md-6">
+        <div class="card h-100 border-0 shadow-sm rounded-4 hover-shadow transition">
+            <div class="card-body p-4 text-center">
+                <div class="fs-1 text-success mb-3">📝</div>
+                <h5 class="fw-bold mb-2">Thi Trực Tuyến</h5>
+                <p class="text-muted small mb-4">Học sinh làm bài thi trực tuyến với giao diện trực quan, đồng hồ đếm ngược và tự động chấm điểm tức thì.</p>
+                <a href="{% url 'online_exam' %}" class="btn btn-sm btn-outline-success rounded-pill px-4 fw-bold">Làm bài ngay &rarr;</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="card h-100 border-0 shadow-sm rounded-4 hover-shadow transition">
+            <div class="card-body p-4 text-center">
+                <div class="fs-1 text-secondary mb-3">📸</div>
+                <h5 class="fw-bold mb-2">Chấm Phiếu Quét OpenCV</h5>
+                <p class="text-muted small mb-4">Nhận diện ảnh phiếu làm bài trắc nghiệm, trích xuất điểm số chính xác và tiết kiệm thời gian chấm bài.</p>
+                <a href="{% url 'scan_sheet' %}" class="btn btn-sm btn-outline-secondary rounded-pill px-4 fw-bold">Chấm phiếu &rarr;</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chỉ Quản lý và Admin mới thấy các khối công cụ khảo thí -->
+    {% if is_manager %}
+    <div class="col-12 mt-4">
+        <h5 class="fw-bold text-dark border-bottom pb-2">💼 Công Cụ Dành Cho Quản Lý Khảo Thí</h5>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card h-100 border-0 shadow-sm rounded-4 hover-shadow transition">
+            <div class="card-body p-4 text-center">
+                <div class="fs-1 text-primary mb-3">📚</div>
+                <h5 class="fw-bold mb-2">Ngân Hàng Đề & Câu Hỏi</h5>
+                <p class="text-muted small mb-4">Tổ chức Kỳ thi, Môn thi, Chủ đề kiến thức và nhập câu hỏi thủ công bằng Form hoặc file Word.</p>
+                <div class="d-flex gap-2 justify-content-center">
+                    <a href="{% url 'manage_question_bank' %}" class="btn btn-sm btn-outline-primary rounded-pill px-3">Quản lý &rarr;</a>
+                    <a href="{% url 'add_question' %}" class="btn btn-sm btn-success rounded-pill px-3">➕ Thêm câu</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card h-100 border-0 shadow-sm rounded-4 hover-shadow transition">
+            <div class="card-body p-4 text-center">
+                <div class="fs-1 text-warning mb-3">📊</div>
+                <h5 class="fw-bold mb-2">Tạo Ma Trận Đề Thi</h5>
+                <p class="text-muted small mb-4">Thiết lập ma trận số lượng câu hỏi theo Chủ đề × Mức độ × Loại câu, tính điểm tự động và xuất file Word.</p>
+                <a href="{% url 'create_exam' %}" class="btn btn-sm btn-outline-warning rounded-pill px-3 fw-bold">Tạo ma trận &rarr;</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card h-100 border-0 shadow-sm rounded-4 hover-shadow transition">
+            <div class="card-body p-4 text-center">
+                <div class="fs-1 text-info mb-3">📋</div>
+                <h5 class="fw-bold mb-2">Danh Sách Bài Thi & Đề Thi</h5>
+                <p class="text-muted small mb-4">Xem toàn bộ bài thi đã tạo trong kỳ thi, chỉnh sửa ma trận, cấu hình thang điểm và xuất ra Word/Excel.</p>
+                <a href="{% url 'exam_list' %}" class="btn btn-sm btn-outline-info rounded-pill px-3 fw-bold">Xem danh sách &rarr;</a>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Chỉ Admin mới thấy khối quản trị người dùng -->
+    {% if is_admin %}
+    <div class="col-12 mt-4">
+        <h5 class="fw-bold text-danger border-bottom pb-2">🛡️ Khu Vực Quản Trị Hệ Thống (Admin)</h5>
+    </div>
+
+    <div class="col-md-12">
+        <div class="card border-0 shadow-sm rounded-4 bg-light p-4">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+                <div>
+                    <h5 class="fw-bold text-dark mb-1">👥 Quản Lý Tài Khoản & Phân Quyền Người Dùng</h5>
+                    <p class="text-muted small mb-0">Thay đổi vai trò (Quản trị viên, Quản lý, Người dùng), khoá/mở khoá tài khoản tức thì và theo dõi người dùng tham gia hệ thống.</p>
+                </div>
+                <a href="{% url 'user_management' %}" class="btn btn-danger rounded-pill px-4 fw-bold shadow-sm">
+                    🛡️ Mở Bảng Quản Trị Người Dùng &rarr;
+                </a>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- ==================== MODAL NHẬP MÃ BÀI THI ==================== -->
+<div class="modal fade" id="enterExamCodeModal" tabindex="-1" aria-labelledby="enterExamCodeModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-4 overflow-hidden">
+            <div class="p-4 text-center text-white" style="background: linear-gradient(135deg, #1e1b4b 0%, #4338ca 100%);">
+                <div class="display-5 mb-2">⚡</div>
+                <h4 class="fw-bold mb-1" id="enterExamCodeModalLabel">VÀO PHÒNG THI TRỰC TUYẾN</h4>
+                <p class="small text-white-50 mb-0">Nhập mã đề thi 6 số do giáo viên hoặc người quản lý cung cấp</p>
+            </div>
+
+            <div class="modal-body p-4 p-md-5">
+                <form method="POST" action="{% url 'enter_exam_code' %}" id="modalEnterCodeForm">
+                    {% csrf_token %}
+                    <div class="text-center mb-4">
+                        <label for="modalExamCodeInput" class="form-label fw-bold text-dark mb-2">
+                            MÃ BÀI THI (6 CHỮ SỐ):
+                        </label>
+                        <input type="text" 
+                               id="modalExamCodeInput" 
+                               name="exam_code" 
+                               class="form-control text-center font-monospace fw-bold fs-2 rounded-3 shadow-sm" 
+                               placeholder="______" 
+                               maxlength="6" 
+                               style="letter-spacing: 8px; background-color: #f8fafc; border: 2px solid #cbd5e1;" 
+                               autocomplete="off" 
+                               required>
+                        <div id="modalCodeError" class="text-danger small mt-2 d-none">
+                            ❌ Vui lòng nhập đủ 6 chữ số mã bài thi!
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-warning btn-lg w-100 rounded-pill fw-bold shadow py-3 text-dark fs-5" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: #ffffff !important;">
+                        🚀 Bắt Đầu Vào Thi
+                    </button>
+                </form>
+
+                <div class="text-center mt-3 pt-3 border-top">
+                    <small class="text-muted">
+                        Chưa có mã bài thi? 
+                        <a href="{% url 'online_exam' %}" class="fw-bold text-primary text-decoration-none">Xem danh sách bài thi đang mở</a>
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const modalInput = document.getElementById('modalExamCodeInput');
+    const modal = document.getElementById('enterExamCodeModal');
+
+    if (modal && modalInput) {
+        modal.addEventListener('shown.bs.modal', function () {
+            modalInput.focus();
+            modalInput.select();
+        });
+
+        // Chỉ cho phép nhập số
+        modalInput.addEventListener('input', function() {
+            this.value = this.value.replace(/\D/g, '');
+            if (this.value.length === 6) {
+                document.getElementById('modalEnterCodeForm').submit();
+            }
+        });
+
+        modalInput.addEventListener('paste', function(e) {
+            e.preventDefault();
+            const pasteData = (e.clipboardData || window.clipboardData).getData('text');
+            const digitsOnly = pasteData.replace(/\D/g, '').substring(0, 6);
+            this.value = digitsOnly;
+            if (this.value.length === 6) {
+                document.getElementById('modalEnterCodeForm').submit();
+            }
+        });
+    }
+});
+</script>
+{% endblock %}
+

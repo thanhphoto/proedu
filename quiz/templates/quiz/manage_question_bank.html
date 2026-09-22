@@ -1,0 +1,262 @@
+{% extends 'quiz/base.html' %}
+
+{% block title %}Quản Lý Ngân Hàng Đề & Môn Thi - SmartQuiz Pro{% endblock %}
+
+{% block content %}
+<div class="container py-3">
+    <!-- Header banner -->
+    <div class="p-4 mb-4 rounded-4 text-white shadow-sm" style="background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%);">
+        <div class="row align-items-center">
+            <div class="col-md-8">
+                <span class="badge bg-warning text-dark px-3 py-2 rounded-pill fw-bold mb-2">💼 Dành Riêng Cho Quản Lý & Giáo Viên</span>
+                <h2 class="fw-bold mb-2">📚 Quản Lý Ngân Hàng Đề & Khảo Thí</h2>
+                <p class="mb-0 text-white-50">Tạo kỳ thi, quản lý môn học, cấu hình các chủ đề/chương kiến thức và theo dõi tổng thể ngân hàng câu hỏi.</p>
+            </div>
+            <div class="col-md-4 text-md-end mt-3 mt-md-0 d-flex flex-wrap justify-content-md-end gap-2">
+                <a href="{% url 'add_question' %}" class="btn btn-success rounded-pill px-4 fw-bold shadow-sm">
+                    ➕ Thêm Câu Hỏi Mới
+                </a>
+                <a href="{% url 'import_word' %}" class="btn btn-light rounded-pill px-4 fw-bold text-primary shadow-sm">
+                    📄 Nhập File Word
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Thông báo messages -->
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show rounded-3 shadow-sm mb-4" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <!-- Thẻ Thống Kê Nhanh -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm rounded-4 text-center p-3 bg-white">
+                <small class="text-muted fw-bold text-uppercase">🏛️ Tổng Số Kỳ Thi</small>
+                <div class="display-6 fw-bold text-primary my-1">{{ periods|length }}</div>
+                <button class="btn btn-sm btn-outline-primary rounded-pill px-3 mt-1" data-bs-toggle="modal" data-bs-target="#modalAddPeriod">
+                    ➕ Thêm Kỳ Thi
+                </button>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm rounded-4 text-center p-3 bg-white">
+                <small class="text-muted fw-bold text-uppercase">📚 Tổng Số Môn Thi</small>
+                <div class="display-6 fw-bold text-success my-1">{{ subjects|length }}</div>
+                <button class="btn btn-sm btn-outline-success rounded-pill px-3 mt-1" data-bs-toggle="modal" data-bs-target="#modalAddSubject">
+                    ➕ Thêm Môn Thi
+                </button>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm rounded-4 text-center p-3 bg-white">
+                <small class="text-muted fw-bold text-uppercase">❓ Tổng Số Câu Hỏi Đã Lưu</small>
+                <div class="display-6 fw-bold text-info my-1">{{ total_questions }}</div>
+                <a href="{% url 'import_word' %}" class="btn btn-sm btn-outline-info rounded-pill px-3 mt-1">
+                    🔍 Xem Ngân Hàng
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Danh Sách Kỳ Thi & Môn Học -->
+    <div class="card border-0 shadow-sm rounded-4 overflow-hidden mb-4">
+        <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <h5 class="fw-bold text-dark mb-0">🏛️ Cấu Trúc Ngân Hàng Đề (Kỳ Thi &rarr; Môn Thi &rarr; Chủ Đề)</h5>
+            <div class="d-flex gap-2">
+                <button class="btn btn-sm btn-outline-warning rounded-pill px-3" data-bs-toggle="modal" data-bs-target="#modalAddTopic">
+                    ➕ Thêm Chủ Đề Mới
+                </button>
+            </div>
+        </div>
+        <div class="card-body p-4">
+            {% if periods %}
+                <div class="accordion" id="accordionPeriods">
+                    {% for p in periods %}
+                    <div class="accordion-item border rounded-3 mb-3 overflow-hidden shadow-xs">
+                        <h2 class="accordion-header" id="headingPeriod{{ p.id }}">
+                            <button class="accordion-button bg-light fw-bold fs-6" type="button" data-bs-toggle="collapse" data-bs-target="#collapsePeriod{{ p.id }}" aria-expanded="true">
+                                <span class="badge bg-primary rounded-pill me-2">Kỳ thi #{{ p.id }}</span>
+                                <span class="text-primary me-2">{{ p.name }}</span>
+                                <small class="text-muted fw-normal">({{ p.subjects.count }} môn thi)</small>
+                            </button>
+                        </h2>
+                        <div id="collapsePeriod{{ p.id }}" class="accordion-collapse collapse show" data-bs-parent="#accordionPeriods">
+                            <div class="accordion-body p-3 p-md-4">
+                                {% if p.description %}
+                                    <p class="text-muted small mb-3"><em>Mô tả: {{ p.description }}</em></p>
+                                {% endif %}
+
+                                {% if p.subjects.all %}
+                                    <div class="row g-3">
+                                        {% for s in p.subjects.all %}
+                                        <div class="col-md-6 col-lg-4">
+                                            <div class="card h-100 border rounded-3 bg-white p-3 shadow-xs">
+                                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                                    <h6 class="fw-bold text-dark mb-0">📘 {{ s.name }}</h6>
+                                                    <span class="badge bg-secondary-subtle text-secondary rounded-pill small">{{ s.code }}</span>
+                                                </div>
+                                                <div class="d-flex justify-content-between align-items-center mb-3 text-muted small">
+                                                    <span>Chủ đề: <strong>{{ s.topics.count }}</strong></span>
+                                                    <span>Câu hỏi: <strong class="text-success">{{ s.question_bank.count }} câu</strong></span>
+                                                </div>
+
+                                                <!-- Danh sách chủ đề con -->
+                                                <div class="p-2 bg-light rounded-3 mb-3" style="max-height: 120px; overflow-y: auto;">
+                                                    {% if s.topics.all %}
+                                                        <ul class="list-unstyled mb-0 small">
+                                                            {% for t in s.topics.all %}
+                                                                <li class="py-1 border-bottom border-light-subtle d-flex justify-content-between">
+                                                                    <span>🏷️ {{ t.name }}</span>
+                                                                </li>
+                                                            {% endfor %}
+                                                        </ul>
+                                                    {% else %}
+                                                        <small class="text-muted">Chưa có chủ đề nào.</small>
+                                                    {% endif %}
+                                                </div>
+
+                                                <!-- Nút thao tác nhanh -->
+                                                <div class="d-flex gap-2 mt-auto">
+                                                    <a href="{% url 'add_question' %}?subject_id={{ s.id }}" class="btn btn-sm btn-outline-success rounded-pill w-100">
+                                                        ➕ Thêm câu
+                                                    </a>
+                                                    <a href="{% url 'import_word' %}?filter_period_id={{ p.id }}&filter_subject_id={{ s.id }}" class="btn btn-sm btn-outline-primary rounded-pill w-100">
+                                                        🔍 Xem câu hỏi
+                                                    </a>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                {% else %}
+                                    <p class="text-muted small mb-0">Kỳ thi này chưa có môn thi nào. Nhấn "Thêm Môn Thi" để tạo mới.</p>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="text-center py-5">
+                    <div class="display-6 text-muted mb-3">🏛️</div>
+                    <h5 class="fw-bold text-secondary">Chưa có kỳ thi nào trong hệ thống</h5>
+                    <p class="text-muted small mb-3">Hãy tạo kỳ thi đầu tiên để bắt đầu xây dựng ngân hàng đề thi.</p>
+                    <button class="btn btn-primary rounded-pill px-4" data-bs-toggle="modal" data-bs-target="#modalAddPeriod">
+                        ➕ Thêm Kỳ Thi Đầu Tiên
+                    </button>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- MODAL THÊM KỲ THI -->
+<div class="modal fade" id="modalAddPeriod" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rounded-4 border-0 shadow">
+            <form method="POST">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="add_period">
+                <div class="modal-header border-bottom">
+                    <h5 class="modal-title fw-bold">🏛️ Thêm Kỳ Thi Mới</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold small text-secondary">Tên Kỳ Thi: <span class="text-danger">*</span></label>
+                        <input type="text" name="period_name" class="form-control rounded-3" placeholder="Ví dụ: Kỳ thi Khảo sát Chất lượng 2026..." required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold small text-secondary">Mô Tả / Ghi Chú:</label>
+                        <textarea name="period_desc" rows="3" class="form-control rounded-3" placeholder="Mô tả về kỳ thi (không bắt buộc)..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer border-top">
+                    <button type="button" class="btn btn-outline-secondary rounded-pill px-4" data-bs-dismiss="modal">Huỷ</button>
+                    <button type="submit" class="btn btn-primary rounded-pill px-4 fw-bold">Tạo Kỳ Thi</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL THÊM MÔN THI -->
+<div class="modal fade" id="modalAddSubject" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rounded-4 border-0 shadow">
+            <form method="POST">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="add_subject">
+                <div class="modal-header border-bottom">
+                    <h5 class="modal-title fw-bold">📚 Thêm Môn Thi Mới</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold small text-secondary">Chọn Kỳ Thi: <span class="text-danger">*</span></label>
+                        <select name="subject_period_id" class="form-select rounded-3" required>
+                            <option value="">-- Chọn kỳ thi --</option>
+                            {% for p in periods %}
+                                <option value="{{ p.id }}">{{ p.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold small text-secondary">Tên Môn Thi: <span class="text-danger">*</span></label>
+                        <input type="text" name="subject_name" class="form-control rounded-3" placeholder="Ví dụ: Toán Học, Vật Lí, Hóa Học..." required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold small text-secondary">Mã Môn Thi: <span class="text-danger">*</span></label>
+                        <input type="text" name="subject_code" class="form-control rounded-3" placeholder="Ví dụ: TOAN12, VATLY, HOAHOC..." required>
+                    </div>
+                </div>
+                <div class="modal-footer border-top">
+                    <button type="button" class="btn btn-outline-secondary rounded-pill px-4" data-bs-dismiss="modal">Huỷ</button>
+                    <button type="submit" class="btn btn-success rounded-pill px-4 fw-bold">Tạo Môn Thi</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL THÊM CHỦ ĐỀ -->
+<div class="modal fade" id="modalAddTopic" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rounded-4 border-0 shadow">
+            <form method="POST">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="add_topic">
+                <div class="modal-header border-bottom">
+                    <h5 class="modal-title fw-bold">🏷️ Thêm Chủ Đề Kiến Thức</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold small text-secondary">Chọn Môn Thi: <span class="text-danger">*</span></label>
+                        <select name="topic_subject_id" class="form-select rounded-3" required>
+                            <option value="">-- Chọn môn thi --</option>
+                            {% for s in subjects %}
+                                <option value="{{ s.id }}">{{ s.name }} ({{ s.exam_period.name }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold small text-secondary">Tên Chủ Đề / Chương: <span class="text-danger">*</span></label>
+                        <input type="text" name="topic_name" class="form-control rounded-3" placeholder="Ví dụ: Ứng dụng đạo hàm, Tích phân, Di truyền học..." required>
+                    </div>
+                </div>
+                <div class="modal-footer border-top">
+                    <button type="button" class="btn btn-outline-secondary rounded-pill px-4" data-bs-dismiss="modal">Huỷ</button>
+                    <button type="submit" class="btn btn-warning rounded-pill px-4 fw-bold">Tạo Chủ Đề</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

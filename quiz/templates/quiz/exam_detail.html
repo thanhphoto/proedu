@@ -1,0 +1,890 @@
+{% extends 'quiz/base.html' %}
+
+{% block title %}Chi Tiết & Sửa Ma Trận - {{ quiz.title }} - SmartQuiz Pro{% endblock %}
+
+{% block content %}
+<style>
+    /* Matrix table */
+    .matrix-table { font-size: 0.8rem; }
+    .matrix-table thead th {
+        background: linear-gradient(135deg, #4f46e5, #6366f1);
+        color: #fff;
+        text-align: center;
+        padding: 0.45rem 0.35rem;
+        font-size: 0.75rem;
+        white-space: nowrap;
+    }
+    .matrix-table thead tr:nth-child(2) th {
+        background: #e0e7ff;
+        color: #4f46e5;
+        font-size: 0.7rem;
+    }
+    .matrix-table td { text-align: center; padding: 0.35rem; vertical-align: middle; }
+    .matrix-table input[type=number] {
+        width: 54px;
+        text-align: center;
+        border: 1px solid #cbd5e1;
+        border-radius: 0.375rem;
+        padding: 0.25rem;
+        font-size: 0.85rem;
+        font-weight: 600;
+        transition: all 0.2s ease;
+    }
+    .matrix-table input[type=number]:focus {
+        outline: none;
+        border-color: #4f46e5;
+        box-shadow: 0 0 0 2px rgba(79,70,229,0.2);
+    }
+    .avail-badge {
+        font-size: 0.65rem;
+        padding: 0.1rem 0.35rem;
+        border-radius: 0.25rem;
+        display: inline-block;
+        margin-top: 2px;
+    }
+    .avail-ok { background: #d1fae5; color: #065f46; }
+    .avail-warn { background: #fef3c7; color: #92400e; }
+    .avail-danger { background: #fee2e2; color: #991b1b; }
+    .total-row td { background: #fef3c7; font-weight: 700; }
+    .score-row td { background: #d1fae5; font-weight: 700; }
+
+    /* Score warning */
+    .score-warning {
+        display: none;
+        background: #fef3c7;
+        border: 2px solid #f59e0b;
+        border-radius: 0.75rem;
+        padding: 0.75rem 1.25rem;
+        margin-top: 1rem;
+        font-weight: 600;
+        color: #92400e;
+        animation: shake 0.4s ease;
+    }
+    .score-warning.show { display: block; }
+    .score-ok {
+        display: none;
+        background: #d1fae5;
+        border: 2px solid #10b981;
+        border-radius: 0.75rem;
+        padding: 0.75rem 1.25rem;
+        margin-top: 1rem;
+        font-weight: 600;
+        color: #065f46;
+    }
+    .score-ok.show { display: block; }
+    @keyframes shake {
+        0%, 100% { transform: translateX(0); }
+        25% { transform: translateX(-5px); }
+        75% { transform: translateX(5px); }
+    }
+
+    /* Summary pill */
+    .score-badge-large {
+        font-size: 1.75rem;
+        font-weight: 800;
+        background: linear-gradient(135deg, #4f46e5, #7c3aed);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+    .score-badge-large.danger {
+        background: linear-gradient(135deg, #dc2626, #ef4444);
+        -webkit-background-clip: text;
+    }
+
+    /* Topic spec textarea */
+    .topic-spec-area {
+        width: 100%;
+        border: 1px solid #cbd5e1;
+        border-radius: 0.5rem;
+        padding: 0.6rem;
+        font-size: 0.85rem;
+        resize: vertical;
+        min-height: 70px;
+        transition: border-color 0.2s;
+    }
+    .topic-spec-area:focus {
+        outline: none;
+        border-color: #4f46e5;
+        box-shadow: 0 0 0 2px rgba(79,70,229,0.15);
+    }
+
+    .sticky-actions {
+        position: sticky;
+        bottom: 1rem;
+        z-index: 100;
+        background: rgba(255, 255, 255, 0.92);
+        backdrop-filter: blur(8px);
+        border: 1px solid #cbd5e1;
+        border-radius: 1rem;
+        padding: 1rem 1.5rem;
+        box-shadow: 0 10px 25px -5px rgba(0,0,0,0.15);
+    }
+</style>
+
+<!-- BREADCRUMB -->
+<nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb mb-0">
+        <li class="breadcrumb-item"><a href="{% url 'home' %}" class="text-decoration-none">Trang Chủ</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'exam_list' %}" class="text-decoration-none">Danh Sách Bài Thi</a></li>
+        <li class="breadcrumb-item active" aria-current="page">{{ quiz.title }}</li>
+    </ol>
+</nav>
+
+<!-- HEADER BANNER -->
+<div class="p-4 mb-4 rounded-4 text-white shadow" style="background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 50%, #a855f7 100%);">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+        <div>
+            <div class="d-flex align-items-center gap-2 mb-1">
+                <h2 class="fw-bold mb-0">✏️ Chi Tiết & Sửa Ma Trận Đề Thi</h2>
+                <span class="badge bg-warning text-dark fs-6 px-3 py-1 font-monospace shadow-sm">{{ quiz.exam_code|default:"Chưa có mã" }}</span>
+            </div>
+            <p class="mb-0 opacity-90">
+                Môn: <strong>{{ quiz.subject.name }}</strong> ({{ quiz.subject.code }}) 
+                {% if quiz.subject.exam_period %} | Kỳ thi: <strong>{{ quiz.subject.exam_period.name }}</strong>{% endif %}
+                | Ngày tạo: {{ quiz.created_at|date:"d/m/Y H:i" }}
+            </p>
+        </div>
+        <div class="d-flex gap-2 flex-wrap align-items-center">
+            <a href="{% url 'exam_results_view' quiz.id %}" class="btn btn-warning btn-sm fw-bold shadow-sm px-3 text-dark">
+                👥 Bảng Điểm ({{ total_results }})
+            </a>
+            <a href="{% url 'export_matrix_word' quiz.id %}" class="btn btn-light btn-sm fw-semibold shadow-sm px-3">
+                📄 Xuất Word
+            </a>
+            <a href="{% url 'export_matrix_excel' quiz.id %}" class="btn btn-light btn-sm fw-semibold shadow-sm px-3">
+                📊 Xuất Excel
+            </a>
+            <a href="{% url 'exam_list' %}" class="btn btn-outline-light btn-sm fw-semibold px-3">
+                ⬅️ Danh Sách
+            </a>
+        </div>
+</div>
+
+<!-- ==================== KHỐI CHIA SẺ BÀI THI & MÃ QR (DÀNH CHO THÍ SINH) ==================== -->
+<div class="card border-0 shadow-sm rounded-4 mb-4" style="background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%); border: 1px solid #a7f3d0 !important;">
+    <div class="card-body p-4">
+        <div class="row align-items-center g-4">
+            <!-- Cột trái: Thông tin liên kết & Nút chia sẻ -->
+            <div class="col-lg-8">
+                <div class="d-flex align-items-center gap-2 mb-2">
+                    <span class="badge bg-success px-3 py-2 rounded-pill fw-bold fs-6">🔗 Chia Sẻ Bài Thi</span>
+                    <span class="text-success fw-bold">Dành Cho Thí Sinh Tham Gia Làm Bài</span>
+                </div>
+                <h4 class="fw-bold text-dark mb-2">Liên Kết Trực Tiếp & Mã QR Bài Thi</h4>
+                <p class="text-muted small mb-3">
+                    Thí sinh có thể quét mã QR bằng điện thoại hoặc truy cập liên kết để vào làm bài thi trực tuyến ngay.
+                    <br><strong class="text-success">Lưu ý:</strong> Thí sinh chưa có tài khoản vẫn có thể tham gia thi bằng cách nhập Họ và tên trước khi bắt đầu.
+                </p>
+
+                <!-- Input đường dẫn kèm nút sao chép -->
+                <div class="input-group mb-3 shadow-sm rounded-3 overflow-hidden">
+                    <span class="input-group-text bg-white text-muted border-end-0">
+                        🌐 Link:
+                    </span>
+                    <input type="text" id="examShareUrlInput" class="form-control bg-white font-monospace text-primary fw-bold" readonly value="">
+                    <button class="btn btn-primary px-3 fw-bold" type="button" onclick="copyShareLink()">
+                        📋 Sao Chép Liên Kết
+                    </button>
+                </div>
+
+                <!-- Nhóm các nút hành động -->
+                <div class="d-flex flex-wrap gap-2">
+                    <button type="button" class="btn btn-success rounded-pill px-4 fw-semibold shadow-xs" onclick="shareExamLink()">
+                        📲 Chia Sẻ Qua App / Zalo / Messenger
+                    </button>
+                    <button type="button" class="btn btn-outline-success rounded-pill px-4 fw-semibold" onclick="downloadQRCode()">
+                        📥 Tải Mã QR (PNG)
+                    </button>
+                    <a id="previewExamBtn" href="" target="_blank" class="btn btn-outline-primary rounded-pill px-4 fw-semibold">
+                        🚀 Mở Trang Làm Bài Thử Nghiệm &rarr;
+                    </a>
+                </div>
+            </div>
+
+            <!-- Cột phải: Mã QR Code trực quan -->
+            <div class="col-lg-4 text-center border-start-lg ps-lg-4">
+                <div class="d-inline-block p-3 bg-white rounded-4 shadow-sm border">
+                    <div id="qrcodeCanvas" class="d-flex justify-content-center align-items-center" style="width: 170px; height: 170px;">
+                        <!-- Thư viện QRCode.js sẽ vẽ QR vào đây -->
+                    </div>
+                </div>
+                <div class="mt-2 small text-muted fw-semibold">
+                    📱 Quét mã QR để thi trên điện thoại
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ==================== THÔNG TIN BÀI THI & CẤU HÌNH ĐIỂM ==================== -->
+<div class="card border-0 shadow-sm rounded-4 mb-4">
+    <div class="card-body p-4">
+        <h5 class="fw-bold mb-3 text-primary d-flex align-items-center gap-2">
+            <span>①</span> Thông Tin Đề Thi & Cấu Hình Điểm
+        </h5>
+        
+        <div class="row g-3 mb-4">
+            <div class="col-md-6">
+                <label class="form-label fw-semibold">Tiêu đề đề thi <span class="text-danger">*</span></label>
+                <input type="text" id="titleInput" class="form-control" value="{{ quiz.title }}" placeholder="VD: Đề kiểm tra giữa kỳ Toán 12">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label fw-semibold">Mã bài thi (6 chữ số) <span class="text-danger">*</span></label>
+                <input type="text" id="examCodeInput" class="form-control font-monospace fw-bold text-primary" value="{{ quiz.exam_code|default:'' }}" placeholder="VD: 839201" maxlength="6">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label fw-semibold">Thời gian làm bài (phút)</label>
+                <input type="number" id="durationInput" class="form-control" value="{{ quiz.duration }}" min="1">
+            </div>
+            <div class="col-md-6">
+                <label class="form-label fw-semibold">Thời gian mở thi</label>
+                <input type="datetime-local" id="startTimeInput" class="form-control" value="{{ start_time_formatted }}">
+                <small class="text-muted">Thí sinh chỉ được vào làm bài khi đến thời điểm này (để trống nếu cho thi ngay).</small>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label fw-semibold">Hạn nộp bài</label>
+                <input type="datetime-local" id="deadlineInput" class="form-control" value="{{ deadline_formatted }}">
+                <small class="text-muted">Bài thi sẽ tự động kết thúc sau thời điểm này (để trống nếu không giới hạn).</small>
+            </div>
+        </div>
+
+        <h6 class="fw-bold mb-2 text-dark">💰 Cấu hình thang điểm</h6>
+        <div class="row g-3">
+            <div class="col-md-4">
+                <label class="form-label fw-semibold small text-muted">Điểm mỗi câu Trắc nghiệm (SINGLE)</label>
+                <div class="input-group">
+                    <input type="number" id="scoreSingle" class="form-control fw-bold" value="{{ quiz.score_single }}" step="0.05" min="0" onchange="onMatrixChange()">
+                    <span class="input-group-text">điểm</span>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label fw-semibold small text-muted">Điểm tối đa câu Đúng/Sai (TF)</label>
+                <div class="input-group">
+                    <input type="number" id="scoreTF" class="form-control fw-bold" value="{{ quiz.score_tf }}" step="0.05" min="0" onchange="onMatrixChange()">
+                    <span class="input-group-text">điểm</span>
+                </div>
+                <small class="text-muted" style="font-size:0.75rem;">1 ý: 0.1đ | 2 ý: 0.25đ | 3 ý: 0.5đ | 4/4: 1.0đ</small>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label fw-semibold small text-muted">Điểm mỗi câu Trả lời số (NUMERIC)</label>
+                <div class="input-group">
+                    <input type="number" id="scoreNumeric" class="form-control fw-bold" value="{{ quiz.score_numeric }}" step="0.05" min="0" onchange="onMatrixChange()">
+                    <span class="input-group-text">điểm</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ==================== CẤU TRÚC MA TRẬN ĐỀ THI ==================== -->
+<div class="card border-0 shadow-sm rounded-4 mb-4">
+    <div class="card-body p-4">
+        <div class="d-flex flex-wrap justify-content-between align-items-center mb-3">
+            <div>
+                <h5 class="fw-bold mb-1 text-primary d-flex align-items-center gap-2">
+                    <span>②</span> Cấu Trúc Ma Trận Đề Thi
+                </h5>
+                <p class="text-muted small mb-0">
+                    Nhập số lượng câu hỏi cho từng ô: <strong>Chủ đề × Mức độ × Loại câu</strong>. 
+                    Số trong ngoặc () là số câu <span class="text-success fw-bold">có sẵn</span> trong ngân hàng.
+                </p>
+            </div>
+            <div class="text-end">
+                <span class="badge bg-light text-secondary border px-3 py-2">
+                    Đã chọn: <strong id="headerTotalQ" class="text-primary fs-6">0</strong> câu | 
+                    Tổng điểm: <strong id="headerTotalScore" class="fs-6 text-success">0.00</strong> đ
+                </span>
+            </div>
+        </div>
+
+        <div id="matrixContainer"></div>
+
+        <!-- Real-time Score Alert -->
+        <div id="scoreWarning" class="score-warning">
+            ⚠️ Tổng điểm hiện tại: <span id="warnScoreVal" class="fs-5"></span> điểm — <strong class="text-danger">Khác 10 điểm!</strong> Đề thi chuẩn nên có tổng điểm đúng 10 điểm.
+        </div>
+        <div id="scoreOk" class="score-ok">
+            ✅ Tổng điểm: <strong>10.00 điểm</strong> — Hoàn toàn hợp lệ!
+        </div>
+    </div>
+</div>
+
+<!-- ==================== ĐẶC TẢ CHỦ ĐỀ KIẾN THỨC ==================== -->
+<div class="card border-0 shadow-sm rounded-4 mb-4">
+    <div class="card-body p-4">
+        <h5 class="fw-bold mb-2 text-primary d-flex align-items-center gap-2">
+            <span>③</span> Đặc Tả Chủ Đề Kiến Thức <small class="text-muted fw-normal fs-6">(Xuất ra tài liệu Word ma trận)</small>
+        </h5>
+        <p class="text-muted small mb-3">Mô tả chi tiết chuẩn kiến thức, kỹ năng cần kiểm tra cho từng chủ đề đã chọn.</p>
+
+        <div id="topicSpecsContainer"></div>
+    </div>
+</div>
+
+<!-- ==================== DANH SÁCH THÍ SINH & KẾT QUẢ BÀI THI ==================== -->
+<div class="card border-0 shadow-sm rounded-4 mb-4">
+    <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <div>
+            <h5 class="fw-bold text-dark mb-0 d-flex align-items-center gap-2">
+                <span>👥</span> Danh Sách Thí Sinh & Kết Quả Làm Bài
+            </h5>
+            <small class="text-muted">Tổng số: <strong>{{ total_results }}</strong> lượt nộp bài cho đề thi này</small>
+        </div>
+        <a href="{% url 'exam_results_view' quiz.id %}" class="btn btn-sm btn-primary rounded-pill px-3 fw-bold">
+            Xem bảng điểm chi tiết &rarr;
+        </a>
+    </div>
+
+    <div class="card-body p-0">
+        {% if exam_results %}
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light small text-uppercase">
+                        <tr>
+                            <th class="ps-4" style="width: 50px;">#</th>
+                            <th>Thí sinh</th>
+                            <th class="text-center">Điểm số</th>
+                            <th class="text-center">Số câu đúng</th>
+                            <th class="text-center">Thời gian làm</th>
+                            <th class="text-center pe-4">Thời gian nộp</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for r in exam_results %}
+                        <tr>
+                            <td class="ps-4 fw-bold text-muted">{{ forloop.counter }}</td>
+                            <td>
+                                <div class="d-flex align-items-center gap-3">
+                                    <img src="{{ r.avatar_url }}" alt="Avatar" class="rounded-circle border" width="38" height="38" style="background: #f8fafc; object-fit: contain;">
+                                    <div>
+                                        <div class="fw-bold text-dark">{{ r.candidate_name|default:"Thí sinh ẩn danh" }}</div>
+                                        {% if r.user %}
+                                            <small class="text-muted font-monospace">@{{ r.user.username }}</small>
+                                        {% else %}
+                                            <span class="badge bg-light text-secondary border small">Thí sinh vãng lai</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="text-center">
+                                <span class="badge {% if r.score >= 8.0 %}bg-success{% elif r.score >= 5.0 %}bg-primary{% else %}bg-danger{% endif %} rounded-pill px-3 py-1 fw-bold fs-6">
+                                    {{ r.score }}đ
+                                </span>
+                            </td>
+                            <td class="text-center">
+                                <span class="fw-bold text-dark">{{ r.correct_count }}</span>/{{ r.total_questions }}
+                            </td>
+                            <td class="text-center text-muted small">
+                                ⏱️ {{ r.time_spent }}s
+                            </td>
+                            <td class="text-center pe-4 text-muted small">
+                                {{ r.completed_at|date:"H:i - d/m/Y" }}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <div class="p-4 text-center text-muted">
+                <div class="fs-2 mb-1">📋</div>
+                <div class="fw-semibold">Chưa có thí sinh nào nộp bài thi này.</div>
+                <small>Chia sẻ mã bài thi <strong>{{ quiz.exam_code }}</strong> hoặc gửi liên kết cho thí sinh để bắt đầu khảo thí.</small>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- ==================== STICKY ACTION BAR ==================== -->
+<div class="sticky-actions d-flex flex-wrap justify-content-between align-items-center gap-3">
+    <div class="d-flex align-items-center gap-3">
+        <div>
+            <span class="text-muted small">Tổng câu hỏi:</span>
+            <span id="footerTotalQ" class="fw-bold fs-5 text-dark ms-1">0</span> câu
+        </div>
+        <div class="border-start ps-3">
+            <span class="text-muted small">Tổng điểm:</span>
+            <span id="footerTotalScore" class="fw-bold fs-5 text-primary ms-1">0.00</span> đ
+        </div>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+        <a href="{% url 'exam_list' %}" class="btn btn-outline-secondary fw-semibold px-3">
+            Quay lại danh sách
+        </a>
+        <button type="button" class="btn btn-success fw-bold px-4 py-2 shadow" id="btnSaveMatrix" onclick="saveMatrixChanges()">
+            💾 Lưu Cập Nhật Ma Trận
+        </button>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const CSRF = '{{ csrf_token }}';
+const QUIZ_ID = {{ quiz.id }};
+
+const DIFFICULTIES = ['NB', 'TH', 'VD', 'VDC'];
+const DIFF_LABELS = {'NB': 'Nhận biết', 'TH': 'Thông hiểu', 'VD': 'Vận dụng', 'VDC': 'Vận dụng cao'};
+const Q_TYPES = ['SINGLE', 'TF', 'NUMERIC'];
+const TYPE_LABELS = {'SINGLE': 'TN', 'TF': 'Đ/S', 'NUMERIC': 'Số'};
+
+const matrixTopics = {{ topics_json|safe }};
+const matrixCounts = {{ avail_counts_json|safe }};
+const currentMatrix = {{ current_matrix_json|safe }};
+const currentSpecs = {{ current_specs_json|safe }};
+
+// Render on page load
+document.addEventListener('DOMContentLoaded', () => {
+    renderMatrix();
+    renderTopicSpecs();
+    onMatrixChange();
+});
+
+// ============ RENDER MATRIX TABLE ============
+function renderMatrix() {
+    if (!matrixTopics.length) {
+        document.getElementById('matrixContainer').innerHTML = '<div class="alert alert-info">Môn thi này chưa có chủ đề nào.</div>';
+        return;
+    }
+
+    let html = '<div class="table-responsive"><table class="table table-bordered matrix-table mb-0">';
+
+    // Header row 1
+    html += '<thead><tr><th rowspan="2" style="min-width:140px;">Chủ đề</th>';
+    DIFFICULTIES.forEach(d => {
+        html += `<th colspan="${Q_TYPES.length}">${DIFF_LABELS[d]}</th>`;
+    });
+    html += '<th rowspan="2">Tổng</th></tr>';
+
+    // Header row 2
+    html += '<tr>';
+    DIFFICULTIES.forEach(d => {
+        Q_TYPES.forEach(t => {
+            html += `<th>${TYPE_LABELS[t]}</th>`;
+        });
+    });
+    html += '</tr></thead>';
+
+    // Data rows
+    html += '<tbody>';
+    matrixTopics.forEach(topic => {
+        html += `<tr><td class="text-start fw-semibold">${topic.name}</td>`;
+        DIFFICULTIES.forEach(d => {
+            Q_TYPES.forEach(t => {
+                const key = `${topic.id}_${d}_${t}`;
+                const avail = matrixCounts[key] || 0;
+                const curVal = currentMatrix[key] || 0;
+                const inputId = `m_${topic.id}_${d}_${t}`;
+                
+                // Allow current value even if higher than current avail (safety)
+                const maxVal = Math.max(avail, curVal);
+                let badgeClass = avail > 0 ? 'avail-ok' : (curVal > 0 ? 'avail-warn' : 'avail-danger');
+
+                html += `<td>
+                    <input type="number" id="${inputId}" class="matrix-input" min="0" max="${maxVal}" value="${curVal}"
+                           data-topic="${topic.id}" data-diff="${d}" data-type="${t}" data-avail="${maxVal}"
+                           onchange="onMatrixChange()" oninput="onMatrixChange()">
+                    <br><span class="avail-badge ${badgeClass}">(${avail})</span>
+                </td>`;
+            });
+        });
+        html += `<td class="fw-bold topic-total" id="total_${topic.id}">0</td>`;
+        html += '</tr>';
+    });
+
+    // Tổng SL row
+    html += '<tr class="total-row"><td class="text-start fw-bold">Tổng SL</td>';
+    DIFFICULTIES.forEach(d => {
+        Q_TYPES.forEach(t => {
+            html += `<td id="colTotal_${d}_${t}">0</td>`;
+        });
+    });
+    html += '<td id="grandTotal" class="fw-bold fs-6">0</td></tr>';
+
+    // Tổng Điểm row
+    html += '<tr class="score-row"><td class="text-start fw-bold">Tổng Điểm</td>';
+    DIFFICULTIES.forEach(d => {
+        Q_TYPES.forEach(t => {
+            html += `<td id="colScore_${d}_${t}">0</td>`;
+        });
+    });
+    html += '<td id="grandScore" class="fs-5 text-success fw-bold">0</td></tr>';
+
+    html += '</tbody></table></div>';
+    document.getElementById('matrixContainer').innerHTML = html;
+}
+
+// ============ RENDER TOPIC SPECS ============
+function renderTopicSpecs() {
+    if (!matrixTopics.length) {
+        document.getElementById('topicSpecsContainer').innerHTML = '<div class="text-muted small">Không có chủ đề nào.</div>';
+        return;
+    }
+    let html = '';
+    matrixTopics.forEach(topic => {
+        const specVal = currentSpecs[topic.id.toString()] || '';
+        html += `
+        <div class="mb-3">
+            <label class="form-label fw-semibold text-primary small mb-1">📌 ${topic.name}</label>
+            <textarea class="topic-spec-area" id="spec_${topic.id}" data-topic-id="${topic.id}"
+                placeholder="Nhập đặc tả kiến thức cho chủ đề này (VD: Nắm vững khái niệm, tính chất, phương pháp giải bài tập...)">${specVal}</textarea>
+        </div>`;
+    });
+    document.getElementById('topicSpecsContainer').innerHTML = html;
+}
+
+// ============ MATRIX CHANGE HANDLER ============
+function onMatrixChange() {
+    const scoreSingle = parseFloat(document.getElementById('scoreSingle').value) || 0;
+    const scoreTF = parseFloat(document.getElementById('scoreTF').value) || 0;
+    const scoreNumeric = parseFloat(document.getElementById('scoreNumeric').value) || 0;
+    const scoreMap = {'SINGLE': scoreSingle, 'TF': scoreTF, 'NUMERIC': scoreNumeric};
+
+    let grandTotal = 0;
+    let grandScore = 0;
+
+    // Row totals
+    matrixTopics.forEach(topic => {
+        let rowTotal = 0;
+        DIFFICULTIES.forEach(d => {
+            Q_TYPES.forEach(t => {
+                const input = document.getElementById(`m_${topic.id}_${d}_${t}`);
+                if (input) {
+                    let val = parseInt(input.value) || 0;
+                    const avail = parseInt(input.dataset.avail) || 0;
+                    if (val > avail && avail > 0) { 
+                        input.value = avail; 
+                        val = avail; 
+                    } else if (val < 0) { 
+                        input.value = 0; 
+                        val = 0; 
+                    }
+                    rowTotal += val;
+                }
+            });
+        });
+        const cell = document.getElementById(`total_${topic.id}`);
+        if (cell) cell.textContent = rowTotal;
+        grandTotal += rowTotal;
+    });
+
+    // Column totals
+    DIFFICULTIES.forEach(d => {
+        Q_TYPES.forEach(t => {
+            let colSum = 0;
+            matrixTopics.forEach(topic => {
+                const input = document.getElementById(`m_${topic.id}_${d}_${t}`);
+                if (input) colSum += parseInt(input.value) || 0;
+            });
+            const colCell = document.getElementById(`colTotal_${d}_${t}`);
+            if (colCell) colCell.textContent = colSum;
+
+            const colScore = colSum * scoreMap[t];
+            const scoreCell = document.getElementById(`colScore_${d}_${t}`);
+            if (scoreCell) scoreCell.textContent = colScore > 0 ? colScore.toFixed(2) : '0';
+            grandScore += colScore;
+        });
+    });
+
+    const grandTotalEl = document.getElementById('grandTotal');
+    const grandScoreEl = document.getElementById('grandScore');
+    if (grandTotalEl) grandTotalEl.textContent = grandTotal;
+    if (grandScoreEl) grandScoreEl.textContent = grandScore.toFixed(2);
+
+    // Sync header and footer badges
+    const headerQ = document.getElementById('headerTotalQ');
+    const headerScore = document.getElementById('headerTotalScore');
+    const footerQ = document.getElementById('footerTotalQ');
+    const footerScore = document.getElementById('footerTotalScore');
+    if (headerQ) headerQ.textContent = grandTotal;
+    if (headerScore) headerScore.textContent = grandScore.toFixed(2);
+    if (footerQ) footerQ.textContent = grandTotal;
+    if (footerScore) footerScore.textContent = grandScore.toFixed(2);
+
+    // Score warning
+    const warnEl = document.getElementById('scoreWarning');
+    const okEl = document.getElementById('scoreOk');
+    const warnVal = document.getElementById('warnScoreVal');
+
+    if (grandTotal > 0) {
+        if (Math.abs(grandScore - 10.0) > 0.001) {
+            warnEl.classList.add('show');
+            okEl.classList.remove('show');
+            warnVal.textContent = grandScore.toFixed(2);
+            if (headerScore) headerScore.className = 'fs-6 text-danger';
+            if (footerScore) footerScore.className = 'fw-bold fs-5 text-danger ms-1';
+        } else {
+            warnEl.classList.remove('show');
+            okEl.classList.add('show');
+            if (headerScore) headerScore.className = 'fs-6 text-success';
+            if (footerScore) footerScore.className = 'fw-bold fs-5 text-success ms-1';
+        }
+    } else {
+        warnEl.classList.remove('show');
+        okEl.classList.remove('show');
+    }
+}
+
+// ============ COLLECT DATA ============
+function collectMatrix() {
+    const entries = [];
+    const inputs = document.querySelectorAll('.matrix-input');
+    inputs.forEach(input => {
+        const qty = parseInt(input.value) || 0;
+        if (qty > 0) {
+            entries.push({
+                topic_id: parseInt(input.dataset.topic),
+                difficulty: input.dataset.diff,
+                question_type: input.dataset.type,
+                quantity: qty,
+            });
+        }
+    });
+    return entries;
+}
+
+function collectTopicSpecs() {
+    const specs = [];
+    document.querySelectorAll('.topic-spec-area').forEach(ta => {
+        const desc = ta.value.trim();
+        if (desc) {
+            specs.push({
+                topic_id: parseInt(ta.dataset.topicId),
+                description: desc,
+            });
+        }
+    });
+    return specs;
+}
+
+// ============ SAVE CHANGES ============
+function saveMatrixChanges() {
+    const matrixEntries = collectMatrix();
+    const topicSpecs = collectTopicSpecs();
+
+    if (matrixEntries.length === 0) {
+        Swal.fire({icon: 'warning', title: 'Ma trận trống', text: 'Vui lòng nhập số lượng câu hỏi trong ma trận!'});
+        return;
+    }
+
+    const titleVal = document.getElementById('titleInput').value.trim();
+    const examCodeVal = document.getElementById('examCodeInput').value.trim();
+    if (!titleVal || !examCodeVal) {
+        Swal.fire({icon: 'warning', title: 'Thiếu thông tin', text: 'Vui lòng nhập Tiêu đề và Mã bài thi!'});
+        return;
+    }
+
+    // Tính tổng điểm
+    const scoreSingle = parseFloat(document.getElementById('scoreSingle').value) || 0;
+    const scoreTF = parseFloat(document.getElementById('scoreTF').value) || 0;
+    const scoreNumeric = parseFloat(document.getElementById('scoreNumeric').value) || 0;
+    const scoreMap = {'SINGLE': scoreSingle, 'TF': scoreTF, 'NUMERIC': scoreNumeric};
+    let totalScore = 0;
+    let totalQ = 0;
+    matrixEntries.forEach(e => {
+        totalScore += e.quantity * (scoreMap[e.question_type] || 0);
+        totalQ += e.quantity;
+    });
+
+    const doSave = () => {
+        Swal.fire({
+            title: 'Đang lưu cập nhật...',
+            allowOutsideClick: false,
+            didOpen: () => Swal.showLoading()
+        });
+
+        const formData = new FormData();
+        formData.append('title', titleVal);
+        formData.append('exam_code', examCodeVal);
+        formData.append('duration', document.getElementById('durationInput').value);
+        formData.append('start_time', document.getElementById('startTimeInput').value);
+        formData.append('deadline', document.getElementById('deadlineInput').value);
+        formData.append('score_single', document.getElementById('scoreSingle').value);
+        formData.append('score_tf', document.getElementById('scoreTF').value);
+        formData.append('score_numeric', document.getElementById('scoreNumeric').value);
+        formData.append('matrix_json', JSON.stringify(matrixEntries));
+        formData.append('topic_specs_json', JSON.stringify(topicSpecs));
+        formData.append('csrfmiddlewaretoken', CSRF);
+
+        fetch(`/chi-tiet-bai-thi/${QUIZ_ID}/`, {
+            method: 'POST',
+            body: formData,
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+        .then(r => r.json().then(data => ({status: r.status, body: data})))
+        .then(({status, body}) => {
+            if (body.status === 'success') {
+                Swal.fire({
+                    icon: 'success',
+                    title: '🎉 Cập nhật thành công!',
+                    html: `<p>${body.message}</p>
+                           <div class="d-flex justify-content-center gap-2 mt-3">
+                               <a href="${body.export_word_url}" class="btn btn-outline-primary btn-sm">📄 Xuất Word</a>
+                               <a href="${body.export_excel_url}" class="btn btn-outline-success btn-sm">📊 Xuất Excel</a>
+                               <a href="{% url 'exam_list' %}" class="btn btn-primary btn-sm">📋 Danh Sách Bài Thi</a>
+                           </div>`,
+                    confirmButtonText: 'Ở lại trang này',
+                    confirmButtonColor: '#4f46e5',
+                });
+            } else {
+                let errHtml = '<ul class="text-start mb-0">';
+                (body.errors || []).forEach(e => errHtml += `<li>${e}</li>`);
+                errHtml += '</ul>';
+                Swal.fire({icon: 'error', title: 'Lỗi cập nhật!', html: errHtml, confirmButtonColor: '#dc3545'});
+            }
+        })
+        .catch(err => {
+            Swal.fire({icon: 'error', title: 'Lỗi kết nối!', text: 'Không thể kết nối đến máy chủ.'});
+        });
+    };
+
+    // Cảnh báo nếu tổng điểm ≠ 10
+    if (Math.abs(totalScore - 10.0) > 0.001) {
+        Swal.fire({
+            icon: 'warning',
+            title: '⚠️ Tổng điểm khác 10!',
+            html: `<p>Tổng điểm hiện tại: <strong class="text-danger fs-4">${totalScore.toFixed(2)} điểm</strong></p>
+                   <p class="text-muted">Thông thường tổng điểm đề thi phải bằng <strong>10 điểm</strong>.</p>
+                   <p>Bạn có muốn tiếp tục lưu cấu trúc ma trận này không?</p>`,
+            showCancelButton: true,
+            confirmButtonText: 'Vẫn lưu',
+            cancelButtonText: 'Quay lại điều chỉnh',
+            confirmButtonColor: '#f59e0b',
+            cancelButtonColor: '#6c757d',
+        }).then(result => {
+            if (result.isConfirmed) doSave();
+        });
+    } else {
+        Swal.fire({
+            title: '💾 Xác nhận lưu cập nhật?',
+            html: `<p>Đề thi: <strong>"${titleVal}"</strong> [${examCodeVal}]</p>
+                   <p>Tổng: <strong>${totalQ}</strong> câu hỏi | <strong class="text-success">${totalScore.toFixed(2)} điểm</strong></p>`,
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'Lưu ngay',
+            cancelButtonText: 'Hủy',
+            confirmButtonColor: '#4f46e5',
+        }).then(result => {
+            if (result.isConfirmed) doSave();
+        });
+    }
+}
+</script>
+
+<!-- Thư viện QRCode.js CDN -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script>
+// ==================== KHỞI TẠO LIÊN KẾT & MÃ QR CHIA SẺ BÀI THI ====================
+document.addEventListener('DOMContentLoaded', function() {
+    const examCode = "{{ quiz.exam_code }}";
+    const examPath = "/thi/" + examCode + "/";
+    const fullExamUrl = window.location.origin + examPath;
+
+    // Gán vào ô input và link xem trước
+    const urlInput = document.getElementById('examShareUrlInput');
+    const previewBtn = document.getElementById('previewExamBtn');
+    if (urlInput) urlInput.value = fullExamUrl;
+    if (previewBtn) previewBtn.href = fullExamUrl;
+
+    // Sinh mã QR Code
+    const qrcodeContainer = document.getElementById("qrcodeCanvas");
+    if (qrcodeContainer) {
+        qrcodeContainer.innerHTML = '';
+        new QRCode(qrcodeContainer, {
+            text: fullExamUrl,
+            width: 170,
+            height: 170,
+            colorDark: "#1e1b4b",
+            colorLight: "#ffffff",
+            correctLevel: QRCode.CorrectLevel.H
+        });
+    }
+});
+
+// Hàm sao chép liên kết vào Clipboard
+function copyShareLink() {
+    const urlInput = document.getElementById('examShareUrlInput');
+    if (!urlInput || !urlInput.value) return;
+
+    navigator.clipboard.writeText(urlInput.value).then(() => {
+        Swal.fire({
+            toast: true,
+            position: 'top-end',
+            icon: 'success',
+            title: 'Đã sao chép liên kết vào bộ nhớ tạm!',
+            showConfirmButton: false,
+            timer: 2500,
+            timerProgressBar: true
+        });
+    }).catch(err => {
+        // Fallback chọn text
+        urlInput.select();
+        document.execCommand('copy');
+        Swal.fire({
+            toast: true,
+            position: 'top-end',
+            icon: 'success',
+            title: 'Đã sao chép liên kết!',
+            showConfirmButton: false,
+            timer: 2000
+        });
+    });
+}
+
+// Hàm chia sẻ liên kết (Web Share API)
+function shareExamLink() {
+    const urlInput = document.getElementById('examShareUrlInput');
+    const fullUrl = urlInput ? urlInput.value : window.location.origin + "{% url 'take_exam' quiz.exam_code %}";
+    const examTitle = "{{ quiz.title|escapejs }}";
+
+    if (navigator.share) {
+        navigator.share({
+            title: 'Bài thi: ' + examTitle,
+            text: 'Mời bạn tham gia làm bài thi: ' + examTitle + ' trên hệ thống SmartQuiz Pro.',
+            url: fullUrl
+        }).catch(err => {
+            if (err.name !== 'AbortError') {
+                copyShareLink();
+            }
+        });
+    } else {
+        // Fallback khi trình duyệt desktop không có Web Share API
+        copyShareLink();
+        Swal.fire({
+            title: 'Liên Kết Đã Được Sao Chép!',
+            html: `<p class="mb-2">Bạn có thể dán (Ctrl+V hoặc Cmd+V) để gửi qua Zalo, Messenger, Email hoặc nhóm lớp:</p>
+                   <input class="form-control text-primary font-monospace text-center fw-bold" value="${fullUrl}" readonly onclick="this.select()">`,
+            icon: 'info',
+            confirmButtonText: 'Đóng',
+            confirmButtonColor: '#4f46e5'
+        });
+    }
+}
+
+// Hàm tải mã QR dưới dạng ảnh PNG
+function downloadQRCode() {
+    const container = document.getElementById('qrcodeCanvas');
+    if (!container) return;
+
+    const img = container.querySelector('img');
+    const canvas = container.querySelector('canvas');
+    let dataUrl = '';
+
+    if (img && img.src) {
+        dataUrl = img.src;
+    } else if (canvas) {
+        dataUrl = canvas.toDataURL('image/png');
+    }
+
+    if (dataUrl) {
+        const link = document.createElement('a');
+        link.download = `QRCode_BaiThi_{{ quiz.exam_code|default:quiz.id }}.png`;
+        link.href = dataUrl;
+        link.click();
+    } else {
+        Swal.fire('Thông báo', 'Đang tạo mã QR, vui lòng thử lại sau 1 giây.', 'info');
+    }
+}
+</script>
+{% endblock %}

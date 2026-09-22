@@ -1,0 +1,88 @@
+{% extends 'quiz/base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="fas fa-trophy text-warning"></i> Danh sách Kỳ thi Lập trình</h2>
+        {% if user.profile.is_coding_contributor %}
+        <a href="{% url 'coding_exam_create' %}" class="btn btn-primary">
+            <i class="fas fa-plus"></i> Tạo kỳ thi mới
+        </a>
+        {% endif %}
+    </div>
+
+    {% for group in exam_groups %}
+    <h4 class="mt-4 mb-3"><i class="{{ group.icon }}"></i> {{ group.title }}</h4>
+    <div class="card shadow-sm mb-4">
+        <div class="card-body p-0">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th width="30%" class="ps-3">Tên kỳ thi</th>
+                        <th width="20%">Thời gian bắt đầu</th>
+                        <th width="20%">Thời gian kết thúc</th>
+                        <th width="15%">Trạng thái</th>
+                        <th width="15%" class="text-center">Hành động</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for exam in group.exams %}
+                    <tr>
+                        <td class="ps-3">
+                            <a href="{% url 'coding_exam_detail' exam.id %}" class="text-decoration-none fw-bold fs-6">
+                                {{ exam.title }}
+                            </a>
+                            <div class="text-muted small mt-1">Người tạo: 
+                                {% if exam.created_by %}
+                                    {{ exam.created_by.get_full_name|default:exam.created_by.username }}
+                                {% else %}
+                                    Hệ thống
+                                {% endif %}
+                            </div>
+                        </td>
+                        <td>
+                            {% if exam.start_time %}
+                                {{ exam.start_time|date:"d/m/Y H:i" }}
+                            {% else %}
+                                <span class="text-muted">Không giới hạn</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if exam.end_time %}
+                                {{ exam.end_time|date:"d/m/Y H:i" }}
+                            {% else %}
+                                <span class="text-muted">Không giới hạn</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if exam.is_active %}
+                                <span class="badge bg-success">Hoạt động</span>
+                            {% else %}
+                                <span class="badge bg-secondary">Đã đóng</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            <a href="{% url 'coding_exam_detail' exam.id %}" class="btn btn-sm btn-outline-primary" title="Xem chi tiết">
+                                <i class="fas fa-eye"></i> Xem
+                            </a>
+                            {% if user == exam.created_by %}
+                            <a href="{% url 'coding_exam_edit' exam.id %}" class="btn btn-sm btn-outline-secondary" title="Sửa kỳ thi">
+                                <i class="fas fa-edit"></i> Sửa
+                            </a>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" class="text-center py-4">Không có kỳ thi nào trong nhóm này.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endfor %}
+
+</div>
+{% endblock %}

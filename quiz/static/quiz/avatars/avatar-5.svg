@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bg5" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#8b5cf6"/>
+      <stop offset="100%" stop-color="#6d28d9"/>
+    </linearGradient>
+  </defs>
+  <rect width="120" height="120" rx="60" fill="url(#bg5)"/>
+  <!-- Purple hair background -->
+  <circle cx="40" cy="65" r="16" fill="#4c1d95"/>
+  <circle cx="80" cy="65" r="16" fill="#4c1d95"/>
+  <!-- Jacket -->
+  <path d="M25 120 C25 90, 45 80, 60 80 C75 80, 95 90, 95 120 Z" fill="#0f172a"/>
+  <circle cx="60" cy="55" r="24" fill="#fde68a"/>
+  <!-- Hair top -->
+  <path d="M35 50 C35 28, 85 28, 85 50 C80 36, 40 36, 35 50 Z" fill="#581c87"/>
+  <!-- Big eyes -->
+  <ellipse cx="48" cy="52" rx="4" ry="5" fill="#1e1b4b"/>
+  <ellipse cx="72" cy="52" rx="4" ry="5" fill="#1e1b4b"/>
+  <circle cx="47" cy="50" r="1.5" fill="#ffffff"/>
+  <circle cx="71" cy="50" r="1.5" fill="#ffffff"/>
+  <!-- Blush -->
+  <circle cx="42" cy="60" r="4" fill="#f43f5e" opacity="0.4"/>
+  <circle cx="78" cy="60" r="4" fill="#f43f5e" opacity="0.4"/>
+  <path d="M54 64 Q60 69 66 64" stroke="#be123c" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+  <!-- Headphone -->
+  <path d="M33 52 C33 26, 87 26, 87 52" fill="none" stroke="#06b6d4" stroke-width="4.5" stroke-linecap="round"/>
+  <rect x="29" y="47" width="8" height="15" rx="4" fill="#22d3ee"/>
+  <rect x="83" y="47" width="8" height="15" rx="4" fill="#22d3ee"/>
+</svg>

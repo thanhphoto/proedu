@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bg16" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#eab308"/>
+      <stop offset="100%" stop-color="#ca8a04"/>
+    </linearGradient>
+  </defs>
+  <rect width="120" height="120" rx="60" fill="url(#bg16)"/>
+  <!-- Laurel wreath -->
+  <circle cx="34" cy="52" r="6" fill="#15803d" opacity="0.9"/>
+  <circle cx="38" cy="40" r="6" fill="#15803d" opacity="0.9"/>
+  <circle cx="46" cy="30" r="6" fill="#15803d" opacity="0.9"/>
+  <circle cx="86" cy="52" r="6" fill="#15803d" opacity="0.9"/>
+  <circle cx="82" cy="40" r="6" fill="#15803d" opacity="0.9"/>
+  <circle cx="74" cy="30" r="6" fill="#15803d" opacity="0.9"/>
+  <!-- Gold Medal & Ribbon -->
+  <path d="M25 120 C25 90, 45 80, 60 80 C75 80, 95 90, 95 120 Z" fill="#1e1b4b"/>
+  <polygon points="52,80 60,98 68,80" fill="#dc2626"/>
+  <circle cx="60" cy="102" r="8" fill="#fbbf24" stroke="#f59e0b" stroke-width="2"/>
+  <text x="60" y="105" font-size="8" fill="#78350f" text-anchor="middle" font-weight="bold">1</text>
+  <!-- Face -->
+  <circle cx="60" cy="54" r="23" fill="#fed7aa"/>
+  <circle cx="49" cy="52" r="2.5" fill="#0f172a"/>
+  <circle cx="71" cy="52" r="2.5" fill="#0f172a"/>
+  <!-- Crown / Star -->
+  <polygon points="60,20 63,27 70,27 65,31 67,38 60,34 53,38 55,31 50,27 57,27" fill="#fbbf24"/>
+  <path d="M53 64 Q60 70 67 64" stroke="#9a3412" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+</svg>

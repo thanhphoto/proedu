@@ -1,0 +1,354 @@
+{% extends 'quiz/base.html' %}
+{% load static %}
+
+{% block title %}{{ title }} - SmartQuiz Pro{% endblock %}
+
+{% block extra_css %}
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
+{% endblock %}
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-10">
+            <div class="card shadow-sm">
+                <div class="card-header bg-white fw-bold">
+                    <h5><i class="fas fa-edit"></i> {{ title }}</h5>
+                </div>
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+                        <div class="row">
+                            <div class="col-md-8 mb-3">
+                                <label class="form-label fw-bold">Tên bài toán</label>
+                                {{ form.title }}
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label fw-bold">Thuộc đề thi (đã thi)</label>
+                                {{ form.past_exam }}
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Mô tả chi tiết</label>
+                            {{ form.description }}
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold text-muted"><i class="fas fa-eye"></i> Xem trước công thức Toán học (LaTeX)</label>
+                            <div id="description-preview" class="border p-3 bg-light rounded" style="min-height: 100px;"></div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label fw-bold">Mức độ khó</label>
+                                {{ form.difficulty }}
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label fw-bold">Điểm tối đa</label>
+                                {{ form.max_score }}
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label fw-bold">Chủ đề</label>
+                                <div class="small text-muted mb-1">Giữ Ctrl để chọn nhiều</div>
+                                {{ form.topics }}
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label fw-bold">Giới hạn thời gian (giây)</label>
+                                {{ form.time_limit }}
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label fw-bold">Giới hạn bộ nhớ (MB)</label>
+                                {{ form.memory_limit }}
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Code mẫu C++</label>
+                            {{ form.initial_code_cpp }}
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Code mẫu Python</label>
+                            {{ form.initial_code_python }}
+                        </div>
+                        <hr>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                {% if exam_id %}
+                                <a href="{% url 'coding_exam_detail' exam_id %}" class="btn btn-secondary">Hủy bỏ</a>
+                                {% else %}
+                                <a href="{% url 'coding_manage_list' %}" class="btn btn-secondary">Hủy bỏ</a>
+                                {% endif %}
+                                
+                                {% if form.instance.pk %}
+                                <a href="{% url 'coding_auto_testcase' form.instance.pk %}" class="btn btn-info text-white ms-2"><i class="fas fa-magic"></i> Sinh Testcase tự động</a>
+                                {% endif %}
+                            </div>
+                            <button type="submit" class="btn btn-success"><i class="fas fa-save"></i> Lưu bài tập</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            
+            {% if form.instance.pk %}
+            <div class="card shadow-sm mt-4">
+                <div class="card-header bg-white fw-bold d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="fas fa-list"></i> Danh sách Testcases</h5>
+                    <span class="badge bg-primary">{{ form.instance.testcases.count }} testcases</span>
+                </div>
+                <div class="card-body p-0">
+                    {% if form.instance.testcases.all %}
+                    <div class="p-3 bg-light border-bottom d-flex align-items-center justify-content-between">
+                        <div>
+                            <button class="btn btn-sm btn-danger me-3" id="btnDeleteSelectedTc"><i class="fas fa-trash"></i> Xóa các mục đã chọn</button>
+                        </div>
+                        <div>
+                            <label class="fw-bold me-2 mb-0">Sửa điểm hàng loạt:</label>
+                            <input type="number" id="bulkPoints" class="form-control form-control-sm w-auto d-inline-block me-2" step="0.1" min="0" value="0.1">
+                            <button class="btn btn-sm btn-warning" id="btnUpdatePoints"><i class="fas fa-edit"></i> Áp dụng</button>
+                        </div>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th width="5%"><input type="checkbox" id="selectAllTc" class="form-check-input"></th>
+                                    <th>#</th>
+                                    <th>Input</th>
+                                    <th>Expected Output</th>
+                                    <th>Điểm</th>
+                                    <th class="text-end">Thao tác</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for tc in form.instance.testcases.all %}
+                                <tr id="tc-row-{{ tc.id }}">
+                                    <td><input type="checkbox" class="tc-checkbox form-check-input" value="{{ tc.id }}"></td>
+                                    <td>{{ forloop.counter }}</td>
+                                    <td><pre class="mb-0 small text-truncate" style="max-width: 200px;">{{ tc.input_data }}</pre></td>
+                                    <td><pre class="mb-0 small text-truncate" style="max-width: 200px;">{{ tc.expected_output }}</pre></td>
+                                    <td>
+                                        <input type="number" class="form-control form-control-sm tc-point-input" data-id="{{ tc.id }}" value="{{ tc.points }}" step="0.1" min="0" style="width: 70px;">
+                                    </td>
+                                    <td class="text-end">
+                                        <button class="btn btn-sm btn-outline-danger btn-delete-tc" data-id="{{ tc.id }}"><i class="fas fa-trash"></i> Xóa</button>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="p-4 text-center text-muted">
+                        Chưa có testcase nào. Hãy sử dụng chức năng "Sinh Testcase tự động".
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']],
+        displayMath: [['$$', '$$'], ['\\[', '\\]']]
+      }
+    };
+</script>
+<script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script>
+$(document).ready(function() {
+    $('#id_topics').select2({
+        theme: 'bootstrap-5',
+        tags: true,
+        placeholder: "Chọn hoặc nhập chủ đề mới...",
+        tokenSeparators: [',']
+    });
+
+    $('.select2-exam').select2({
+        theme: 'bootstrap-5',
+        tags: true,
+        allowClear: true,
+        placeholder: "Chọn hoặc nhập tên đề thi mới...",
+        createTag: function (params) {
+            var term = $.trim(params.term);
+            if (term === '') { return null; }
+            return {
+                id: term,
+                text: term,
+                newTag: true
+            }
+        }
+    });
+});
+
+document.addEventListener('DOMContentLoaded', function() {
+    const descInput = document.getElementById('id_description');
+    const preview = document.getElementById('description-preview');
+    
+    function updatePreview() {
+        if (!descInput || !preview) return;
+        // Xử lý xuống dòng
+        let content = descInput.value.replace(/\n/g, '<br>');
+        preview.innerHTML = content;
+        if (window.MathJax) {
+            MathJax.typesetPromise([preview]).catch(function (err) {
+                console.log(err.message);
+            });
+        }
+    }
+    
+    if (descInput) {
+        descInput.addEventListener('input', updatePreview);
+        // Render lần đầu khi trang load
+        setTimeout(updatePreview, 500);
+    }
+});
+</script>
+
+{% if form.instance.pk %}
+<script>
+document.querySelectorAll('.btn-delete-tc').forEach(btn => {
+    btn.addEventListener('click', function() {
+        if (!confirm('Bạn có chắc muốn xóa testcase này?')) return;
+        
+        const tcId = this.dataset.id;
+        const row = document.getElementById('tc-row-' + tcId);
+        
+        fetch(`/luyen-code/testcase/${tcId}/xoa/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                row.remove();
+            } else {
+                alert('Có lỗi xảy ra: ' + (data.error || 'Unknown error'));
+            }
+        })
+        .catch(err => {
+            alert('Lỗi kết nối.');
+            console.error(err);
+        });
+    });
+});
+
+const btnUpdatePoints = document.getElementById('btnUpdatePoints');
+if (btnUpdatePoints) {
+    btnUpdatePoints.addEventListener('click', function(e) {
+        e.preventDefault();
+        const points = document.getElementById('bulkPoints').value;
+        if (!points || points < 0) {
+            alert('Điểm số không hợp lệ!');
+            return;
+        }
+        
+        const formData = new FormData();
+        formData.append('points', points);
+        
+        fetch(`{% url 'coding_update_testcase_points' form.instance.pk %}`, {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('Cập nhật điểm hàng loạt thành công!');
+                window.location.reload();
+            } else {
+                alert('Lỗi: ' + data.error);
+            }
+        })
+        .catch(err => alert('Lỗi kết nối.'));
+    });
+}
+
+const selectAllTc = document.getElementById('selectAllTc');
+if (selectAllTc) {
+    selectAllTc.addEventListener('change', function() {
+        document.querySelectorAll('.tc-checkbox').forEach(cb => cb.checked = this.checked);
+    });
+}
+
+const btnDeleteSelectedTc = document.getElementById('btnDeleteSelectedTc');
+if (btnDeleteSelectedTc) {
+    btnDeleteSelectedTc.addEventListener('click', function(e) {
+        e.preventDefault();
+        const selected = Array.from(document.querySelectorAll('.tc-checkbox:checked')).map(cb => cb.value);
+        if (selected.length === 0) {
+            alert('Vui lòng chọn ít nhất 1 testcase để xóa.');
+            return;
+        }
+        
+        if (!confirm(`Bạn có chắc muốn xóa ${selected.length} testcase đã chọn?`)) return;
+        
+        let promises = selected.map(tcId => {
+            return fetch(`/luyen-code/testcase/${tcId}/xoa/`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            }).then(r => r.json());
+        });
+        
+        Promise.all(promises).then(results => {
+            window.location.reload();
+        }).catch(err => {
+            alert('Có lỗi xảy ra trong quá trình xóa.');
+            window.location.reload();
+        });
+    });
+}
+
+document.querySelectorAll('.tc-point-input').forEach(input => {
+    input.addEventListener('change', function() {
+        const tcId = this.dataset.id;
+        const newPoints = this.value;
+        if (newPoints < 0 || newPoints === '') {
+            alert('Điểm không hợp lệ');
+            return;
+        }
+        
+        const formData = new FormData();
+        formData.append('points', newPoints);
+        
+        fetch(`/luyen-code/testcase/${tcId}/cap-nhat-diem/`, {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (!data.success) {
+                alert('Có lỗi xảy ra: ' + (data.error || 'Unknown error'));
+            } else {
+                this.style.backgroundColor = '#d4edda';
+                setTimeout(() => { this.style.backgroundColor = ''; }, 1000);
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            alert('Lỗi kết nối.');
+        });
+    });
+});
+</script>
+{% endif %}
+{% endblock %}

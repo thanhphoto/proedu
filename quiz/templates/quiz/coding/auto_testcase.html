@@ -1,0 +1,632 @@
+{% extends 'quiz/base.html' %}
+{% load static %}
+
+{% block title %}Sinh Testcase Tự Động - SmartQuiz Pro{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-10">
+            <div class="card shadow-sm">
+                <div class="card-header bg-white fw-bold d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="fas fa-magic text-info"></i> Sinh Testcase: {{ question.title }}</h5>
+                    <a href="{% url 'coding_edit' question.id %}" class="btn btn-sm btn-outline-secondary"><i class="fas fa-arrow-left"></i> Trở lại</a>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info">
+                        <strong>Hướng dẫn:</strong> 
+                        <ul class="mb-0 mt-2">
+                            <li>Nhập <strong>Code Đáp Án Chuẩn</strong>. Code này phải giải quyết đúng bài toán.</li>
+                            <li>Nhập danh sách các <strong>Dữ liệu đầu vào (Inputs)</strong>. Mỗi Input (testcase) cách nhau bởi dải phân cách <code>---</code>.</li>
+                            <li>Hệ thống sẽ chạy Code Đáp Án với từng Input để tự động sinh ra Kết quả mong đợi (Expected Output) và lưu thành Testcase mới.</li>
+                            <li>Điểm số của từng testcase sẽ được chia đều dựa trên tổng số điểm tối đa ({{ question.max_score }} điểm).</li>
+                        </ul>
+                    </div>
+
+                    <form id="autoTestcaseForm" class="mt-4">
+                        {% csrf_token %}
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Ngôn ngữ Code Đáp Án</label>
+                            <select name="language" id="language" class="form-select w-25">
+                                <option value="python">Python 3</option>
+                                <option value="cpp">C++</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <label class="form-label fw-bold mb-0">Code Đáp Án Chuẩn</label>
+                                <button type="button" id="btnSaveSolution" class="btn btn-sm btn-outline-success"><i class="fas fa-save"></i> Lưu đáp án chuẩn</button>
+                            </div>
+                            <textarea name="solution_code" id="solution_code" class="form-control text-monospace" rows="10" placeholder="Viết code đáp án vào đây..." required></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Danh sách Inputs (Cách nhau bởi ---)</label>
+                            
+                            <!-- BẮT ĐẦU UI SINH INPUT -->
+                            <div class="card bg-light mb-3">
+                                <div class="card-body">
+                                    <h6 class="card-title fw-bold text-primary"><i class="fas fa-magic"></i> Trình Sinh Input Ngẫu Nhiên</h6>
+                                    <div id="generatorRules" class="mb-3">
+                                        <!-- Các rules sẽ được add vào đây -->
+                                    </div>
+                                    <div class="d-flex flex-wrap gap-2 mb-3">
+                                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="addRule('number')">+ Số</button>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="addRule('string')">+ Chuỗi</button>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="addRule('array1d')">+ Mảng 1 Chiều</button>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="addRule('array2d')">+ Mảng 2 Chiều</button>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="addRule('query')">+ Truy vấn</button>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="addRule('newline')">+ Xuống dòng</button>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="addRule('space')">+ Dấu cách</button>
+                                    </div>
+                                    <div class="row align-items-center">
+                                        <div class="col-auto">
+                                            <label class="small fw-bold">Số lượng testcase:</label>
+                                        </div>
+                                        <div class="col-auto">
+                                            <input type="number" id="genCount" class="form-control form-control-sm" value="5" min="1" max="100" style="width: 80px;">
+                                        </div>
+                                        <div class="col-auto">
+                                            <button type="button" class="btn btn-sm btn-success" onclick="generateInputs()"><i class="fas fa-bolt"></i> Sinh dữ liệu ngay</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- KẾT THÚC UI SINH INPUT -->
+
+                            <textarea name="inputs_raw" id="inputs_raw" class="form-control text-monospace" rows="10" placeholder="Ví dụ:&#10;1 2&#10;---&#10;3 4&#10;---&#10;5 6" required></textarea>
+                        </div>
+                        <hr>
+                        <div class="text-end">
+                            <button type="submit" id="btnGenerate" class="btn btn-primary"><i class="fas fa-cogs"></i> Bắt đầu Sinh Testcases</button>
+                        </div>
+                    </form>
+
+                    <div id="resultAlert" class="alert mt-3" style="display: none;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const solutionCpp = `{{ question.solution_code_cpp|escapejs }}`;
+const solutionPython = `{{ question.solution_code_python|escapejs }}`;
+
+document.getElementById('language').addEventListener('change', function(e) {
+    const lang = e.target.value;
+    const codeArea = document.getElementById('solution_code');
+    // Chỉ ghi đè code nếu hiện tại đang rỗng hoặc chưa bị sửa nhiều (tùy chọn)
+    // Để đơn giản, ta cứ nạp code đã lưu vào khi chuyển ngôn ngữ.
+    if (lang === 'python') {
+        codeArea.value = solutionPython;
+    } else {
+        codeArea.value = solutionCpp;
+    }
+});
+// Khởi tạo code khi load trang
+document.getElementById('language').dispatchEvent(new Event('change'));
+
+document.getElementById('btnSaveSolution').addEventListener('click', function() {
+    const btn = this;
+    const originalText = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang lưu...';
+    
+    const formData = new FormData(document.getElementById('autoTestcaseForm'));
+    formData.append('action', 'save_solution');
+    
+    fetch("{% url 'coding_auto_testcase' question.id %}", {
+        method: 'POST',
+        body: formData,
+        headers: {
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            alert('Thành công: ' + data.message);
+        } else {
+            alert('Lỗi: ' + data.error);
+        }
+    })
+    .catch(err => {
+        alert('Đã xảy ra lỗi mạng!');
+    })
+    .finally(() => {
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+    });
+});
+
+let ruleIdCounter = 0;
+
+function addRule(type) {
+    ruleIdCounter++;
+    const id = ruleIdCounter;
+    let html = '';
+    
+    // Header chung (Tên biến, Xoá)
+    const header = `
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <span class="badge bg-secondary">${type.toUpperCase()}</span>
+            <div class="d-flex align-items-center gap-2">
+                <input type="text" class="form-control form-control-sm rule-var-name" placeholder="Tên biến (vd: N)" data-rule-id="${id}" style="width: 120px;">
+                <div class="form-check form-switch mb-0" title="Ẩn/Hiện phần này trong kết quả Testcase">
+                    <input class="form-check-input rule-is-visible" type="checkbox" role="switch" checked data-rule-id="${id}">
+                    <label class="form-check-label small">Hiện Output</label>
+                </div>
+            </div>
+            <button type="button" class="btn btn-sm btn-danger py-0 px-2" onclick="this.closest('.rule-item').remove()"><i class="fas fa-times"></i></button>
+        </div>
+    `;
+
+    if (type === 'number') {
+        html = `
+            <div class="row g-2">
+                <div class="col-md-3">
+                    <select class="form-select form-select-sm rule-num-type" data-rule-id="${id}">
+                        <option value="int">Số nguyên</option>
+                        <option value="float">Số thực</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <select class="form-select form-select-sm rule-num-constraint" data-rule-id="${id}">
+                        <option value="any">Bất kỳ</option>
+                        <option value="even">Toàn chẵn</option>
+                        <option value="odd">Toàn lẻ</option>
+                        <option value="positive">Toàn dương</option>
+                        <option value="negative">Toàn âm</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <input type="text" class="form-control form-control-sm rule-num-min" placeholder="Min" value="1" data-rule-id="${id}">
+                </div>
+                <div class="col-md-3">
+                    <input type="text" class="form-control form-control-sm rule-num-max" placeholder="Max" value="100" data-rule-id="${id}">
+                </div>
+            </div>
+        `;
+    } else if (type === 'string') {
+        html = `
+            <div class="row g-2 align-items-center">
+                <div class="col-md-8 d-flex align-items-center gap-3">
+                    <div class="form-check mb-0">
+                        <input class="form-check-input rule-str-lower" type="checkbox" id="chkL_${id}" checked>
+                        <label class="form-check-label small" for="chkL_${id}">a-z</label>
+                    </div>
+                    <div class="form-check mb-0">
+                        <input class="form-check-input rule-str-upper" type="checkbox" id="chkU_${id}" checked>
+                        <label class="form-check-label small" for="chkU_${id}">A-Z</label>
+                    </div>
+                    <div class="form-check mb-0">
+                        <input class="form-check-input rule-str-num" type="checkbox" id="chkN_${id}" checked>
+                        <label class="form-check-label small" for="chkN_${id}">0-9</label>
+                    </div>
+                    <input type="text" class="form-control form-control-sm rule-str-custom" placeholder="Ký tự thêm (vd: +-)" style="width: 150px;">
+                </div>
+                <div class="col-md-4">
+                    <input type="text" class="form-control form-control-sm rule-str-len" placeholder="Độ dài (hoặc biến N)" value="10" data-rule-id="${id}">
+                </div>
+            </div>
+        `;
+    } else if (type === 'array1d') {
+        html = `
+            <div class="row g-2 mb-2">
+                <div class="col-md-2">
+                    <input type="text" class="form-control form-control-sm rule-arr-len" placeholder="SL(N)" value="N" data-rule-id="${id}">
+                </div>
+                <div class="col-md-2">
+                    <select class="form-select form-select-sm rule-arr-type" data-rule-id="${id}">
+                        <option value="int">Nguyên</option>
+                        <option value="float">Thực</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <select class="form-select form-select-sm rule-arr-constraint" data-rule-id="${id}">
+                        <option value="any">Phần tử: Bất kỳ</option>
+                        <option value="even">Toàn chẵn</option>
+                        <option value="odd">Toàn lẻ</option>
+                        <option value="positive">Toàn dương</option>
+                        <option value="negative">Toàn âm</option>
+                        <option value="eq_pos_neg">Âm dương bằng nhau</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <select class="form-select form-select-sm rule-arr-sort" data-rule-id="${id}">
+                        <option value="none">Sắp xếp: Không</option>
+                        <option value="asc">Tăng dần</option>
+                        <option value="desc">Giảm dần</option>
+                    </select>
+                </div>
+            </div>
+            <div class="row g-2">
+                <div class="col-md-3">
+                    <input type="text" class="form-control form-control-sm rule-arr-min" placeholder="Min" value="-100" data-rule-id="${id}">
+                </div>
+                <div class="col-md-3">
+                    <input type="text" class="form-control form-control-sm rule-arr-max" placeholder="Max" value="100" data-rule-id="${id}">
+                </div>
+            </div>
+        `;
+    } else if (type === 'array2d') {
+        html = `
+            <div class="row g-2">
+                <div class="col-md-2">
+                    <input type="text" class="form-control form-control-sm rule-arr2-rows" placeholder="Số dòng" value="3" data-rule-id="${id}">
+                </div>
+                <div class="col-md-2">
+                    <input type="text" class="form-control form-control-sm rule-arr2-cols" placeholder="Số cột" value="3" data-rule-id="${id}">
+                </div>
+                <div class="col-md-2">
+                    <select class="form-select form-select-sm rule-arr2-type" data-rule-id="${id}">
+                        <option value="int">Nguyên</option>
+                        <option value="float">Thực</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <select class="form-select form-select-sm rule-arr2-constraint" data-rule-id="${id}">
+                        <option value="any">Bất kỳ</option>
+                        <option value="positive">Dương</option>
+                        <option value="negative">Âm</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <select class="form-select form-select-sm rule-arr2-sort" data-rule-id="${id}">
+                        <option value="none">Ngẫu nhiên</option>
+                        <option value="asc">Tăng dần (từng dòng)</option>
+                        <option value="desc">Giảm dần (từng dòng)</option>
+                    </select>
+                </div>
+                <div class="col-md-1">
+                    <input type="text" class="form-control form-control-sm rule-arr2-min" placeholder="Min" value="-100" data-rule-id="${id}">
+                </div>
+                <div class="col-md-1">
+                    <input type="text" class="form-control form-control-sm rule-arr2-max" placeholder="Max" value="100" data-rule-id="${id}">
+                </div>
+            </div>
+        `;
+    } else if (type === 'query') {
+        html = `
+            <div class="row g-2 mb-2">
+                <div class="col-md-2">
+                    <input type="text" class="form-control form-control-sm rule-query-count" placeholder="Số lượng (hoặc biến)" value="5" data-rule-id="${id}">
+                </div>
+                <div class="col-md-2">
+                    <input type="text" class="form-control form-control-sm rule-query-k" placeholder="Độ dài (hoặc biến)" value="2" data-rule-id="${id}">
+                </div>
+                <div class="col-md-2">
+                    <select class="form-select form-select-sm rule-query-type" data-rule-id="${id}">
+                        <option value="int">Nguyên</option>
+                        <option value="float">Thực</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <select class="form-select form-select-sm rule-query-constraint" data-rule-id="${id}">
+                        <option value="any">Bất kỳ</option>
+                        <option value="positive">Dương</option>
+                        <option value="negative">Âm</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <select class="form-select form-select-sm rule-query-sort" data-rule-id="${id}">
+                        <option value="none">Ngẫu nhiên</option>
+                        <option value="asc">Tăng dần</option>
+                        <option value="desc">Giảm dần</option>
+                    </select>
+                </div>
+            </div>
+            <div class="row g-2">
+                <div class="col-md-3">
+                    <input type="text" class="form-control form-control-sm rule-query-min" placeholder="Min" value="1" data-rule-id="${id}">
+                </div>
+                <div class="col-md-3">
+                    <input type="text" class="form-control form-control-sm rule-query-max" placeholder="Max" value="100" data-rule-id="${id}">
+                </div>
+            </div>
+        `;
+    } else if (type === 'newline') {
+        html = `<div class="text-muted small">Ký tự xuống dòng (\\n)</div>`;
+    } else if (type === 'space') {
+        html = `<div class="text-muted small">Ký tự khoảng trắng (Space)</div>`;
+    }
+
+    const ruleDiv = document.createElement('div');
+    ruleDiv.className = 'rule-item border p-2 mb-2 bg-white rounded shadow-sm';
+    ruleDiv.setAttribute('data-rule-type', type);
+    ruleDiv.setAttribute('data-rule-id', id);
+    
+    if (type === 'newline' || type === 'space') {
+        ruleDiv.innerHTML = `
+            <div class="d-flex justify-content-between align-items-center">
+                <span class="badge bg-light text-dark border">${type.toUpperCase()}</span>
+                <button type="button" class="btn btn-sm btn-danger py-0 px-2" onclick="this.closest('.rule-item').remove()"><i class="fas fa-times"></i></button>
+            </div>
+            ${html}
+        `;
+    } else {
+        ruleDiv.innerHTML = header + html;
+    }
+    
+    document.getElementById('generatorRules').appendChild(ruleDiv);
+}
+
+function resolveVar(val, varsMap) {
+    if (val === undefined || val === null) return 1;
+    val = val.toString().trim();
+    if (val === '') return 1;
+    if (!isNaN(val)) return parseFloat(val);
+    
+    let expr = val;
+    for (let key in varsMap) {
+        // Thay thế tên biến bằng giá trị (chỉ thay thế cả từ)
+        let regex = new RegExp('\\b' + key + '\\b', 'g');
+        expr = expr.replace(regex, varsMap[key]);
+    }
+    
+    try {
+        // Chỉ cho phép các ký tự an toàn trong biểu thức toán học
+        if (/^[0-9+\-*/().\s]+$/.test(expr)) {
+            return eval(expr);
+        }
+    } catch(e) {
+        console.error("Lỗi parse biểu thức:", val, e);
+    }
+    
+    return varsMap[val] || 1;
+}
+
+function randomNum(type, constraint, min, max) {
+    min = parseFloat(min);
+    max = parseFloat(max);
+    if (min > max) { let tmp = min; min = max; max = tmp; }
+    
+    // Áp dụng constraint
+    if (constraint === 'positive' && min <= 0) min = 1;
+    if (constraint === 'negative' && max >= 0) max = -1;
+    
+    if (type === 'int') {
+        if (constraint === 'even') {
+            let r;
+            let attempts = 0;
+            do { 
+                r = Math.floor(Math.random() * (max - min + 1)) + min; 
+                attempts++;
+            } while(r % 2 !== 0 && min < max && attempts < 100);
+            if (r % 2 !== 0) r = (r % 2 !== 0) ? r + 1 : r;
+            return r;
+        } else if (constraint === 'odd') {
+            let r;
+            let attempts = 0;
+            do { 
+                r = Math.floor(Math.random() * (max - min + 1)) + min; 
+                attempts++;
+            } while(r % 2 === 0 && min < max && attempts < 100);
+            if (r % 2 === 0) r = (r % 2 === 0) ? r + 1 : r;
+            return r;
+        }
+        return Math.floor(Math.random() * (max - min + 1)) + min;
+    } else {
+        let val = Math.random() * (max - min) + min;
+        return Number(val.toFixed(2));
+    }
+}
+
+function randomString(el, lenStr, varsMap) {
+    const len = resolveVar(lenStr, varsMap);
+    let chars = '';
+    
+    if (el.querySelector('.rule-str-lower').checked) chars += 'abcdefghijklmnopqrstuvwxyz';
+    if (el.querySelector('.rule-str-upper').checked) chars += 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    if (el.querySelector('.rule-str-num').checked) chars += '0123456789';
+    
+    const custom = el.querySelector('.rule-str-custom').value;
+    if (custom) chars += custom;
+    
+    if (chars === '') chars = 'abcdefghijklmnopqrstuvwxyz'; // Fallback
+    
+    let res = '';
+    for(let i=0; i<len; i++) {
+        res += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return res;
+}
+
+function generateArrayElements(len, arrType, constraint, sort, min, max) {
+    let arr = [];
+    if (constraint === 'eq_pos_neg') {
+        const half = Math.floor(len / 2);
+        for(let i=0; i<half; i++) arr.push(randomNum(arrType, 'negative', min, max));
+        for(let i=half; i<len; i++) arr.push(randomNum(arrType, 'positive', min, max));
+        if (sort === 'none') {
+            arr.sort(() => Math.random() - 0.5);
+        }
+    } else {
+        for(let i=0; i<len; i++) {
+            arr.push(randomNum(arrType, constraint, min, max));
+        }
+    }
+    
+    if (sort === 'asc') arr.sort((a, b) => a - b);
+    if (sort === 'desc') arr.sort((a, b) => b - a);
+    
+    return arr;
+}
+
+function generateInputs() {
+    const rules = [];
+    document.querySelectorAll('.rule-item').forEach(el => {
+        const type = el.getAttribute('data-rule-type');
+        const id = el.getAttribute('data-rule-id');
+        let rule = { type: type, id: id, el: el };
+        
+        if (type !== 'newline' && type !== 'space') {
+            const varInput = el.querySelector('.rule-var-name');
+            rule.varName = varInput ? varInput.value.trim() : '';
+            const isVisible = el.querySelector('.rule-is-visible');
+            rule.isVisible = isVisible ? isVisible.checked : true;
+        } else {
+            rule.isVisible = true;
+        }
+
+        if (type === 'number') {
+            rule.numType = el.querySelector('.rule-num-type').value;
+            rule.constraint = el.querySelector('.rule-num-constraint').value;
+            rule.min = el.querySelector('.rule-num-min').value || 1;
+            rule.max = el.querySelector('.rule-num-max').value || 100;
+        } else if (type === 'string') {
+            rule.len = el.querySelector('.rule-str-len').value || 10;
+        } else if (type === 'array1d') {
+            rule.len = el.querySelector('.rule-arr-len').value || 10;
+            rule.arrType = el.querySelector('.rule-arr-type').value;
+            rule.constraint = el.querySelector('.rule-arr-constraint').value;
+            rule.sort = el.querySelector('.rule-arr-sort').value;
+            rule.min = el.querySelector('.rule-arr-min').value || -100;
+            rule.max = el.querySelector('.rule-arr-max').value || 100;
+        } else if (type === 'array2d') {
+            rule.rows = el.querySelector('.rule-arr2-rows').value || 3;
+            rule.cols = el.querySelector('.rule-arr2-cols').value || 3;
+            rule.arrType = el.querySelector('.rule-arr2-type').value;
+            rule.constraint = el.querySelector('.rule-arr2-constraint').value;
+            rule.sort = el.querySelector('.rule-arr2-sort').value;
+            rule.min = el.querySelector('.rule-arr2-min').value || -100;
+            rule.max = el.querySelector('.rule-arr2-max').value || 100;
+        } else if (type === 'query') {
+            rule.qCount = el.querySelector('.rule-query-count').value || 1;
+            rule.kCount = el.querySelector('.rule-query-k').value || 1;
+            rule.arrType = el.querySelector('.rule-query-type').value;
+            rule.constraint = el.querySelector('.rule-query-constraint').value;
+            rule.sort = el.querySelector('.rule-query-sort').value;
+            rule.min = el.querySelector('.rule-query-min').value || -100;
+            rule.max = el.querySelector('.rule-query-max').value || 100;
+        }
+        rules.push(rule);
+    });
+
+    if (rules.length === 0) {
+        alert("Vui lòng thêm ít nhất 1 quy tắc sinh input!");
+        return;
+    }
+
+    const count = parseInt(document.getElementById('genCount').value) || 5;
+    let finalOutput = [];
+
+    for(let t=0; t<count; t++) {
+        let varsMap = {};
+        let testcaseTokens = [];
+
+        rules.forEach(rule => {
+            let tokenStr = '';
+            
+            if (rule.type !== 'newline' && rule.type !== 'space' && rule.type !== 'string') {
+                // Tiền xử lý min/max cho các rule liên quan đến số
+                rule.currentMin = resolveVar(rule.min, varsMap);
+                rule.currentMax = resolveVar(rule.max, varsMap);
+            }
+            
+            if (rule.type === 'number') {
+                let val = randomNum(rule.numType, rule.constraint, rule.currentMin, rule.currentMax);
+                if (rule.varName) varsMap[rule.varName] = val;
+                tokenStr = val.toString();
+            } else if (rule.type === 'string') {
+                let val = randomString(rule.el, rule.len, varsMap);
+                if (rule.varName) varsMap[rule.varName] = val;
+                tokenStr = val;
+            } else if (rule.type === 'newline') {
+                tokenStr = '\\n';
+            } else if (rule.type === 'space') {
+                // Not really needed if we space separate, but let's keep it to add extra space
+                tokenStr = ' ';
+            } else if (rule.type === 'array1d') {
+                const len = resolveVar(rule.len, varsMap);
+                let arr = generateArrayElements(len, rule.arrType, rule.constraint, rule.sort, rule.currentMin, rule.currentMax);
+                tokenStr = arr.join(' ');
+            } else if (rule.type === 'array2d') {
+                const r = resolveVar(rule.rows, varsMap);
+                const c = resolveVar(rule.cols, varsMap);
+                let total = r * c;
+                let flatArr = generateArrayElements(total, rule.arrType, rule.constraint, 'none', rule.currentMin, rule.currentMax);
+                let mat = [];
+                for(let i=0; i<r; i++) {
+                    let row = flatArr.slice(i * c, (i + 1) * c);
+                    if (rule.sort === 'asc') row.sort((a, b) => a - b);
+                    if (rule.sort === 'desc') row.sort((a, b) => b - a);
+                    mat.push(row.join(' '));
+                }
+                tokenStr = mat.join('\\n');
+            } else if (rule.type === 'query') {
+                const q = resolveVar(rule.qCount, varsMap);
+                const k = resolveVar(rule.kCount, varsMap);
+                let mat = [];
+                for(let i=0; i<q; i++) {
+                    let row = generateArrayElements(k, rule.arrType, rule.constraint, rule.sort, rule.currentMin, rule.currentMax);
+                    mat.push(row.join(' '));
+                }
+                tokenStr = mat.join('\\n');
+            }
+            
+            if (rule.isVisible && tokenStr !== '') {
+                testcaseTokens.push(tokenStr);
+            }
+        });
+
+        // Ghép các thành phần với dấu cách
+        let tcStr = testcaseTokens.join(' ');
+        
+        // Sửa lại các dấu xuống dòng bị cách trống
+        tcStr = tcStr.replace(/ \\n /g, '\n').replace(/\\n /g, '\n').replace(/ \\n/g, '\n').replace(/\\n/g, '\n');
+        
+        // Loại bỏ khoảng trắng thừa do rule space
+        tcStr = tcStr.replace(/  +/g, ' ').trim();
+        
+        finalOutput.push(tcStr);
+    }
+
+    document.getElementById('inputs_raw').value = finalOutput.join('\n---\n');
+}
+
+document.getElementById('autoTestcaseForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const btn = document.getElementById('btnGenerate');
+    const resultAlert = document.getElementById('resultAlert');
+    
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang xử lý... (Vui lòng chờ)';
+    resultAlert.style.display = 'none';
+
+    const formData = new FormData(this);
+
+    fetch("{% url 'coding_auto_testcase' question.id %}", {
+        method: 'POST',
+        body: formData,
+        headers: {
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        resultAlert.style.display = 'block';
+        if (data.error) {
+            resultAlert.className = 'alert alert-danger mt-3';
+            resultAlert.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Lỗi: ' + data.error;
+        } else if (data.success) {
+            resultAlert.className = 'alert alert-success mt-3';
+            resultAlert.innerHTML = '<i class="fas fa-check-circle"></i> Thành công! Đã tạo tự động ' + data.generated + ' testcases.';
+        }
+    })
+    .catch(error => {
+        resultAlert.style.display = 'block';
+        resultAlert.className = 'alert alert-danger mt-3';
+        resultAlert.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Đã xảy ra lỗi mạng. Vui lòng thử lại.';
+    })
+    .finally(() => {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-cogs"></i> Bắt đầu Sinh Testcases';
+    });
+});
+</script>
+{% endblock %}

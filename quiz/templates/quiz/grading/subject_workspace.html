@@ -1,0 +1,1356 @@
+{% extends 'quiz/grading/layout.html' %}
+{% load quiz_extras %}
+
+{% block grading_title %}Workspace Môn {{ subject.name }} ({{ subject.code }}){% endblock %}
+
+{% block grading_content %}
+<!-- BREADCRUMB & HEADER BANNER -->
+<div class="mb-4">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb mb-1 small">
+            <li class="breadcrumb-item"><a href="{% url 'grading_manage_exams' %}" class="text-decoration-none">Kỳ Thi & Môn Thi</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'grading_manage_exams' %}" class="text-decoration-none">{{ subject.exam_period.name }}</a></li>
+            <li class="breadcrumb-item active" aria-current="page">{{ subject.name }}</li>
+        </ol>
+    </nav>
+    <div class="card border-0 shadow-sm rounded-4 overflow-hidden bg-white">
+        <div class="card-body p-4 d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+            <div>
+                <div class="d-flex align-items-center gap-2 mb-1">
+                    <span class="badge bg-primary font-monospace fs-6 px-3 py-1 rounded-pill">Mã: {{ subject.code }}</span>
+                    <span class="badge bg-light text-secondary border rounded-pill">{{ subject.exam_period.name }}</span>
+                </div>
+                <h3 class="fw-bold mb-1 text-dark">📚 Môn Thi: {{ subject.name }}</h3>
+                <p class="text-muted small mb-0">Quản lý bài chấm, mã đề đáp án, thống kê chi tiết và xuất báo cáo cho môn {{ subject.name }}.</p>
+            </div>
+            <div class="d-flex flex-wrap gap-2">
+                <button type="button" class="btn btn-outline-danger rounded-pill px-3 fw-semibold" onclick="deleteCurrentSubject('{{ subject.id }}', '{{ subject.name|escapejs }}')">
+                    🗑️ Xóa Môn Thi
+                </button>
+                <a href="{% url 'grading_sheet_view' %}?subject_id={{ subject.id }}" class="btn btn-warning btn-lg rounded-pill px-4 fw-bold shadow">
+                    ✍️ CHẤM BÀI MÔN NÀY
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- WORKSPACE 4 TABS NAV -->
+<div class="card border-0 shadow-sm rounded-4 mb-4">
+    <div class="card-body p-2">
+        <ul class="nav grading-nav-pills nav-fill flex-column flex-md-row gap-1">
+            <li class="nav-item">
+                <a class="nav-link {% if active_tab == 'results' %}active{% endif %}" href="?tab=results">
+                    📌 1. Các Bài Đã Chấm ({{ records.count }})
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {% if active_tab == 'keys' %}active{% endif %}" href="?tab=keys">
+                    📝 2. Các Mã Đề & Đáp Án ({{ keys.count }})
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {% if active_tab == 'stats' %}active{% endif %}" href="?tab=stats">
+                    📊 3. Thống Kê Chi Tiết
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {% if active_tab == 'exports' %}active{% endif %}" href="?tab=exports">
+                    📥 4. Xuất Báo Cáo & Ảnh
+                </a>
+            </li>
+        </ul>
+    </div>
+</div>
+
+<!-- TAB 1: CÁC BÀI ĐÃ CHẤM & NÚT CHẤM BÀI -->
+{% if active_tab == 'results' %}
+<div class="card border-0 shadow-sm rounded-4 overflow-hidden mb-4">
+    <div class="card-header bg-white py-3 px-4 d-flex justify-content-between align-items-center border-bottom">
+        <h5 class="fw-bold mb-0 text-dark">📌 Danh Sách Bài Thi Đã Chấm Môn {{ subject.name }}</h5>
+        <a href="{% url 'grading_sheet_view' %}?subject_id={{ subject.id }}" class="btn btn-warning rounded-pill px-4 fw-bold shadow-sm">
+            ✍️ Bắt Đầu Chấm Bài Mới
+        </a>
+    </div>
+    <div class="card-body p-0">
+        {% if records %}
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light text-muted small">
+                    <tr>
+                        <th class="ps-4">SBD / Mã TS</th>
+                        <th>Họ và Tên Thí Sinh</th>
+                        <th>Lớp / Phòng</th>
+                        <th class="text-center">Mã Đề</th>
+                        <th class="text-center">Điểm Số</th>
+                        <th class="text-center">Xếp Loại</th>
+                        <th>Thời Gian Chấm</th>
+                        <th class="text-end pe-4">Thao Tác</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in records %}
+                    <tr id="record-row-{{ r.id }}">
+                        <td class="ps-4">
+                            <span class="badge bg-primary font-monospace px-3 py-1 rounded-pill">{{ r.student_id }}</span>
+                        </td>
+                        <td>
+                            <div class="fw-bold text-dark d-flex align-items-center gap-2">
+                                <span>{{ r.student_name }}</span>
+                                {% if r.annotated_image %}
+                                    <span class="badge bg-info bg-opacity-10 text-info border border-info border-opacity-25 rounded-pill small" title="Có ảnh bài làm scan">📷 Có ảnh</span>
+                                {% endif %}
+                            </div>
+                        </td>
+                        <td>
+                            <span class="badge bg-light text-dark border font-monospace">{{ r.student_class|default:"---" }}</span>
+                        </td>
+                        <td class="text-center">
+                            <span class="badge bg-secondary font-monospace">Đề {{ r.exam_code }}</span>
+                        </td>
+                        <td class="text-center" id="record-score-{{ r.id }}">
+                            <span class="fs-5 fw-bold text-primary">{{ r.total_score }}</span>
+                            <span class="small text-muted">/{{ r.max_score }}</span>
+                        </td>
+                        <td class="text-center" id="record-rank-{{ r.id }}">
+                            {% widthratio r.total_score r.max_score 100 as pct %}
+                            {% if pct >= 85 %}
+                                <span class="badge bg-success bg-opacity-10 text-success fw-bold px-3 py-1 rounded-pill">Xuất sắc</span>
+                            {% elif pct >= 70 %}
+                                <span class="badge bg-primary bg-opacity-10 text-primary fw-bold px-3 py-1 rounded-pill">Khá</span>
+                            {% elif pct >= 50 %}
+                                <span class="badge bg-warning bg-opacity-10 text-warning fw-bold px-3 py-1 rounded-pill">Trung bình</span>
+                            {% else %}
+                                <span class="badge bg-danger bg-opacity-10 text-danger fw-bold px-3 py-1 rounded-pill">Chưa đạt</span>
+                            {% endif %}
+                        </td>
+                        <td class="small text-muted">
+                            {{ r.created_at|date:"H:i d/m/Y" }}
+                        </td>
+                        <td class="text-end pe-4">
+                            <button class="btn btn-sm btn-outline-primary rounded-pill px-3 fw-semibold" onclick="viewRecordDetail('{{ r.id }}')">
+                                🔍 Xem & Chấm lại
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center py-5">
+            <div class="fs-1 mb-2">📋</div>
+            <h5 class="fw-bold text-dark">Chưa có bài thi nào được chấm cho môn {{ subject.name }}</h5>
+            <p class="text-muted small mb-3">Nhấp vào nút bên dưới để chuyển đến giao diện chấm bài.</p>
+            <a href="{% url 'grading_sheet_view' %}?subject_id={{ subject.id }}" class="btn btn-warning btn-lg rounded-pill px-5 fw-bold shadow">
+                ✍️ CHẤM BÀI MÔN NÀY NGAY
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
+<!-- TAB 2: CÁC MÃ ĐỀ & ĐÁP ÁN -->
+{% if active_tab == 'keys' %}
+<div class="card border-0 shadow-sm rounded-4 overflow-hidden mb-4">
+    <div class="card-header bg-white py-3 px-4 d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2 border-bottom">
+        <h5 class="fw-bold mb-0 text-dark">📝 Danh Sách Mã Đề & Đáp Án Môn {{ subject.name }}</h5>
+        <div class="d-flex flex-wrap gap-2 align-items-center">
+            {% if keys %}
+            <button type="button" class="btn btn-outline-danger rounded-pill px-3 fw-semibold d-none" id="btnBatchDeleteKeys" onclick="deleteSelectedKeys()">
+                🗑️ Xóa Đã Chọn (<span id="selectedKeysCount">0</span>)
+            </button>
+            <button type="button" class="btn btn-outline-danger rounded-pill px-3 fw-semibold" id="btnDeleteAllKeys" onclick="deleteAllKeysOfSubject()">
+                🗑️ Xóa Tất Cả Mã Đề
+            </button>
+            {% endif %}
+            <button type="button" class="btn btn-success rounded-pill px-3 fw-bold shadow-sm" data-bs-toggle="modal" data-bs-target="#importKeysExcelModal">
+                📥 Nhập Đáp Án Từ Excel
+            </button>
+            <a href="{% url 'matrix_grid_view_subject' subject.id %}" class="btn btn-outline-primary rounded-pill px-3 fw-semibold">
+                ▦ Xem Lưới Ma Trận
+            </a>
+            <a href="{% url 'grading_key_create' %}?subject_id={{ subject.id }}" class="btn btn-primary rounded-pill px-4 fw-bold">
+                ➕ Nhập Mã Đề Mới
+            </a>
+        </div>
+    </div>
+    <div class="card-body p-0">
+        {% if keys %}
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light text-muted small">
+                    <tr>
+                        <th class="ps-3 text-center" style="width: 40px;">
+                            <input class="form-check-input" type="checkbox" id="selectAllKeys" onchange="toggleSelectAllKeys(this)" title="Chọn tất cả mã đề">
+                        </th>
+                        <th>Mã Đề</th>
+                        <th>Tiêu Đề / Tên Bộ Đề</th>
+                        <th class="text-center">Số Câu</th>
+                        <th class="text-center">SingleChoose</th>
+                        <th class="text-center">Điền Số</th>
+                        <th class="text-center">Điểm Tối Đa</th>
+                        <th class="text-center">Bài Đã Chấm</th>
+                        <th class="text-end pe-4">Thao Tác</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for k in keys %}
+                    <tr id="key-row-{{ k.id }}">
+                        <td class="ps-3 text-center">
+                            <input class="form-check-input key-checkbox" type="checkbox" value="{{ k.id }}" data-code="{{ k.code }}" onchange="updateBatchDeleteBtn()">
+                        </td>
+                        <td>
+                            <span class="badge bg-primary fs-6 font-monospace px-3 py-2 rounded-pill shadow-sm">
+                                Đề {{ k.code }}
+                            </span>
+                        </td>
+                        <td>
+                            <div class="fw-bold text-dark">{{ k.title|default:"Bộ đáp án chính thức" }}</div>
+                        </td>
+                        <td class="text-center">
+                            <span class="badge bg-light text-dark border font-monospace fw-bold px-2 py-1">
+                                {{ k.questions.count }} câu
+                            </span>
+                        </td>
+                        <td class="text-center">
+                            <span class="small text-muted font-monospace">{{ k.score_single }}đ / câu</span>
+                        </td>
+                        <td class="text-center">
+                            <span class="small text-muted font-monospace">{{ k.score_numeric }}đ / câu</span>
+                        </td>
+                        <td class="text-center">
+                            <span class="fs-6 fw-bold text-success">{{ k.max_possible_score }}đ</span>
+                        </td>
+                        <td class="text-center">
+                            <span class="badge bg-info bg-opacity-10 text-info fw-bold px-2 py-1 rounded-pill">
+                                {{ k.submissions.count }} bài
+                            </span>
+                        </td>
+                        <td class="text-end pe-4">
+                            <div class="d-flex justify-content-end gap-1">
+                                <a href="{% url 'grading_sheet_view' %}?key_id={{ k.id }}" class="btn btn-sm btn-warning rounded-pill px-3 fw-bold">
+                                    ✍️ Chấm
+                                </a>
+                                <a href="{% url 'grading_key_edit' k.id %}" class="btn btn-sm btn-outline-primary rounded-pill px-3">
+                                    ✏️ Sửa
+                                </a>
+                                <button type="button" class="btn btn-sm btn-outline-danger rounded-pill px-2 btn-delete-key" 
+                                        data-key-id="{{ k.id }}" 
+                                        data-code="{{ k.code }}" 
+                                        data-submissions-count="{{ k.submissions.count }}"
+                                        title="Xóa mã đề {{ k.code }}">
+                                    🗑️
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center py-5">
+            <div class="fs-1 mb-2">📝</div>
+            <h5 class="fw-bold text-dark">Chưa có Mã đề thi nào cho môn {{ subject.name }}</h5>
+            <p class="text-muted small mb-3">Tạo bộ đáp án mới hoặc nạp hàng loạt từ file Excel để chấm điểm.</p>
+            <div class="d-flex justify-content-center gap-2">
+                <button type="button" class="btn btn-success rounded-pill px-4 fw-bold shadow-sm" data-bs-toggle="modal" data-bs-target="#importKeysExcelModal">
+                    📥 Nhập Từ Excel
+                </button>
+                <a href="{% url 'grading_key_create' %}?subject_id={{ subject.id }}" class="btn btn-primary rounded-pill px-4 fw-bold">
+                    ➕ Nhập Mã Đề Mới
+                </a>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- MODAL IMPORT EXCEL ĐÁP ÁN CHO MÔN THI HIỆN TẠI -->
+<div class="modal fade" id="importKeysExcelModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content rounded-4 border-0 shadow">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title fw-bold text-dark">📥 Tải Bộ Đáp Án Các Mã Đề Môn {{ subject.name }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <form id="formImportKeysExcel" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Môn Thi Hiện Tại</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-light border-secondary border-opacity-25 text-primary">🔒</span>
+                            <input type="text" class="form-control rounded-end-3 bg-light border-secondary border-opacity-25 text-dark fw-bold" 
+                                   value="{{ subject.name }} (Mã môn: {{ subject.code }}) — {{ subject.exam_period.name }}" readonly>
+                        </div>
+                        <input type="hidden" id="excelSubjectId" value="{{ subject.id }}">
+                    </div>
+
+                    <!-- THÔNG BÁO RÀNG BUỘC CẤU HÌNH SỐ CÂU -->
+                    <div class="alert alert-info border-0 rounded-3 mb-3 p-3">
+                        <div class="fw-bold mb-1">⚙️ Ràng buộc số lượng câu hỏi môn {{ subject.name }}:</div>
+                        <ul class="mb-0 small ps-3">
+                            <li><strong>Phần SingleChoose:</strong> Cần đúng <strong>{{ subject.num_single }} câu</strong> ({{ subject.max_score_single }}đ).</li>
+                            <li><strong>Phần TrueFalse (Đúng/Sai):</strong> Cần đúng <strong>{{ subject.num_tf }} câu</strong> ({{ subject.num_tf }}đ).</li>
+                            <li><strong>Phần Điền số thực:</strong> Cần đúng <strong>{{ subject.num_numeric }} câu</strong> ({{ subject.max_score_numeric }}đ).</li>
+                        </ul>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">File Excel Đáp Án (.xlsx, .xls) <span class="text-danger">*</span></label>
+                        <input type="file" id="excelKeyFile" class="form-control rounded-3" accept=".xlsx, .xls" required>
+                        <div class="form-text small">File Excel gồm nhiều mã đề trong 1 Sheet (Mỗi mã đề 1 cột, dòng 1 chứa Mã đề: 101, 102...).</div>
+                    </div>
+
+                    <div class="p-3 bg-light rounded-3 small border mb-4">
+                        <div class="fw-bold text-dark mb-1">💡 Hướng dẫn cấu trúc File Excel:</div>
+                        <ul class="mb-2 ps-3 text-muted">
+                            <li><strong>Dòng 1:</strong> Tiêu đề cột (Cột A: <code>Câu / Loại</code>, Cột B: <code>101</code>, Cột C: <code>102</code>, Cột D: <code>103</code>...)</li>
+                            <li><strong>SingleChoose (A, B, C, D):</strong> Đáp án 1 chữ cái.</li>
+                            <li><strong>TrueFalse (Đ,S,Đ,S):</strong> 4 ý phân cách bởi dấu phẩy.</li>
+                            <li><strong>Số thực:</strong> Giá trị số thực tối đa 4 ký tự (ví dụ <code>1.25</code>, <code>-3.5</code>).</li>
+                        </ul>
+                        <div class="text-end">
+                            <a href="{% url 'download_sample_key_excel' %}" class="btn btn-sm btn-outline-success rounded-pill px-3 fw-bold">
+                                📄 Tải File Excel Đáp Án Mẫu (.xlsx)
+                            </a>
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-end gap-2">
+                        <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">Đóng</button>
+                        <button type="button" id="btnSubmitImportExcel" class="btn btn-success rounded-pill px-4 fw-bold" onclick="submitImportKeysExcel()">
+                            ⚡ Tải Lên & Cập Nhật Đáp Án
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- TAB 3: THỐNG KÊ CHI TIẾT (3 GÓC NHÌN) -->
+{% if active_tab == 'stats' %}
+<div class="card border-0 shadow-sm rounded-4 mb-4">
+    <div class="card-header bg-white py-3 px-4 d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 border-bottom">
+        <h5 class="fw-bold mb-0 text-dark">📊 Thống Kê Điểm Số Môn {{ subject.name }}</h5>
+        <!-- 3 STAT MODES -->
+        <div class="btn-group rounded-pill p-1 bg-light border">
+            <a href="?tab=stats&mode=sbd" class="btn btn-sm rounded-pill fw-bold {% if stat_mode == 'sbd' %}btn-primary text-white{% else %}btn-light text-muted{% endif %}">
+                1. Theo Số Báo Danh (SBD)
+            </a>
+            <a href="?tab=stats&mode=score" class="btn btn-sm rounded-pill fw-bold {% if stat_mode == 'score' %}btn-primary text-white{% else %}btn-light text-muted{% endif %}">
+                2. Theo Số Điểm (Xếp Hạng)
+            </a>
+            <a href="?tab=stats&mode=code" class="btn btn-sm rounded-pill fw-bold {% if stat_mode == 'code' %}btn-primary text-white{% else %}btn-light text-muted{% endif %}">
+                3. Theo Mã Đề Thi
+            </a>
+        </div>
+    </div>
+    <div class="card-body p-4">
+        <!-- MODE 1: SẮP XẾP THEO SBD -->
+        {% if stat_mode == 'sbd' %}
+        <h6 class="fw-bold text-dark mb-3">📋 Bảng Điểm Sắp Xếp Theo Thứ Tự Số Báo Danh (SBD Tăng Dần)</h6>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light text-muted small">
+                    <tr>
+                        <th class="ps-4">SBD</th>
+                        <th>Họ và Tên</th>
+                        <th>Lớp</th>
+                        <th class="text-center">Mã Đề</th>
+                        <th class="text-center">Điểm Đạt được</th>
+                        <th class="text-center">Số Câu Đúng</th>
+                        <th class="text-center">Xếp Loại</th>
+                        <th class="text-center">Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in sbd_records %}
+                    <tr>
+                        <td class="ps-4"><span class="badge bg-primary font-monospace fs-6">{{ r.student_id }}</span></td>
+                        <td class="fw-bold text-dark">{{ r.student_name }}</td>
+                        <td>{{ r.student_class|default:"---" }}</td>
+                        <td class="text-center"><span class="badge bg-secondary font-monospace">Đề {{ r.exam_code }}</span></td>
+                        <td class="text-center"><span class="fs-5 fw-bold text-primary">{{ r.total_score }}</span> / {{ r.max_score }}</td>
+                        <td class="text-center"><span class="badge bg-light text-success border font-monospace fw-bold">{{ r.correct_count }} câu</span></td>
+                        <td class="text-center">
+                            {% widthratio r.total_score r.max_score 100 as pct %}
+                            {% if pct >= 85 %}<span class="badge bg-success bg-opacity-10 text-success fw-bold px-3 py-1 rounded-pill">Xuất sắc</span>
+                            {% elif pct >= 70 %}<span class="badge bg-primary bg-opacity-10 text-primary fw-bold px-3 py-1 rounded-pill">Khá</span>
+                            {% elif pct >= 50 %}<span class="badge bg-warning bg-opacity-10 text-warning fw-bold px-3 py-1 rounded-pill">Trung bình</span>
+                            {% else %}<span class="badge bg-danger bg-opacity-10 text-danger fw-bold px-3 py-1 rounded-pill">Chưa đạt</span>{% endif %}
+                        </td>
+                        <td class="text-center">
+                            <button class="btn btn-sm btn-outline-danger border-0 rounded-circle" onclick="deleteGradedRecord('{{ r.id }}', '{{ r.student_name|escapejs }}')" title="Xóa bài chấm này">
+                                🗑️
+                            </button>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="7" class="text-center py-4 text-muted">Chưa có bài thi nào được chấm.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+
+        <!-- MODE 2: SẮP XẾP THEO SỐ ĐIỂM (XẾP HẠNG & PHỔ ĐIỂM) -->
+        {% if stat_mode == 'score' %}
+        <!-- PHỔ ĐIỂM SUMMARY CARDS -->
+        <div class="row g-3 mb-4">
+            <div class="col-sm-6 col-md-3">
+                <div class="p-3 border rounded-3 bg-success bg-opacity-10 text-success">
+                    <div class="small text-uppercase fw-bold">Xuất Sắc (>=8.5đ)</div>
+                    <div class="fs-3 fw-bold">{{ rank_counts.excellent }} thí sinh</div>
+                </div>
+            </div>
+            <div class="col-sm-6 col-md-3">
+                <div class="p-3 border rounded-3 bg-primary bg-opacity-10 text-primary">
+                    <div class="small text-uppercase fw-bold">Khá (7.0đ - 8.4đ)</div>
+                    <div class="fs-3 fw-bold">{{ rank_counts.good }} thí sinh</div>
+                </div>
+            </div>
+            <div class="col-sm-6 col-md-3">
+                <div class="p-3 border rounded-3 bg-warning bg-opacity-10 text-warning">
+                    <div class="small text-uppercase fw-bold">Trung Bình (5.0đ - 6.9đ)</div>
+                    <div class="fs-3 fw-bold">{{ rank_counts.average }} thí sinh</div>
+                </div>
+            </div>
+            <div class="col-sm-6 col-md-3">
+                <div class="p-3 border rounded-3 bg-danger bg-opacity-10 text-danger">
+                    <div class="small text-uppercase fw-bold">Chưa Đạt (<5.0đ)</div>
+                    <div class="fs-3 fw-bold">{{ rank_counts.weak }} thí sinh</div>
+                </div>
+            </div>
+        </div>
+
+        <h6 class="fw-bold text-dark mb-3">🏆 Bảng Xếp Hạng Thí Sinh (Điểm Cao Xuống Thấp)</h6>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light text-muted small">
+                    <tr>
+                        <th class="ps-4">Hạng</th>
+                        <th>Họ và Tên</th>
+                        <th>SBD</th>
+                        <th>Lớp</th>
+                        <th class="text-center">Mã Đề</th>
+                        <th class="text-center">Điểm Thi</th>
+                        <th class="text-center">Xếp Loại</th>
+                        <th class="text-center">Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in score_records %}
+                    <tr>
+                        <td class="ps-4">
+                            {% if forloop.counter == 1 %}<span class="fs-5">🥇</span>
+                            {% elif forloop.counter == 2 %}<span class="fs-5">🥈</span>
+                            {% elif forloop.counter == 3 %}<span class="fs-5">🥉</span>
+                            {% else %}<span class="fw-bold text-muted">#{{ forloop.counter }}</span>{% endif %}
+                        </td>
+                        <td class="fw-bold text-dark">{{ r.student_name }}</td>
+                        <td><span class="badge bg-light text-dark border font-monospace">{{ r.student_id }}</span></td>
+                        <td>{{ r.student_class|default:"---" }}</td>
+                        <td class="text-center"><span class="badge bg-secondary font-monospace">Đề {{ r.exam_code }}</span></td>
+                        <td class="text-center"><span class="fs-4 fw-bold text-primary">{{ r.total_score }}</span> / {{ r.max_score }}</td>
+                        <td class="text-center">
+                            {% widthratio r.total_score r.max_score 100 as pct %}
+                            {% if pct >= 85 %}<span class="badge bg-success bg-opacity-10 text-success fw-bold px-3 py-1 rounded-pill">Xuất sắc</span>
+                            {% elif pct >= 70 %}<span class="badge bg-primary bg-opacity-10 text-primary fw-bold px-3 py-1 rounded-pill">Khá</span>
+                            {% elif pct >= 50 %}<span class="badge bg-warning bg-opacity-10 text-warning fw-bold px-3 py-1 rounded-pill">Trung bình</span>
+                            {% else %}<span class="badge bg-danger bg-opacity-10 text-danger fw-bold px-3 py-1 rounded-pill">Chưa đạt</span>{% endif %}
+                        </td>
+                        <td class="text-center">
+                            <button class="btn btn-sm btn-outline-danger border-0 rounded-circle" 
+                                    data-id="{{ r.id }}" 
+                                    data-name="{{ r.student_name }}" 
+                                    onclick="deleteGradedRecord(this.dataset.id, this.dataset.name)" 
+                                    title="Xóa bài chấm này">
+                                🗑️
+                            </button>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="7" class="text-center py-4 text-muted">Chưa có bài thi nào được chấm.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+
+        <!-- MODE 3: THỐNG KÊ THEO MÃ ĐỀ THI -->
+        {% if stat_mode == 'code' %}
+        <h6 class="fw-bold text-dark mb-3">📌 Thống Kê Bài Chấm & Điểm Trung Bình Phân Theo Mã Đề Thi</h6>
+        <div class="row g-3">
+            {% for cs in code_stats %}
+            <div class="col-12 col-lg-6">
+                <div class="card border-0 shadow-sm rounded-4 p-4 bg-white">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <span class="badge bg-primary fs-5 font-monospace px-3 py-2 rounded-pill">
+                            Đề {{ cs.exam_code }}
+                        </span>
+                        <span class="badge bg-light text-dark border fw-bold px-3 py-1 rounded-pill">
+                            {{ cs.count }} bài đã chấm
+                        </span>
+                    </div>
+                    <div class="row g-2 text-center border-top pt-3">
+                        <div class="col-4 border-end">
+                            <div class="small text-muted">Điểm TB</div>
+                            <div class="fw-bold text-primary fs-5">{{ cs.avg_score|floatformat:2 }}</div>
+                        </div>
+                        <div class="col-4 border-end">
+                            <div class="small text-muted">Cao Nhất</div>
+                            <div class="fw-bold text-success fs-5">{{ cs.max_score }}</div>
+                        </div>
+                        <div class="col-4">
+                            <div class="small text-muted">Thấp Nhất</div>
+                            <div class="fw-bold text-danger fs-5">{{ cs.min_score }}</div>
+                        </div>
+                    </div>
+                    
+                    <div class="text-center mt-3 pt-3 border-top">
+                        <button class="btn btn-outline-primary btn-sm rounded-pill px-4 fw-bold" type="button" data-bs-toggle="collapse" data-bs-target="#collapseQStats_{{ forloop.counter }}">
+                            📊 Xem Chi Tiết Từng Câu
+                        </button>
+                    </div>
+                    
+                    <div class="collapse mt-3" id="collapseQStats_{{ forloop.counter }}">
+                        <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                            <table class="table table-hover table-bordered text-center align-middle mb-0 small" style="position: relative;">
+                                <thead class="table-light" style="position: sticky; top: 0; z-index: 1;">
+                                    <tr>
+                                        <th style="cursor:pointer;" onclick="sortQStats('{{ cs.exam_code|escapejs }}', 'number', '{{ forloop.counter }}')">STT Câu <span id="sort_ico_{{ forloop.counter }}_number">↕</span></th>
+                                        <th>Loại Câu</th>
+                                        <th style="cursor:pointer;" onclick="sortQStats('{{ cs.exam_code|escapejs }}', 'correct', '{{ forloop.counter }}')">Số Bài Đúng <span id="sort_ico_{{ forloop.counter }}_correct">↕</span></th>
+                                        <th style="cursor:pointer;" onclick="sortQStats('{{ cs.exam_code|escapejs }}', 'ratio', '{{ forloop.counter }}')">Tỷ Lệ <span id="sort_ico_{{ forloop.counter }}_ratio">↕</span></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tbodyQStats_{{ forloop.counter }}">
+                                    <!-- Rendered by JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% empty %}
+            <div class="col-12 text-center py-4 text-muted">Chưa có mã đề nào được chấm bài.</div>
+            {% endfor %}
+        </div>
+        
+        <script>
+            const codeQuestionStats = JSON.parse('{{ code_question_stats|escapejs|default:"{}" }}');
+            const sortStates = {}; // code -> { col: 'number', asc: true }
+
+            function renderQStatsTable(codeRaw, tableIdx) {
+                const tbody = document.getElementById(`tbodyQStats_${tableIdx}`);
+                if (!tbody) return;
+                const data = codeQuestionStats[codeRaw] || [];
+                
+                tbody.innerHTML = data.map(q => {
+                    let typeBadge = '';
+                    if (q.type === 'SINGLE') typeBadge = '<span class="badge bg-primary bg-opacity-10 text-primary">TRẮC NGHIỆM</span>';
+                    else if (q.type === 'TF') typeBadge = '<span class="badge bg-success bg-opacity-10 text-success">ĐÚNG / SAI</span>';
+                    else if (q.type === 'NUMERIC') typeBadge = '<span class="badge bg-info bg-opacity-10 text-info">ĐIỀN KHUYẾT</span>';
+                    else typeBadge = `<span class="badge bg-secondary bg-opacity-10 text-secondary">${q.type}</span>`;
+                    
+                    return `
+                        <tr>
+                            <td class="fw-bold font-monospace">Câu ${q.number}</td>
+                            <td>${typeBadge}</td>
+                            <td class="fw-bold text-primary">${q.correct} <span class="text-muted fw-normal">/ ${q.total}</span></td>
+                            <td>
+                                <span class="${q.ratio >= 50 ? 'text-success' : 'text-danger'} fw-bold">${q.ratio}%</span>
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+            }
+
+            function sortQStats(codeRaw, colKey, tableIdx) {
+                if (!sortStates[codeRaw]) sortStates[codeRaw] = { col: 'number', asc: true };
+                
+                if (sortStates[codeRaw].col === colKey) {
+                    sortStates[codeRaw].asc = !sortStates[codeRaw].asc;
+                } else {
+                    sortStates[codeRaw].col = colKey;
+                    sortStates[codeRaw].asc = (colKey === 'number'); // default asc for STT, desc for others
+                }
+
+                const data = codeQuestionStats[codeRaw] || [];
+                data.sort((a, b) => {
+                    let valA = a[colKey];
+                    let valB = b[colKey];
+                    if (valA < valB) return sortStates[codeRaw].asc ? -1 : 1;
+                    if (valA > valB) return sortStates[codeRaw].asc ? 1 : -1;
+                    return 0;
+                });
+                
+                // Update icons
+                ['number', 'correct', 'ratio'].forEach(k => {
+                    const el = document.getElementById(`sort_ico_${tableIdx}_${k}`);
+                    if (el) {
+                        if (k === colKey) {
+                            el.innerHTML = sortStates[codeRaw].asc ? '↑' : '↓';
+                            el.className = 'text-primary fw-bold';
+                        } else {
+                            el.innerHTML = '↕';
+                            el.className = 'text-muted';
+                        }
+                    }
+                });
+
+                renderQStatsTable(codeRaw, tableIdx);
+            }
+
+            // Init tables
+            document.addEventListener("DOMContentLoaded", function() {
+                // {% for cs in code_stats %}
+                renderQStatsTable('{{ cs.exam_code|escapejs }}', '{{ forloop.counter }}');
+                // {% endfor %}
+            });
+        </script>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
+<!-- TAB 4: XUẤT BÁO CÁO (PDF / EXCEL / ZIP) -->
+{% if active_tab == 'exports' %}
+<div class="card border-0 shadow-sm rounded-4 mb-4">
+    <div class="card-header bg-white py-3 px-4 border-bottom">
+        <h5 class="fw-bold mb-0 text-dark">📥 Xuất Báo Cáo Bảng Điểm & Tải File Ảnh Phiếu Thi</h5>
+    </div>
+    <div class="card-body p-4">
+        <div class="row g-4">
+            <!-- EXPORT PDF -->
+            <div class="col-md-4">
+                <div class="card border-0 shadow-sm rounded-4 h-100 p-4 text-center bg-light">
+                    <div class="fs-1 text-danger mb-2">📄</div>
+                    <h5 class="fw-bold text-dark">Xuất Bảng Điểm PDF</h5>
+                    <p class="small text-muted mb-4">Xuất trang báo cáo bảng điểm chính thức môn {{ subject.name }} khổ giấy A4 sẵn sàng in ấn.</p>
+                    <a href="{% url 'export_grading_results_pdf' subject.id %}" class="btn btn-danger rounded-pill px-4 fw-bold mt-auto shadow-sm">
+                        📄 Tải Báo Cáo PDF
+                    </a>
+                </div>
+            </div>
+
+            <!-- EXPORT EXCEL -->
+            <div class="col-md-4">
+                <div class="card border-0 shadow-sm rounded-4 h-100 p-4 text-center bg-light">
+                    <div class="fs-1 text-success mb-2">📊</div>
+                    <h5 class="fw-bold text-dark">Xuất Bảng Điểm Excel</h5>
+                    <p class="small text-muted mb-4">Xuất toàn bộ bảng điểm danh sách thí sinh kèm số câu đúng và xếp loại dạng .xlsx.</p>
+                    <a href="{% url 'export_grading_results_excel' %}?subject_id={{ subject.id }}" class="btn btn-success rounded-pill px-4 fw-bold mt-auto shadow-sm">
+                        📊 Tải Bảng Điểm Excel
+                    </a>
+                </div>
+            </div>
+
+            <!-- EXPORT PDF WITH IMAGES -->
+            <div class="col-md-4">
+                <div class="card border-0 shadow-sm rounded-4 h-100 p-4 text-center bg-light">
+                    <div class="fs-1 text-primary mb-2">🖼️</div>
+                    <h5 class="fw-bold text-dark">Xuất Bảng Điểm & Ảnh (PDF)</h5>
+                    <p class="small text-muted mb-4">Xuất toàn bộ bảng điểm kèm theo tất cả ảnh bài làm của thí sinh vào 1 file PDF để dễ dàng xem trên mọi thiết bị.</p>
+                    <a href="{% url 'export_grading_results_pdf' subject.id %}?include_images=1" class="btn btn-primary rounded-pill px-4 fw-bold mt-auto shadow-sm">
+                        📄 Tải PDF (Bảng điểm & Ảnh)
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- ENHANCED RECORD DETAIL & RE-GRADING MODAL -->
+<div class="modal fade" id="detailModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-xl modal-fullscreen-lg-down">
+        <div class="modal-content rounded-4 border-0 shadow-lg overflow-hidden">
+            <div class="modal-header bg-dark text-white border-0 py-3 px-4 d-flex align-items-center justify-content-between">
+                <div class="d-flex align-items-center gap-3">
+                    <span class="fs-4">📋</span>
+                    <div>
+                        <h5 class="modal-title fw-bold mb-0 text-white" id="modalStudentTitle">Chi Tiết Bài Chấm & Sửa Đáp Án</h5>
+                        <small class="text-white-50" id="modalSubtitle">Xem lại ảnh bài thi và chấm lại kết quả</small>
+                    </div>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <span class="badge bg-primary fs-6 px-3 py-2 rounded-pill" id="modalHeaderScore">0.0 / 10.0đ</span>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+            </div>
+            <div class="modal-body p-0" id="detailModalBody">
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <div class="mt-2 text-muted">Đang tải thông tin bài chấm...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let currentModalRecordId = null;
+let currentModalRecord = null;
+let currentModalAnswers = {};
+let currentModalZoom = 1.0;
+
+function adjustZoom(delta) {
+    currentModalZoom = Math.max(0.5, Math.min(3.0, currentModalZoom + delta));
+    const img = document.getElementById('imgModalSheet');
+    if (img) {
+        img.style.transform = `scale(${currentModalZoom})`;
+    }
+}
+
+function resetZoom() {
+    currentModalZoom = 1.0;
+    const img = document.getElementById('imgModalSheet');
+    if (img) {
+        img.style.transform = 'scale(1)';
+    }
+}
+
+function viewRecordDetail(recordId) {
+    currentModalRecordId = recordId;
+    currentModalZoom = 1.0;
+    const modalEl = document.getElementById('detailModal');
+    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    modal.show();
+
+    const body = document.getElementById('detailModalBody');
+    body.innerHTML = `
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status"></div>
+            <div class="mt-2 text-muted">Đang tải bài thi và ảnh nhận diện...</div>
+        </div>
+    `;
+
+    fetch(`/cham-trac-nghiem/api/chi-tiet-bai-cham/${recordId}/`, {
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.status === 'success') {
+            currentModalRecord = data.record;
+            currentModalAnswers = JSON.parse(JSON.stringify(data.record.student_answers || {}));
+            renderRecordDetailModal(data.record);
+        } else {
+            body.innerHTML = `<div class="alert alert-danger m-4">${data.message || 'Lỗi tải dữ liệu bài chấm.'}</div>`;
+        }
+    })
+    .catch(err => {
+        body.innerHTML = `<div class="alert alert-danger m-4">Lỗi kết nối máy chủ: ${err}</div>`;
+    });
+}
+
+function renderRecordDetailModal(rec) {
+    document.getElementById('modalStudentTitle').textContent = `${rec.student_name} (SBD: ${rec.student_id})`;
+    document.getElementById('modalSubtitle').textContent = `Môn: ${rec.subject_name} &bull; Đề ${rec.exam_code} &bull; Ngày chấm: ${rec.graded_at}`;
+    document.getElementById('modalHeaderScore').textContent = `${rec.total_score} / ${rec.max_score}đ (${rec.percent}%)`;
+
+    const body = document.getElementById('detailModalBody');
+    const hasImage = !!rec.annotated_image_url || !!rec.original_image_url;
+    const displayImgUrl = rec.annotated_image_url || rec.original_image_url || '';
+
+    body.innerHTML = `
+        <div class="row g-0">
+            <!-- CỘT TRÁI: ẢNH BÀI LÀM ĐÃ CHẤM (VẼ VÙNG NHẬN DIỆN OMR) -->
+            <div class="col-lg-6 col-xl-7 bg-dark border-end d-flex flex-column" style="min-height: 580px;">
+                <!-- Toolbar ảnh -->
+                <div class="p-2 px-3 bg-white border-bottom d-flex flex-wrap justify-content-between align-items-center gap-2">
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="fw-bold text-dark small">📸 Ảnh Phiếu Thi (Vùng Nhận Diện OMR)</span>
+                        <span class="badge ${hasImage ? 'bg-success' : 'bg-secondary'} rounded-pill font-monospace" id="modalImgBadge">
+                            ${hasImage ? '✓ Đã vẽ nhận diện' : 'Chưa có ảnh'}
+                        </span>
+                    </div>
+                    <div class="d-flex align-items-center gap-1">
+                        <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill px-2" onclick="adjustZoom(-0.2)" title="Thu nhỏ">➖</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill px-2" onclick="resetZoom()" title="Về 100%">100%</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill px-2" onclick="adjustZoom(0.2)" title="Phóng to">➕</button>
+                        <a id="modalImgNewTabBtn" href="${displayImgUrl || '#'}" target="_blank" class="btn btn-sm btn-outline-primary rounded-pill px-2 ${hasImage ? '' : 'disabled'}" title="Mở ảnh kích thước gốc trong tab mới">
+                            ↗️ Tab mới
+                        </a>
+                        <label class="btn btn-sm btn-outline-warning text-dark fw-bold rounded-pill px-2 mb-0" style="cursor: pointer;" title="Tải lên ảnh bài thi để hệ thống nhận diện lại">
+                            📁 Tải/Đổi Ảnh
+                            <input type="file" accept="image/jpeg,image/tiff,image/png" onchange="uploadModalSheetImage(this.files[0])" class="d-none">
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Khung hiển thị ảnh có Zoom / Pan -->
+                <div class="flex-grow-1 p-3 d-flex align-items-center justify-content-center position-relative overflow-auto" id="modalImageWrapper" style="max-height: 72vh; min-height: 480px; background: #121416;">
+                    <img id="imgModalSheet" src="${displayImgUrl}" alt="Ảnh phiếu thi" class="img-fluid rounded shadow transition-all ${hasImage ? '' : 'd-none'}" style="max-height: 70vh; object-fit: contain; transform-origin: top center; transition: transform 0.15s ease;" />
+                    
+                    <div id="modalNoImageAlert" class="text-center text-white py-5 ${hasImage ? 'd-none' : ''}">
+                        <div class="fs-1 mb-2">📄</div>
+                        <h6 class="fw-bold">Chưa có file ảnh bài làm đính kèm</h6>
+                        <p class="text-white-50 small mb-3">Bài thi này được chấm trước đây hoặc chưa nạp ảnh scan.</p>
+                        <label class="btn btn-warning text-dark fw-bold rounded-pill px-4 shadow-sm">
+                            📁 Tải Lên Ảnh Phiếu Thi
+                            <input type="file" accept="image/jpeg,image/tiff,image/png" onchange="uploadModalSheetImage(this.files[0])" class="d-none">
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CỘT PHẢI: BẢNG SỬA TRỰC TIẾP ĐÁP ÁN & CHẤM LẠI -->
+            <div class="col-lg-6 col-xl-5 d-flex flex-column bg-white" style="min-height: 580px;">
+                <!-- Thông tin thí sinh tóm tắt -->
+                <div class="p-3 border-bottom bg-light">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <div>
+                            <h5 class="fw-bold text-dark mb-0" id="txtModalName">${rec.student_name}</h5>
+                            <div class="small text-muted">
+                                SBD: <span class="font-monospace fw-bold text-dark" id="txtModalSbd">${rec.student_id}</span> &bull; 
+                                Lớp: <span class="fw-semibold text-dark" id="txtModalClass">${rec.student_class || '---'}</span>
+                            </div>
+                        </div>
+                        <div class="text-end">
+                            <div class="fs-4 fw-bold text-primary" id="txtModalScore">${rec.total_score} <small class="text-muted fs-6">/${rec.max_score}đ</small></div>
+                            <span class="badge bg-primary bg-opacity-10 text-primary fw-bold px-3 py-1 rounded-pill" id="txtModalRankBadge">${rec.percent}%</span>
+                        </div>
+                    </div>
+                    <div class="d-flex flex-wrap justify-content-between align-items-center small text-muted">
+                        <span>Mã đề: <span class="badge bg-secondary font-monospace">Đề ${rec.exam_code}</span></span>
+                        <span>Đúng tuyệt đối: <strong class="text-success" id="txtModalCorrect">${rec.correct_count}</strong> câu</span>
+                    </div>
+                </div>
+
+                <!-- Thông báo khi chấm lại thành công -->
+                <div id="regradeAlert" class="mx-3 mt-2 alert alert-success d-none py-2 px-3 small rounded-3 border-success"></div>
+
+                <!-- Danh sách câu hỏi có thể chỉnh sửa trực tiếp -->
+                <div class="p-3 bg-white border-bottom d-flex justify-content-between align-items-center">
+                    <span class="fw-bold text-dark small">✏️ DANH SÁCH ĐÁP ÁN (BẤM ĐỂ ĐỔI)</span>
+                    <small class="text-muted">Click chọn đáp án thí sinh thực tế tô</small>
+                </div>
+
+                <div class="flex-grow-1 p-3 overflow-auto" id="modalQuestionsList" style="max-height: 50vh;">
+                    ${renderQuestionsEditor(rec.questions || [], currentModalAnswers, rec.details || [])}
+                </div>
+
+                <!-- Footer hành động -->
+                <div class="p-3 border-top bg-light mt-auto d-flex gap-2">
+                    <button type="button" class="btn btn-secondary rounded-pill px-4" data-bs-dismiss="modal">Đóng</button>
+                    <button type="button" class="btn btn-warning text-dark fw-bold rounded-pill px-4 shadow-sm flex-grow-1" id="btnRegradeSubmit" onclick="submitRegrade()">
+                        ⚡ CHẤM LẠI & CẬP NHẬT ĐIỂM
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function renderQuestionsEditor(questions, answers, details) {
+    if (!questions || questions.length === 0) {
+        return '<div class="text-center text-muted py-4">Không tìm thấy câu hỏi của đề thi.</div>';
+    }
+
+    const detailMap = {};
+    if (details && details.length > 0) {
+        details.forEach(d => { detailMap[d.number] = d; });
+    }
+
+    let html = '';
+
+    questions.forEach(q => {
+        const qNum = String(q.number);
+        const ans = answers[qNum];
+        const d = detailMap[q.number] || {};
+        const isCorr = d.is_correct || false;
+        const qScore = d.score !== undefined ? d.score : 0;
+        const qMax = q.score_weight || (q.type === 'TF' ? 1.0 : 0.25);
+
+        let isError = false;
+        if (q.type === 'SINGLE') {
+            const uOpts = String(ans || '').toUpperCase().split(',').map(s=>s.trim()).filter(s=>s);
+            if (uOpts.length !== 1 || !['A','B','C','D'].includes(uOpts[0])) isError = true;
+        } else if (q.type === 'TF') {
+            if (!ans || typeof ans !== 'object') {
+                isError = true;
+            } else {
+                ['a','b','c','d'].forEach(sub => {
+                    if (ans[sub] === undefined || ans[sub] === null || String(ans[sub]) === 'ERROR') isError = true;
+                });
+            }
+        } else if (q.type === 'NUMERIC') {
+            if (!ans || String(ans).trim() === '' || String(ans).includes('ERROR')) isError = true;
+        }
+
+        let cardCls = 'bg-light';
+        if (isError) cardCls = 'border-danger bg-danger bg-opacity-10';
+        else if (isCorr) cardCls = 'border-success bg-success bg-opacity-10';
+
+        html += `
+            <div class="p-2 mb-2 rounded-3 border ${cardCls}" id="q_card_${q.number}">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                    <span class="fw-bold text-dark small">
+                        Câu ${q.number} 
+                        <span class="badge bg-secondary font-monospace" style="font-size: 0.7rem;">${q.type}</span>
+                    </span>
+                    <div class="d-flex align-items-center gap-1">
+                        <span class="small fw-bold ${qScore > 0 ? 'text-success' : 'text-danger'}" id="q_score_${q.number}">+${qScore}/${qMax}đ</span>
+                    </div>
+                </div>
+        `;
+
+        if (q.type === 'SINGLE') {
+            const correctOpt = (q.correct_single || '').toUpperCase();
+            html += `
+                <div class="d-flex align-items-center justify-content-between gap-2 mt-1">
+                    <div class="btn-group btn-group-sm" role="group">
+                        ${['A', 'B', 'C', 'D'].map(opt => {
+                            const uOpts = String(ans || '').toUpperCase().split(',').map(s=>s.trim()).filter(s=>s);
+                            const isSelected = uOpts.includes(opt);
+                            let btnCls = 'btn-outline-secondary';
+                            if (isSelected) {
+                                if (uOpts.length > 1) {
+                                    btnCls = 'btn-danger text-white fw-bold';
+                                } else if (opt === correctOpt) {
+                                    btnCls = 'btn-success text-white fw-bold';
+                                } else {
+                                    btnCls = 'btn-primary text-white fw-bold';
+                                }
+                            }
+                            return `<button type="button" class="btn btn-sm ${btnCls} font-monospace px-2" onclick="setSingleAnswer(${q.number}, '${opt}')">${opt}</button>`;
+                        }).join('')}
+                        <button type="button" class="btn btn-sm btn-outline-dark px-1" onclick="setSingleAnswer(${q.number}, '')" title="Bỏ chọn">✕</button>
+                    </div>
+                    <div class="small">
+                        Đ/A chuẩn: <span class="badge bg-success font-monospace">${correctOpt || '---'}</span>
+                    </div>
+                </div>
+            `;
+        } else if (q.type === 'TF') {
+            const corrTf = q.correct_tf || {};
+            const userTf = (typeof ans === 'object' && ans !== null) ? ans : {};
+            html += `
+                <div class="mt-1 d-flex flex-column gap-1">
+                    ${['a', 'b', 'c', 'd'].map(sub => {
+                        const uVal = userTf[sub];
+                        const expVal = corrTf[sub];
+                        const expText = expVal === true || expVal === 'True' || expVal === '1' ? 'Đúng' : (expVal === false || expVal === 'False' || expVal === '0' ? 'Sai' : '-');
+                        
+                        const isDung = (uVal === true || uVal === 'true' || uVal === '1' || uVal === 'T' || uVal === 'Đ');
+                        const isSai = (uVal === false || uVal === 'false' || uVal === '0' || uVal === 'F' || uVal === 'S');
+
+                        return `
+                            <div class="d-flex align-items-center justify-content-between small">
+                                <span class="font-monospace fw-bold">${sub})</span>
+                                <div class="btn-group btn-group-sm" role="group">
+                                    <button type="button" class="btn btn-sm ${isDung ? 'btn-primary fw-bold text-white' : 'btn-outline-secondary'} py-0 px-2" onclick="setTfAnswer(${q.number}, '${sub}', true)">Đúng</button>
+                                    <button type="button" class="btn btn-sm ${isSai ? 'btn-dark fw-bold text-white' : 'btn-outline-secondary'} py-0 px-2" onclick="setTfAnswer(${q.number}, '${sub}', false)">Sai</button>
+                                    <button type="button" class="btn btn-sm btn-outline-dark py-0 px-1" onclick="setTfAnswer(${q.number}, '${sub}', null)">-</button>
+                                </div>
+                                <span class="text-muted" style="font-size: 0.75rem;">Đề: <strong>${expText}</strong></span>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            `;
+        } else if (q.type === 'NUMERIC') {
+            const corrNum = q.correct_numeric || '';
+            html += `
+                <div class="d-flex align-items-center gap-2 mt-1">
+                    <input type="text" class="form-control form-control-sm font-monospace fw-bold" value="${ans || ''}" placeholder="Nhập số..." oninput="setNumericAnswer(${q.number}, this.value)" style="max-width: 140px;">
+                    <div class="small ms-auto">
+                        Đ/A chuẩn: <span class="badge bg-success font-monospace">${corrNum || '---'}</span>
+                    </div>
+                </div>
+            `;
+        }
+
+        html += `</div>`;
+    });
+
+    return html;
+}
+
+function setSingleAnswer(qNum, opt) {
+    if (!opt) {
+        delete currentModalAnswers[String(qNum)];
+    } else {
+        currentModalAnswers[String(qNum)] = opt;
+    }
+    refreshQuestionsUI();
+}
+
+function setTfAnswer(qNum, sub, val) {
+    const key = String(qNum);
+    if (!currentModalAnswers[key] || typeof currentModalAnswers[key] !== 'object') {
+        currentModalAnswers[key] = {};
+    }
+    if (val === null) {
+        delete currentModalAnswers[key][sub];
+    } else {
+        currentModalAnswers[key][sub] = val;
+    }
+    refreshQuestionsUI();
+}
+
+function setNumericAnswer(qNum, val) {
+    const key = String(qNum);
+    const clean = val.trim();
+    if (!clean) {
+        delete currentModalAnswers[key];
+    } else {
+        currentModalAnswers[key] = clean;
+    }
+}
+
+function refreshQuestionsUI() {
+    if (!currentModalRecord) return;
+    const container = document.getElementById('modalQuestionsList');
+    if (container) {
+        container.innerHTML = renderQuestionsEditor(
+            currentModalRecord.questions || [],
+            currentModalAnswers,
+            currentModalRecord.details || []
+        );
+    }
+}
+
+function submitRegrade() {
+    if (!currentModalRecordId) return;
+
+    const btn = document.getElementById('btnRegradeSubmit');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Đang chấm lại...';
+
+    const payload = {
+        answers: currentModalAnswers
+    };
+
+    fetch(`/cham-trac-nghiem/api/cham-lai/${currentModalRecordId}/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': '{{ csrf_token }}',
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: JSON.stringify(payload)
+    })
+    .then(r => r.json())
+    .then(data => {
+        btn.disabled = false;
+        btn.innerHTML = '⚡ CHẤM LẠI & CẬP NHẬT ĐIỂM';
+
+        if (data.status === 'success') {
+            const rec = data.record;
+            currentModalRecord.total_score = rec.total_score;
+            currentModalRecord.correct_count = rec.correct_count;
+            currentModalRecord.percent = rec.percent;
+            currentModalRecord.details = rec.details;
+            if (rec.annotated_image_url) {
+                currentModalRecord.annotated_image_url = rec.annotated_image_url;
+                const img = document.getElementById('imgModalSheet');
+                if (img) img.src = rec.annotated_image_url;
+            }
+
+            // Cập nhật giao diện modal
+            document.getElementById('modalHeaderScore').textContent = `${rec.total_score} / ${rec.max_score}đ (${rec.percent}%)`;
+            document.getElementById('txtModalScore').innerHTML = `${rec.total_score} <small class="text-muted fs-6">/${rec.max_score}đ</small>`;
+            document.getElementById('txtModalCorrect').textContent = rec.correct_count;
+            document.getElementById('txtModalRankBadge').innerHTML = `<span class="badge bg-${rec.badge} text-white fw-bold px-3 py-1 rounded-pill">${rec.rank} (${rec.percent}%)</span>`;
+
+            // Cập nhật dòng của thí sinh trên bảng danh sách bên ngoài
+            const scoreCell = document.getElementById(`record-score-${rec.id}`);
+            if (scoreCell) {
+                scoreCell.innerHTML = `<span class="fs-5 fw-bold text-primary">${rec.total_score}</span><span class="small text-muted">/${rec.max_score}</span>`;
+            }
+            const rankCell = document.getElementById(`record-rank-${rec.id}`);
+            if (rankCell) {
+                rankCell.innerHTML = `<span class="badge bg-${rec.badge} bg-opacity-10 text-${rec.badge} fw-bold px-3 py-1 rounded-pill">${rec.rank}</span>`;
+            }
+
+            // Hiện thông báo
+            const alertEl = document.getElementById('regradeAlert');
+            if (alertEl) {
+                alertEl.textContent = `✓ ${data.message}`;
+                alertEl.classList.remove('d-none');
+                setTimeout(() => alertEl.classList.add('d-none'), 4000);
+            }
+
+            refreshQuestionsUI();
+        } else {
+            alert(data.message || 'Lỗi khi chấm lại bài thi.');
+        }
+    })
+    .catch(err => {
+        btn.disabled = false;
+        btn.innerHTML = '⚡ CHẤM LẠI & CẬP NHẬT ĐIỂM';
+        alert('Lỗi kết nối máy chủ: ' + err);
+    });
+}
+
+function uploadModalSheetImage(file) {
+    if (!file || !currentModalRecordId) return;
+
+    const formData = new FormData();
+    formData.append('sheet_image', file, file.name);
+
+    const badge = document.getElementById('modalImgBadge');
+    if (badge) {
+        badge.className = 'badge bg-warning text-dark rounded-pill font-monospace';
+        badge.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Đang tải ảnh...';
+    }
+
+    fetch(`/cham-trac-nghiem/api/tai-anh-bai-cham/${currentModalRecordId}/`, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}',
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: formData
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.status === 'success') {
+            const img = document.getElementById('imgModalSheet');
+            const alertNone = document.getElementById('modalNoImageAlert');
+            const newTabBtn = document.getElementById('modalImgNewTabBtn');
+
+            if (img && data.annotated_image_url) {
+                img.src = data.annotated_image_url;
+                img.classList.remove('d-none');
+            }
+            if (alertNone) alertNone.classList.add('d-none');
+            if (newTabBtn && data.annotated_image_url) {
+                newTabBtn.href = data.annotated_image_url;
+                newTabBtn.classList.remove('disabled');
+            }
+            if (badge) {
+                badge.className = 'badge bg-success rounded-pill font-monospace';
+                badge.textContent = '✓ Đã vẽ nhận diện';
+            }
+            alert(data.message || 'Đã tải lên và vẽ nhận diện ảnh thành công!');
+        } else {
+            if (badge) {
+                badge.className = 'badge bg-danger rounded-pill font-monospace';
+                badge.textContent = 'Lỗi tải ảnh';
+            }
+            alert(data.message || 'Lỗi xử lý file ảnh.');
+        }
+    })
+    .catch(err => {
+        alert('Lỗi kết nối khi tải ảnh: ' + err);
+    });
+}
+
+function deleteCurrentSubject(id, name) {
+    if (confirm(`Bạn có chắc chắn muốn xóa môn thi "${name}" và TOÀN BỘ dữ liệu liên quan bên trong (đáp án mã đề, bài nộp thí sinh, điểm thi)?`)) {
+        fetch(`/cham-trac-nghiem/api/xoa-mon-thi/${id}/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.status === 'success') {
+                alert(data.message);
+                window.location.href = "{% url 'grading_manage_exams' %}";
+            } else {
+                alert(data.message);
+            }
+        });
+    }
+}
+
+function submitImportKeysExcel() {
+    const subjectId = document.getElementById('excelSubjectId').value;
+    const fileInput = document.getElementById('excelKeyFile');
+    const file = fileInput.files[0];
+
+    if (!file) {
+        alert("Vui lòng chọn file Excel đáp án!");
+        fileInput.focus();
+        return;
+    }
+
+    const btn = document.getElementById('btnSubmitImportExcel');
+    btn.disabled = true;
+    btn.textContent = "⏳ Đang tải lên & kiểm tra ràng buộc...";
+
+    const formData = new FormData();
+    formData.append('subject_id', subjectId);
+    formData.append('excel_file', file);
+
+    fetch("{% url 'api_import_keys_excel' %}", {
+        method: "POST",
+        headers: {
+            "X-CSRFToken": "{{ csrf_token }}",
+            "X-Requested-With": "XMLHttpRequest"
+        },
+        body: formData
+    })
+    .then(r => r.json())
+    .then(data => {
+        btn.disabled = false;
+        btn.textContent = "⚡ Tải Lên & Cập Nhật Đáp Án";
+
+        if (data.status === 'success') {
+            alert(data.message);
+            window.location.reload();
+        } else {
+            alert(data.message || "Có lỗi xảy ra khi nhập file Excel.");
+        }
+    })
+    .catch(err => {
+        btn.disabled = false;
+        btn.textContent = "⚡ Tải Lên & Cập Nhật Đáp Án";
+        alert("Lỗi kết nối: " + err);
+    });
+}
+
+// ==========================================
+// Quản lý xóa mã đề trong tab Keys
+// ==========================================
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.btn-delete-key').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const keyId = this.dataset.keyId;
+            const code = this.dataset.code;
+            const subCount = parseInt(this.dataset.submissionsCount || 0);
+            let confirmMsg = `Bạn có chắc chắn muốn xóa bộ đáp án Mã đề "${code}"?`;
+            if (subCount > 0) {
+                confirmMsg += `\n⚠️ CẢNH BÁO: Đang có ${subCount} bài làm của thí sinh đã chấm theo mã đề này. Nếu xóa, toàn bộ kết quả chấm của các bài này cũng sẽ bị xóa!`;
+            }
+            if (confirm(confirmMsg)) {
+                fetch(`/cham-trac-nghiem/api/xoa-dap-an/${keyId}/`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': '{{ csrf_token }}',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        const row = document.getElementById(`key-row-${keyId}`);
+                        if (row) row.remove();
+                        updateBatchDeleteBtn();
+                    } else {
+                        alert(data.message || 'Có lỗi xảy ra khi xóa.');
+                    }
+                })
+                .catch(err => alert('Lỗi kết nối: ' + err));
+            }
+        });
+    });
+});
+
+function toggleSelectAllKeys(master) {
+    const cbs = document.querySelectorAll('.key-checkbox');
+    cbs.forEach(cb => cb.checked = master.checked);
+    updateBatchDeleteBtn();
+}
+
+function updateBatchDeleteBtn() {
+    const checked = document.querySelectorAll('.key-checkbox:checked');
+    const btn = document.getElementById('btnBatchDeleteKeys');
+    const countSpan = document.getElementById('selectedKeysCount');
+    const selectAll = document.getElementById('selectAllKeys');
+    const all = document.querySelectorAll('.key-checkbox');
+
+    if (countSpan) countSpan.textContent = checked.length;
+    if (btn) {
+        if (checked.length > 0) {
+            btn.classList.remove('d-none');
+        } else {
+            btn.classList.add('d-none');
+        }
+    }
+    if (selectAll && all.length > 0) {
+        selectAll.checked = (checked.length === all.length);
+    }
+}
+
+function deleteSelectedKeys() {
+    const checked = document.querySelectorAll('.key-checkbox:checked');
+    if (checked.length === 0) {
+        alert("Vui lòng tick chọn ít nhất một mã đề để xóa!");
+        return;
+    }
+    const keyIds = Array.from(checked).map(cb => cb.value);
+    const codes = Array.from(checked).map(cb => cb.dataset.code).join(', ');
+    if (confirm(`Bạn có chắc chắn muốn xóa ${keyIds.length} mã đề đã chọn (${codes})?\n⚠️ Các bài làm thí sinh thuộc các mã đề này (nếu có) cũng sẽ bị xóa!`)) {
+        const formData = new FormData();
+        keyIds.forEach(id => formData.append('key_ids', id));
+        fetch("{% url 'api_batch_delete_grading_keys' %}", {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: formData
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.status === 'success') {
+                alert(data.message);
+                window.location.reload();
+            } else {
+                alert(data.message || 'Có lỗi xảy ra.');
+            }
+        })
+        .catch(err => alert('Lỗi kết nối: ' + err));
+    }
+}
+
+function deleteAllKeysOfSubject() {
+    if (confirm('Bạn có chắc chắn muốn xóa TOÀN BỘ các mã đề đã có của môn thi "{{ subject.name }}"?\n⚠️ CẢNH BÁO: Toàn bộ đáp án và các bài chấm thí sinh thuộc môn thi này sẽ bị xóa sạch!')) {
+        const formData = new FormData();
+        formData.append('subject_id', '{{ subject.id }}');
+        formData.append('delete_all', '1');
+        fetch("{% url 'api_batch_delete_grading_keys' %}", {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: formData
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.status === 'success') {
+                alert(data.message);
+                window.location.reload();
+            } else {
+                alert(data.message || 'Có lỗi xảy ra.');
+            }
+        })
+        .catch(err => alert('Lỗi kết nối: ' + err));
+    }
+}
+
+function deleteGradedRecord(recordId, studentName) {
+    if (confirm(`Bạn có chắc chắn muốn xóa bài chấm của thí sinh "${studentName}"?\nHành động này không thể hoàn tác!`)) {
+        fetch(`/cham-trac-nghiem/api/xoa-bai-cham/${recordId}/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.status === 'success') {
+                window.location.reload();
+            } else {
+                alert(data.message || 'Có lỗi xảy ra.');
+            }
+        })
+        .catch(err => alert('Lỗi kết nối: ' + err));
+    }
+}
+</script>
+{% endblock %}
