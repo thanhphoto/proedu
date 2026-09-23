@@ -1271,3 +1271,138 @@ def coding_auto_testcase(request, question_id):
         return JsonResponse({'success': True, 'generated': generated_count})
 
     return render(request, 'quiz/coding/auto_testcase.html', {'question': question})
+
+@login_required
+def coding_exam_export_json(request, exam_id):
+    import json
+    from django.http import HttpResponse
+    
+    exam = get_object_or_404(CodingExam, id=exam_id)
+    
+    # Permission check: Only exam creator or admin can export
+    can_manage = hasattr(request.user, 'profile') and request.user.profile.is_coding_contributor() and (request.user.profile.is_admin() or exam.created_by == request.user)
+    if not (can_manage or request.user.is_superuser):
+        raise PermissionDenied("Bạn không có quyền xuất dữ liệu kỳ thi này.")
+        
+    exam_data = {
+        "title": exam.title,
+        "description": exam.description,
+        "start_time": exam.start_time.isoformat() if exam.start_time else None,
+        "end_time": exam.end_time.isoformat() if exam.end_time else None,
+        "duration": exam.duration,
+        "exam_type": exam.exam_type,
+        "is_active": exam.is_active,
+        "questions": []
+    }
+    
+    questions = exam.questions.all().order_by('created_at')
+    for q in questions:
+        q_data = {
+            "title": q.title,
+            "description": q.description,
+            "time_limit": q.time_limit,
+            "memory_limit": q.memory_limit,
+            "difficulty": q.difficulty,
+            "max_score": q.max_score,
+            "is_public": q.is_public,
+            "is_active": q.is_active,
+            "topics": [t.name for t in q.topics.all()],
+            "initial_code_cpp": q.initial_code_cpp,
+            "initial_code_python": q.initial_code_python,
+            "solution_code_cpp": q.solution_code_cpp,
+            "solution_code_python": q.solution_code_python,
+            "testcases": [
+                {
+                    "input_data": tc.input_data,
+                    "expected_output": tc.expected_output,
+                    "is_hidden": tc.is_hidden,
+                    "points": tc.points
+                } for tc in q.testcases.all()
+            ]
+        }
+        exam_data["questions"].append(q_data)
+        
+    response = HttpResponse(json.dumps(exam_data, ensure_ascii=False, indent=2), content_type="application/json")
+    response['Content-Disposition'] = f'attachment; filename="exam_{exam.id}_data.json"'
+    return response
+
+@login_required
+@require_POST
+def coding_exam_import_json(request, exam_id):
+    from django.http import JsonResponse
+    import json
+    from django.db import transaction
+    from django.utils.dateparse import parse_datetime
+    
+    exam = get_object_or_404(CodingExam, id=exam_id)
+    
+    # Permission check
+    can_manage = hasattr(request.user, 'profile') and request.user.profile.is_coding_contributor() and (request.user.profile.is_admin() or exam.created_by == request.user)
+    if not (can_manage or request.user.is_superuser):
+        return JsonResponse({'success': False, 'error': 'Bạn không có quyền quản lý kỳ thi này.'})
+        
+    file = request.FILES.get('json_file')
+    if not file:
+        return JsonResponse({'success': False, 'error': 'Vui lòng chọn tệp JSON.'})
+        
+    try:
+        data = json.loads(file.read().decode('utf-8'))
+        
+        if not isinstance(data, dict):
+            return JsonResponse({'success': False, 'error': 'Định dạng JSON không hợp lệ (phải là một object kỳ thi).'})
+            
+        with transaction.atomic():
+            # Update exam info
+            if 'title' in data: exam.title = data['title']
+            if 'description' in data: exam.description = data['description']
+            if 'duration' in data: exam.duration = data['duration']
+            if 'exam_type' in data: exam.exam_type = data['exam_type']
+            if 'is_active' in data: exam.is_active = data['is_active']
+            
+            if 'start_time' in data:
+                exam.start_time = parse_datetime(data['start_time']) if data['start_time'] else None
+            if 'end_time' in data:
+                exam.end_time = parse_datetime(data['end_time']) if data['end_time'] else None
+                
+            exam.save()
+            
+            # Append questions
+            questions_data = data.get('questions', [])
+            for item in questions_data:
+                question = CodingQuestion.objects.create(
+                    exam=exam,
+                    title=item.get('title', 'Untitled'),
+                    description=item.get('description', ''),
+                    time_limit=item.get('time_limit', 1.0),
+                    memory_limit=item.get('memory_limit', 128),
+                    difficulty=item.get('difficulty', 'Dễ'),
+                    max_score=item.get('max_score', 10),
+                    is_public=item.get('is_public', False),
+                    is_active=item.get('is_active', True),
+                    initial_code_cpp=item.get('initial_code_cpp', ''),
+                    initial_code_python=item.get('initial_code_python', ''),
+                    solution_code_cpp=item.get('solution_code_cpp', ''),
+                    solution_code_python=item.get('solution_code_python', ''),
+                    created_by=request.user
+                )
+                
+                # Handle topics
+                topics = item.get('topics', [])
+                for topic_name in topics:
+                    topic, _ = CodingTopic.objects.get_or_create(name=topic_name)
+                    question.topics.add(topic)
+                    
+                # Handle testcases
+                testcases = item.get('testcases', [])
+                for tc in testcases:
+                    TestCase.objects.create(
+                        question=question,
+                        input_data=tc.get('input_data', ''),
+                        expected_output=tc.get('expected_output', ''),
+                        is_hidden=tc.get('is_hidden', False),
+                        points=tc.get('points', 0.1)
+                    )
+                    
+        return JsonResponse({'success': True, 'message': 'Đã nhập dữ liệu thành công.'})
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': f'Đã có lỗi xảy ra: {str(e)}'})

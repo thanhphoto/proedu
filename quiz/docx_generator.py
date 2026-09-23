@@ -86,6 +86,33 @@ def generate_sample_docx():
     
     doc.add_paragraph()
     
+    # --- CÂU 4: GROUP ---
+    p4 = doc.add_paragraph()
+    r4 = p4.add_run('Câu 4: [Nhóm] ')
+    r4.bold = True
+    p4.add_run('Đọc đoạn văn sau và trả lời các câu hỏi bên dưới:\n"Trong một hệ sinh thái, năng lượng được truyền từ bậc dinh dưỡng này sang bậc dinh dưỡng khác qua chuỗi thức ăn. Tuy nhiên, hiệu suất sinh thái giữa các bậc thường rất thấp, chỉ khoảng 10% năng lượng được tích lũy ở bậc tiếp theo."')
+    
+    p4_1 = doc.add_paragraph()
+    r4_1 = p4_1.add_run('Câu 4.1: [Trắc nghiệm/Nhận biết] ')
+    r4_1.bold = True
+    p4_1.add_run('Hiệu suất sinh thái giữa các bậc dinh dưỡng thường rơi vào khoảng bao nhiêu?')
+    doc.add_paragraph('A. 1%')
+    doc.add_paragraph('*B. 10%')
+    doc.add_paragraph('C. 50%')
+    doc.add_paragraph('D. 90%')
+    doc.add_paragraph()
+
+    p4_2 = doc.add_paragraph()
+    r4_2 = p4_2.add_run('Câu 4.2: [Đúng Sai/Thông hiểu] ')
+    r4_2.bold = True
+    p4_2.add_run('Phát biểu nào sau đây đúng hay sai?')
+    doc.add_paragraph('a) Năng lượng được bảo toàn 100% qua các bậc [Sai]')
+    doc.add_paragraph('b) Năng lượng truyền qua chuỗi thức ăn [Đúng]')
+    doc.add_paragraph('c) Hiệu suất sinh thái thường rất thấp [Đúng]')
+    doc.add_paragraph('d) Năng lượng bị tiêu hao chủ yếu qua hô hấp [Đúng]')
+    
+    doc.add_paragraph()
+    
     buffer = io.BytesIO()
     doc.save(buffer)
     buffer.seek(0)

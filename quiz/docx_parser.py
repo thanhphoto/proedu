@@ -44,7 +44,7 @@ def parse_docx_bytes(file_bytes_io):
     questions = []
     current_q = None
 
-    q_pattern = re.compile(r'^(?:Câu\s*\d+|\[Câu\s*\d+\])(?:[\:\.\s]|$)', re.IGNORECASE)
+    q_pattern = re.compile(r'^(?:Câu\s*\d+(?:\.\d+)?|\[Câu\s*\d+(?:\.\d+)?\])(?:[\:\.\s]|$)', re.IGNORECASE)
 
     for block in raw_blocks:
         text = block['text']
@@ -76,7 +76,27 @@ def parse_docx_bytes(file_bytes_io):
         finalize_question(current_q)
         questions.append(current_q)
 
-    return questions
+    # Gộp câu hỏi con vào câu hỏi nhóm nhưng giữ dạng phẳng (flat list)
+    final_questions = []
+    current_group_idx = None
+
+    for idx, q in enumerate(questions):
+        is_sub_question = False
+        m = re.match(r'^(?:Câu\s*(\d+\.\d+)|\[Câu\s*(\d+\.\d+)\])', q['lines'][0] if q.get('lines') else '', re.IGNORECASE)
+        if m:
+            is_sub_question = True
+
+        if q.get('question_type') == 'GROUP':
+            current_group_idx = idx
+            q['is_group_parent'] = True
+        elif is_sub_question and current_group_idx is not None:
+            q['parent_group_idx'] = current_group_idx
+        else:
+            current_group_idx = None # Thoát khỏi nhóm
+            
+        final_questions.append(q)
+
+    return final_questions
 
 
 def extract_images_from_paragraph(p, doc):
@@ -155,6 +175,8 @@ def finalize_question(q):
                 parsed_type = 'TF'
             elif any(k in p_lower for k in ['numeric', 'trả lời ngắn', 'tra loi ngan', 'tln', 'số', 'so']):
                 parsed_type = 'NUMERIC'
+            elif any(k in p_lower for k in ['nhóm', 'group']):
+                parsed_type = 'GROUP'
 
     if parsed_diff:
         q['difficulty'] = parsed_diff
@@ -175,7 +197,7 @@ def finalize_question(q):
             continue
         
         if idx == 0 and lines and line == lines[0]:
-            clean_header = re.sub(r'^(?:Câu\s*\d+|\[Câu\s*\d+\])', '', line, flags=re.IGNORECASE).strip()
+            clean_header = re.sub(r'^(?:Câu\s*\d+(?:\.\d+)?|\[Câu\s*\d+(?:\.\d+)?\])', '', line, flags=re.IGNORECASE).strip()
             clean_header = re.sub(r'\[([^\]]+)\]', '', clean_header).strip()
             clean_header = re.sub(r'^[\:\.\s\-]+', '', clean_header).strip()
             if clean_header:

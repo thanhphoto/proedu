@@ -246,10 +246,11 @@
                                 {% endif %}
 
                                 <!-- ĐÁP ÁN VÀ LỰA CHỌN -->
-                                {% if q.choices %}
-                                <div class="mb-3">
-                                    <h6 class="fw-bold text-secondary small text-uppercase mb-2">Phương án lựa chọn & Đánh dấu đáp án đúng:</h6>
-                                    <div class="row g-3">
+                                {% if q.question_type != 'GROUP' %}
+                                    {% if q.choices %}
+                                    <div class="mb-3">
+                                        <h6 class="fw-bold text-secondary small text-uppercase mb-2">Phương án lựa chọn & Đánh dấu đáp án đúng:</h6>
+                                        <div class="row g-3">
                                         {% for choice in q.choices %}
                                         {% with c_idx=forloop.counter0 %}
                                         <div class="col-md-6">
@@ -299,8 +300,9 @@
                                         </div>
                                         {% endwith %}
                                         {% endfor %}
+                                        </div>
                                     </div>
-                                </div>
+                                    {% endif %}
                                 {% endif %}
 
                                 <!-- ĐÁP ÁN SỐ THỰC NẾU LÀ NUMERIC -->
@@ -452,6 +454,12 @@
                                                 <span class="badge bg-warning text-dark">Đúng / Sai</span>
                                             {% elif q.question_type == 'NUMERIC' %}
                                                 <span class="badge bg-secondary">Trả lời số thực</span>
+                                            {% elif q.question_type == 'GROUP' %}
+                                                <span class="badge bg-danger">Nội dung nhóm</span>
+                                            {% endif %}
+                                            
+                                            {% if q.parent_group %}
+                                                <span class="badge bg-danger-subtle text-danger border border-danger">Thuộc nhóm #{{ q.parent_group.id }}</span>
                                             {% endif %}
 
                                             <span class="badge bg-outline-dark border text-dark">

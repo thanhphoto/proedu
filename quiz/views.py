@@ -578,7 +578,8 @@ def take_exam(request, exam_code):
             qs = QuestionBank.objects.filter(
                 subject=quiz.subject,
                 difficulty=entry.difficulty,
-                question_type=entry.question_type
+                question_type=entry.question_type,
+                parent_group__isnull=True
             )
             if entry.topic:
                 qs = qs.filter(topic=entry.topic)
@@ -950,7 +951,15 @@ def import_word_questions(request):
 
                 count = 0
                 with transaction.atomic():
-                    for q in questions_data:
+                    # Lưu tạm các object đã tạo để map parent
+                    saved_objs = {}
+                    
+                    for idx, q in enumerate(questions_data):
+                        # Lấy parent object nếu có
+                        parent_obj = None
+                        if 'parent_group_idx' in q and q['parent_group_idx'] in saved_objs:
+                            parent_obj = saved_objs[q['parent_group_idx']]
+                            
                         q_obj = QuestionBank.objects.create(
                             subject=subject,
                             topic=topic,
@@ -958,8 +967,10 @@ def import_word_questions(request):
                             difficulty=q.get('difficulty', 'NB'),
                             question_type=q.get('question_type', 'SINGLE'),
                             is_public=True,
-                            exact_numeric_answer=q.get('exact_numeric_answer', '')
+                            exact_numeric_answer=q.get('exact_numeric_answer', ''),
+                            parent_group=parent_obj
                         )
+                        saved_objs[idx] = q_obj
 
                         # Lưu file ảnh nếu có
                         img_b64 = q.get('image_raw') or q.get('image_base64')
@@ -1070,9 +1081,9 @@ def generate_random_quiz_by_matrix(subject_id, title, duration, num_single, num_
     
     # 2. Bốc ngẫu nhiên câu hỏi từ ngân hàng theo từng loại câu hỏi
     # Lệnh .order_by('?') trong Django tương đương với bốc RANDOM ngẫu nhiên các dòng
-    questions_type_1 = QuestionBank.objects.filter(subject=subject, question_type='SINGLE').order_by('?')[:num_single]
-    questions_type_2 = QuestionBank.objects.filter(subject=subject, question_type='TF').order_by('?')[:num_tf]
-    questions_type_3 = QuestionBank.objects.filter(subject=subject, question_type='NUMERIC').order_by('?')[:num_numeric]
+    questions_type_1 = QuestionBank.objects.filter(subject=subject, question_type='SINGLE', parent_group__isnull=True).order_by('?')[:num_single]
+    questions_type_2 = QuestionBank.objects.filter(subject=subject, question_type='TF', parent_group__isnull=True).order_by('?')[:num_tf]
+    questions_type_3 = QuestionBank.objects.filter(subject=subject, question_type='NUMERIC', parent_group__isnull=True).order_by('?')[:num_numeric]
     
     # 3. Gộp toàn bộ danh sách câu hỏi đã bốc được
     all_selected_questions = list(questions_type_1) + list(questions_type_2) + list(questions_type_3)

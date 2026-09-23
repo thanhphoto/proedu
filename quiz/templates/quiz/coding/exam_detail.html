@@ -13,6 +13,12 @@
                 <h2 class="text-primary mb-0"><i class="fas fa-trophy"></i> {{ exam.title }}</h2>
                 <div>
                     {% if user == exam.created_by or user.is_superuser %}
+                    <button class="btn btn-outline-info btn-sm me-2" data-bs-toggle="modal" data-bs-target="#importJsonModal">
+                        <i class="fas fa-file-import"></i> Nhập JSON
+                    </button>
+                    <a href="{% url 'coding_exam_export_json' exam.id %}" class="btn btn-outline-info btn-sm me-2">
+                        <i class="fas fa-file-export"></i> Xuất JSON
+                    </a>
                     <a href="{% url 'coding_exam_edit' exam.id %}" class="btn btn-outline-secondary btn-sm me-2">
                         <i class="fas fa-edit"></i> Sửa kỳ thi
                     </a>
@@ -234,4 +240,68 @@ document.querySelectorAll('.toggle-attr').forEach(el => {
 });
 </script>
 {% endif %}
+
+<!-- Modal Import JSON -->
+<div class="modal fade" id="importJsonModal" tabindex="-1" aria-labelledby="importJsonModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="importJsonModalLabel">Nhập Dữ Liệu Kỳ Thi (JSON)</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted small">Tải lên file JSON để cập nhật thông tin kỳ thi và thêm các câu hỏi mới. Dữ liệu cũ của kỳ thi vẫn được giữ nguyên.</p>
+        <form id="importJsonForm">
+          <div class="mb-3">
+            <label for="jsonFile" class="form-label">Chọn file JSON</label>
+            <input class="form-control" type="file" id="jsonFile" accept=".json" required>
+          </div>
+        </form>
+        <div id="importResult" class="mt-2" style="display:none;"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+        <button type="button" class="btn btn-primary" id="btnImportJson">Nhập Dữ Liệu</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+document.getElementById('btnImportJson')?.addEventListener('click', function() {
+    const fileInput = document.getElementById('jsonFile');
+    if (!fileInput.files.length) {
+        alert('Vui lòng chọn file JSON.');
+        return;
+    }
+    
+    const file = fileInput.files[0];
+    const formData = new FormData();
+    formData.append('json_file', file);
+    
+    const resultDiv = document.getElementById('importResult');
+    resultDiv.style.display = 'block';
+    resultDiv.innerHTML = '<span class="text-info"><i class="fas fa-spinner fa-spin"></i> Đang xử lý...</span>';
+    
+    fetch('{% url "coding_exam_import_json" exam.id %}', {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}'
+        },
+        body: formData
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            resultDiv.innerHTML = `<span class="text-success"><i class="fas fa-check"></i> ${data.message} Vui lòng tải lại trang.</span>`;
+            setTimeout(() => { location.reload(); }, 1500);
+        } else {
+            resultDiv.innerHTML = `<span class="text-danger"><i class="fas fa-exclamation-triangle"></i> Lỗi: ${data.error}</span>`;
+        }
+    })
+    .catch(err => {
+        resultDiv.innerHTML = `<span class="text-danger"><i class="fas fa-exclamation-triangle"></i> Lỗi kết nối.</span>`;
+    });
+});
+</script>
 {% endblock %}

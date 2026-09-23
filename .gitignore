@@ -22,6 +22,5 @@ env/
 
 # Environment variables
 .env
-
 # Django settings
 proedu/settings.py

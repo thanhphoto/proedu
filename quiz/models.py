@@ -94,10 +94,12 @@ class QuestionBank(models.Model):
         ('SINGLE', 'Trắc nghiệm 1 đáp án đúng (4 lựa chọn)'),
         ('TF', 'Trắc nghiệm Đúng/Sai (Mỗi ý chọn Đúng hoặc Sai)'),
         ('NUMERIC', 'Trả lời ngắn dạng Số Thực'),
+        ('GROUP', 'Câu hỏi nhóm (Chỉ chứa nội dung dẫn)'),
     ]
 
     subject = models.ForeignKey(Subject, on_delete=models.CASCADE, related_name="question_bank")
     topic = models.ForeignKey(Topic, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Chủ đề")
+    parent_group = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True, related_name='sub_questions', verbose_name="Thuộc nhóm câu hỏi (nếu có)")
     
     # Hỗ trợ lưu mã LaTeX tự do
     question_text = models.TextField(verbose_name="Nội dung câu hỏi (Hỗ trợ mã LaTeX)")
