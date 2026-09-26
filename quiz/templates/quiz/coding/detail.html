@@ -43,10 +43,10 @@
 
 {% block content %}
 <div class="container-fluid mt-4">
-    {% if attempt %}
+    {% if is_exam_mode and exam and attempt %}
     <div class="alert alert-info d-flex justify-content-between align-items-center mb-3 py-2 shadow-sm">
         <div>
-            <i class="fas fa-trophy text-warning"></i> Đang làm kỳ thi: <strong>{{ question.exam.title }}</strong>
+            <i class="fas fa-trophy text-warning"></i> Đang làm kỳ thi: <strong>{{ exam.title }}</strong>
             <button class="btn btn-sm btn-link text-info ms-2 p-0" data-bs-toggle="modal" data-bs-target="#examInfoModal">
                 (Thông tin)
             </button>
@@ -63,9 +63,14 @@
         <div class="col-md-4">
             <div class="card shadow-sm h-100">
                 <div class="card-header bg-white d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0">{{ question.title }}</h5>
-                    {% if question.exam_id %}
-                    <a href="{% url 'coding_exam_detail' question.exam_id %}" class="btn btn-sm btn-outline-secondary"><i class="fas fa-arrow-left"></i> Bỏ qua / Trở lại</a>
+                    <h5 class="mb-0 d-flex align-items-center gap-2 flex-wrap">
+                        {% if question.code %}
+                        <span class="badge bg-light text-primary border font-monospace">{{ question.code }}</span>
+                        {% endif %}
+                        <span>{{ question.title }}</span>
+                    </h5>
+                    {% if is_exam_mode and exam %}
+                    <a href="{% url 'coding_exam_detail' exam.id %}" class="btn btn-sm btn-outline-secondary"><i class="fas fa-arrow-left"></i> Danh sách bài thi</a>
                     {% else %}
                     <a href="{% url 'coding_list' %}" class="btn btn-sm btn-outline-secondary"><i class="fas fa-arrow-left"></i> Trở lại</a>
                     {% endif %}
@@ -80,6 +85,9 @@
                         {% endif %}
                         {% if question.past_exam %}
                         <span class="badge bg-warning text-dark"><i class="fas fa-trophy"></i> {{ question.past_exam }}</span>
+                        {% endif %}
+                        {% if not is_exam_mode and question.exam %}
+                        <a href="{% url 'coding_exam_detail' question.exam.id %}" class="badge bg-light text-primary border text-decoration-none" title="Xem kỳ thi"><i class="fas fa-trophy text-warning"></i> {{ question.exam.title }}</a>
                         {% endif %}
                     </div>
                     {% if question.topics.all %}
@@ -261,8 +269,11 @@
                 </div>
                 <div class="card-body">
                     {% if user.is_authenticated %}
-                        <form method="post" action="{% url 'add_coding_comment' question.id %}" class="mb-4">
+                        <form method="post" action="{% url 'add_coding_comment' question.code|default:question.id %}" class="mb-4">
                             {% csrf_token %}
+                            {% if is_exam_mode and exam %}
+                            <input type="hidden" name="exam_id" value="{{ exam.id }}">
+                            {% endif %}
                             <div class="mb-3">
                                 <textarea name="content" class="form-control" rows="3" placeholder="Viết bình luận của bạn..." required></textarea>
                             </div>
@@ -329,7 +340,7 @@
 <script>
     const INITIAL_CODE_PYTHON = `{{ question.initial_code_python|escapejs }}`;
     const INITIAL_CODE_CPP = `{{ question.initial_code_cpp|escapejs }}`;
-    const SUBMIT_API_URL = "{% url 'submit_code_api' question.id %}";
+    const SUBMIT_API_URL = "{% if is_exam_mode and exam %}{% url 'submit_code_api' question.code|default:question.id %}?exam_id={{ exam.id }}{% else %}{% url 'submit_code_api' question.code|default:question.id %}{% endif %}";
     const CSRF_TOKEN = "{{ csrf_token }}";
 
     const HAS_SUBMISSION = "{{ latest_submission|yesno:'true,false' }}" === "true";
@@ -422,7 +433,11 @@
                 'Content-Type': 'application/json',
                 'X-CSRFToken': CSRF_TOKEN
             },
-            body: JSON.stringify({ code: code, language: language })
+            body: JSON.stringify({ 
+                code: code, 
+                language: language,
+                exam_id: "{% if is_exam_mode and exam %}{{ exam.id }}{% endif %}"
+            })
         })
         .then(response => response.json())
         .then(data => {
@@ -515,7 +530,7 @@
     };
 </script>
 <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
-{% if attempt %}
+{% if is_exam_mode and exam %}
 <!-- Exam Info Modal -->
 <div class="modal fade" id="examInfoModal" tabindex="-1">
   <div class="modal-dialog">
@@ -525,11 +540,11 @@
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
-        <h5>{{ question.exam.title }}</h5>
-        <p><strong>Thời gian làm bài:</strong> {% if question.exam.duration > 0 %}{{ question.exam.duration }} phút{% else %}Không giới hạn{% endif %}</p>
+        <h5>{{ exam.title }}</h5>
+        <p><strong>Thời gian làm bài:</strong> {% if exam.duration > 0 %}{{ exam.duration }} phút{% else %}Không giới hạn{% endif %}</p>
         <hr>
         <div>
-            {{ question.exam.description|linebreaksbr }}
+            {{ exam.description|linebreaksbr }}
         </div>
       </div>
     </div>
@@ -542,13 +557,13 @@
     const submitBtn = document.getElementById('btnSubmit');
     
     if (remainingTime <= 0) {
-        timerEl.textContent = "00:00:00 (Đã hết giờ)";
+        if (timerEl) timerEl.textContent = "00:00:00 (Đã hết giờ)";
         if (submitBtn) submitBtn.disabled = true;
     } else {
         const interval = setInterval(() => {
             if (remainingTime <= 0) {
                 clearInterval(interval);
-                timerEl.textContent = "00:00:00 (Đã hết giờ)";
+                if (timerEl) timerEl.textContent = "00:00:00 (Đã hết giờ)";
                 if (submitBtn) submitBtn.disabled = true;
                 return;
             }
@@ -556,10 +571,12 @@
             let h = Math.floor(remainingTime / 3600);
             let m = Math.floor((remainingTime % 3600) / 60);
             let s = remainingTime % 60;
-            timerEl.textContent = 
-                (h < 10 ? "0" + h : h) + ":" + 
-                (m < 10 ? "0" + m : m) + ":" + 
-                (s < 10 ? "0" + s : s);
+            if (timerEl) {
+                timerEl.textContent = 
+                    (h < 10 ? "0" + h : h) + ":" + 
+                    (m < 10 ? "0" + m : m) + ":" + 
+                    (s < 10 ? "0" + s : s);
+            }
                 
             remainingTime--;
         }, 1000);

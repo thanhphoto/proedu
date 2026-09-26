@@ -1,6 +1,6 @@
 {% extends 'quiz/base.html' %}
 
-{% block title %}Trang Chủ - SmartQuiz Pro{% endblock %}
+{% block title %}Trang Chủ - {{ site_title }}{% endblock %}
 
 {% block content %}
 <!-- Hiển thị thông báo messages -->
@@ -14,7 +14,8 @@
 {% endif %}
 
 <!-- Hero Section -->
-<div class="p-5 mb-5 rounded-4 shadow-sm text-center bg-white border">
+<div class="p-5 mb-5 rounded-4 shadow-sm text-center border position-relative overflow-hidden" 
+     style="{% if site_banner_url %}background: linear-gradient(rgba(15, 23, 42, 0.78), rgba(15, 23, 42, 0.88)), url('{{ site_banner_url }}') center/cover no-repeat; color: #ffffff;{% else %}background: #ffffff;{% endif %}">
     {% if is_admin %}
         <span class="badge bg-danger-subtle text-danger px-3 py-2 rounded-pill fw-bold mb-3">🛡️ Quản Trị Viên Hệ Thống</span>
     {% elif is_manager %}
@@ -22,16 +23,16 @@
     {% elif user.is_authenticated %}
         <span class="badge bg-success-subtle text-success px-3 py-2 rounded-pill fw-bold mb-3">👤 Không Gian Ôn Luyện Trực Tuyến</span>
     {% else %}
-        <span class="badge bg-primary-subtle text-primary px-3 py-2 rounded-pill fw-bold mb-3">Hệ Thống Đột Phá 2026</span>
+        <span class="badge {% if site_banner_url %}bg-warning text-dark{% else %}bg-primary-subtle text-primary{% endif %} px-3 py-2 rounded-pill fw-bold mb-3">
+            {% if is_b2b_brand %}🏛️ {{ site_title }}{% else %}Hệ Thống Đột Phá 2026{% endif %}
+        </span>
     {% endif %}
 
-    <h1 class="display-4 fw-extrabold text-primary mb-3">Hệ Thống Khảo Thí Thông Minh</h1>
-    <p class="lead text-secondary max-w-2xl mx-auto mb-4">
-        {% if is_manager %}
-            Quản lý ngân hàng câu hỏi đa dạng, tự động phân tích file Word (.docx), tạo ma trận đề thi chuẩn và chấm điểm phiếu bài làm tự động với thuật toán xử lý ảnh OpenCV.
-        {% else %}
-            Nền tảng thi trắc nghiệm trực tuyến chuẩn hóa, hỗ trợ câu hỏi toán học MathJax/LaTeX, đồng hồ đếm ngược thông minh và chấm điểm tức thì.
-        {% endif %}
+    <h1 class="display-4 fw-extrabold {% if site_banner_url %}text-white{% else %}text-primary{% endif %} mb-3">
+        {{ site_hero_title }}
+    </h1>
+    <p class="lead {% if site_banner_url %}text-white-50{% else %}text-secondary{% endif %} max-w-2xl mx-auto mb-4">
+        {{ site_hero_subtitle }}
     </p>
 
     <div class="d-flex flex-wrap justify-content-center align-items-center gap-3">

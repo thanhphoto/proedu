@@ -1,5 +1,5 @@
 from django.urls import path
-from . import views, grading_views, coding_views, math_views
+from . import views, grading_views, coding_views, math_views, subscription_views, admin_dashboard_views
 
 urlpatterns = [
     # Trang chủ & Học sinh
@@ -9,6 +9,19 @@ urlpatterns = [
     path('thi/<str:exam_code>/', views.take_exam, name='take_exam'),
     path('nop-bai/<str:exam_code>/', views.submit_exam, name='submit_exam'),
     path('cham-phieu/', views.scan_sheet, name='scan_sheet'),
+
+    # Bảng điều khiển Quản trị toàn hệ thống (Admin Dashboard & Portals)
+    path('quan-tri/', admin_dashboard_views.admin_dashboard_view, name='admin_dashboard'),
+    path('quan-tri/goi-dich-vu/', admin_dashboard_views.admin_plans_view, name='admin_plans'),
+    path('quan-tri/goi-dich-vu/toggle/<int:plan_id>/', admin_dashboard_views.admin_toggle_plan, name='admin_toggle_plan'),
+    path('quan-tri/thue-bao/gia-han/<int:sub_id>/', admin_dashboard_views.admin_extend_subscription, name='admin_extend_sub'),
+    path('quan-tri/giao-dich/', admin_dashboard_views.admin_transactions_view, name='admin_transactions'),
+    path('quan-tri/giao-dich/duyet/<int:tx_id>/', admin_dashboard_views.admin_approve_transaction, name='admin_approve_tx'),
+    path('quan-tri/giao-dich/huy/<int:tx_id>/', admin_dashboard_views.admin_cancel_transaction, name='admin_cancel_tx'),
+    path('quan-tri/ban-quyen/', admin_dashboard_views.admin_licenses_view, name='admin_licenses'),
+    path('quan-tri/ban-quyen/gia-han/<int:license_id>/', admin_dashboard_views.admin_extend_license, name='admin_extend_license'),
+    path('quan-tri/cai-dat/', admin_dashboard_views.admin_settings_view, name='admin_settings'),
+    path('quan-tri/nguoi-dung/', views.user_management_view, name='admin_users'),
 
     # Xác thực & Hồ sơ người dùng (Auth & Profile)
     path('dang-nhap/', views.login_view, name='login'),
@@ -119,9 +132,9 @@ urlpatterns = [
     path('luyen-code/testcase/<int:testcase_id>/cap-nhat-diem/', coding_views.coding_update_single_tc_points, name='coding_update_single_tc_points'),
     path('luyen-code/<int:question_id>/testcase/cap-nhat-diem/', coding_views.coding_update_testcase_points, name='coding_update_testcase_points'),
     path('luyen-code/testcase/<int:testcase_id>/xoa/', coding_views.coding_delete_testcase, name='coding_delete_testcase'),
-    path('luyen-code/<int:question_id>/', coding_views.coding_detail_view, name='coding_detail'),
-    path('luyen-code/<int:question_id>/binh-luan/', coding_views.add_coding_comment, name='add_coding_comment'),
-    path('api/luyen-code/<int:question_id>/submit/', coding_views.submit_code_api, name='submit_code_api'),
+    path('luyen-code/<str:question_code>/', coding_views.coding_detail_view, name='coding_detail'),
+    path('luyen-code/<str:question_code>/binh-luan/', coding_views.add_coding_comment, name='add_coding_comment'),
+    path('api/luyen-code/<str:question_code>/submit/', coding_views.submit_code_api, name='submit_code_api'),
     path('api/luyen-code/ket-qua/code/<int:submission_id>/', coding_views.api_get_submission_code, name='api_get_submission_code'),
 
     # Chuyển đổi tài liệu Toán học (Ảnh/PDF -> Word LaTeX)
@@ -130,4 +143,10 @@ urlpatterns = [
     path('chuyen-doi-tai-lieu/tai-ve/<int:conversion_id>/', math_views.download_converted_docx, name='download_converted_docx'),
     path('chuyen-doi-tai-lieu/chi-tiet/<int:conversion_id>/', math_views.get_conversion_detail, name='get_conversion_detail'),
     path('chuyen-doi-tai-lieu/xoa/<int:conversion_id>/', math_views.delete_conversion_history, name='delete_conversion_history'),
+
+    # THƯƠNG MẠI HOÁ (BẢNG GIÁ, GÓI DỊCH VỤ & THANH TOÁN QR)
+    path('bang-gia/', subscription_views.pricing_view, name='pricing'),
+    path('thanh-toan/<slug:plan_code>/', subscription_views.checkout_view, name='checkout'),
+    path('api/thanh-toan/kiem-tra/<str:tx_code>/', subscription_views.api_check_payment_status, name='api_check_payment'),
+    path('thanh-toan/gia-lap/<str:tx_code>/', subscription_views.simulate_payment_success, name='simulate_payment'),
 ]

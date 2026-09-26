@@ -1,0 +1,331 @@
+{% extends 'quiz/base.html' %}
+
+{% block title %}Cài Đặt Hệ Thống & Nhận Diện Thương Hiệu - ProEdu Admin{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4 px-lg-5">
+    <!-- Sub-Navbar -->
+    {% include 'quiz/admin/admin_nav.html' %}
+
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3">
+        <div>
+            <h3 class="fw-bold text-dark mb-1">⚙️ Nhận Diện Thương Hiệu & Cài Đặt Hệ Thống</h3>
+            <p class="text-muted small mb-0">Tuỳ biến Logo, Banner, Tiêu đề phía khách (White-label), cổng thanh toán VietQR và cấu hình vận hành nền tảng.</p>
+        </div>
+    </div>
+
+    <!-- Thông báo nếu có -->
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show rounded-4 shadow-sm mb-4" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <form method="POST" action="{% url 'admin_settings' %}" enctype="multipart/form-data">
+        {% csrf_token %}
+        <div class="row g-4">
+            <!-- Cột trái: Cấu hình Nhận diện thương hiệu & Hệ thống -->
+            <div class="col-lg-8">
+                <!-- 1. Nhận Diện Thương Hiệu & White-Label (Logo, Banner, Favicon) -->
+                <div class="card border-0 shadow-sm rounded-4 p-4 mb-4 bg-white">
+                    <div class="d-flex align-items-center justify-content-between mb-3 pb-2 border-bottom">
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="fs-4">🎨</span>
+                            <h5 class="fw-bold text-dark mb-0">Cấu Hình Nhận Diện Thương Hiệu (White-Label)</h5>
+                        </div>
+                        <span class="badge bg-primary-subtle text-primary rounded-pill px-3 py-1 fw-bold">Giao diện phía khách</span>
+                    </div>
+
+                    <div class="alert alert-light border rounded-3 small mb-4 text-secondary">
+                        💡 <strong>White-label chuyên nghiệp:</strong> Bạn có thể tải ảnh trực tiếp từ máy tính lên máy chủ hoặc dán link ảnh trực tuyến (CDN/URL). Hệ thống sẽ tự động hiển thị thương hiệu lên toàn bộ Header, Banner, Favicon và Chân trang.
+                    </div>
+
+                    <div class="row g-4">
+                        <!-- Logo Hệ Thống -->
+                        <div class="col-md-6">
+                            <div class="p-3 border rounded-3 bg-light h-100">
+                                <label class="form-label fw-bold text-dark mb-2 d-flex align-items-center justify-content-between">
+                                    <span>Logo Website / Đơn vị</span>
+                                    <small class="text-muted fw-normal">Hiện ở Header</small>
+                                </label>
+                                
+                                <div class="d-flex align-items-center gap-3 mb-3 p-2 bg-white rounded-3 border">
+                                    {% if settings.logo_url %}
+                                        <img src="{{ settings.logo_url }}" alt="Logo Preview" class="rounded" style="height: 48px; max-width: 140px; object-fit: contain;">
+                                    {% else %}
+                                        <div class="bg-warning-subtle text-warning fw-bold fs-4 d-flex align-items-center justify-content-center rounded" style="width: 48px; height: 48px;">⚡</div>
+                                    {% endif %}
+                                    <div class="small text-truncate">
+                                        <div class="fw-bold text-dark">Logo hiện tại</div>
+                                        <div class="text-muted small text-truncate">{% if settings.logo_url %}Đã thiết lập{% else %}Dùng biểu tượng mặc định{% endif %}</div>
+                                    </div>
+                                </div>
+
+                                <div class="mb-2">
+                                    <label class="form-label small text-muted mb-1">Tải ảnh Logo mới lên (PNG, JPG, SVG):</label>
+                                    <input type="file" class="form-control form-control-sm" name="brand_logo" accept="image/*">
+                                </div>
+
+                                <div>
+                                    <label class="form-label small text-muted mb-1">Hoặc đường dẫn URL Logo trực tuyến:</label>
+                                    <input type="url" class="form-control form-control-sm" name="brand_logo_url" value="{{ settings.brand_logo_url }}" placeholder="https://example.com/logo.png">
+                                </div>
+
+                                {% if settings.brand_logo %}
+                                <div class="form-check mt-2">
+                                    <input class="form-check-input" type="checkbox" name="clear_brand_logo" id="clearLogo" value="1">
+                                    <label class="form-check-label text-danger small" for="clearLogo">Xoá file logo đã tải lên</label>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <!-- Favicon Trình Duyệt -->
+                        <div class="col-md-6">
+                            <div class="p-3 border rounded-3 bg-light h-100">
+                                <label class="form-label fw-bold text-dark mb-2 d-flex align-items-center justify-content-between">
+                                    <span>Favicon Trình Duyệt</span>
+                                    <small class="text-muted fw-normal">Icon tab trình duyệt</small>
+                                </label>
+
+                                <div class="d-flex align-items-center gap-3 mb-3 p-2 bg-white rounded-3 border">
+                                    {% if settings.favicon_url %}
+                                        <img src="{{ settings.favicon_url }}" alt="Favicon Preview" style="width: 32px; height: 32px; object-fit: contain;">
+                                    {% else %}
+                                        <div class="bg-primary-subtle text-primary fw-bold fs-5 d-flex align-items-center justify-content-center rounded" style="width: 32px; height: 32px;">🌐</div>
+                                    {% endif %}
+                                    <div class="small">
+                                        <div class="fw-bold text-dark">Favicon hiện tại</div>
+                                        <div class="text-muted small">{% if settings.favicon_url %}Đã thiết lập{% else %}Dùng icon mặc định{% endif %}</div>
+                                    </div>
+                                </div>
+
+                                <div class="mb-2">
+                                    <label class="form-label small text-muted mb-1">Tải file Favicon (.ico, .png, .svg):</label>
+                                    <input type="file" class="form-control form-control-sm" name="brand_favicon" accept="image/*">
+                                </div>
+
+                                <div>
+                                    <label class="form-label small text-muted mb-1">Hoặc đường dẫn URL Favicon:</label>
+                                    <input type="url" class="form-control form-control-sm" name="brand_favicon_url" value="{{ settings.brand_favicon_url }}" placeholder="https://example.com/favicon.ico">
+                                </div>
+
+                                {% if settings.brand_favicon %}
+                                <div class="form-check mt-2">
+                                    <input class="form-check-input" type="checkbox" name="clear_brand_favicon" id="clearFavicon" value="1">
+                                    <label class="form-check-label text-danger small" for="clearFavicon">Xoá file favicon đã tải lên</label>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <!-- Banner Trang Chủ (Hero Banner) -->
+                        <div class="col-12">
+                            <div class="p-3 border rounded-3 bg-light">
+                                <label class="form-label fw-bold text-dark mb-2 d-flex align-items-center justify-content-between">
+                                    <span>Banner Trang Chủ (Hero Banner)</span>
+                                    <small class="text-muted fw-normal">Hình nền khối chào mừng trang chủ</small>
+                                </label>
+
+                                {% if settings.banner_url %}
+                                <div class="mb-3 rounded-3 overflow-hidden border position-relative" style="max-height: 160px;">
+                                    <img src="{{ settings.banner_url }}" alt="Banner Preview" class="w-100" style="height: 160px; object-fit: cover;">
+                                    <span class="badge bg-dark bg-opacity-75 position-absolute top-0 end-0 m-2">Ảnh banner hiện tại</span>
+                                </div>
+                                {% endif %}
+
+                                <div class="row g-2">
+                                    <div class="col-md-6">
+                                        <label class="form-label small text-muted mb-1">Tải ảnh Banner mới (Tỷ lệ 16:9 hoặc 1920x600px):</label>
+                                        <input type="file" class="form-control form-control-sm" name="hero_banner" accept="image/*">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label small text-muted mb-1">Hoặc đường dẫn URL Banner trực tuyến:</label>
+                                        <input type="url" class="form-control form-control-sm" name="hero_banner_url" value="{{ settings.hero_banner_url }}" placeholder="https://example.com/banner.jpg">
+                                    </div>
+                                </div>
+
+                                {% if settings.hero_banner %}
+                                <div class="form-check mt-2">
+                                    <input class="form-check-input" type="checkbox" name="clear_hero_banner" id="clearBanner" value="1">
+                                    <label class="form-check-label text-danger small" for="clearBanner">Xoá file banner đã tải lên</label>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <!-- Tiêu đề và Mô tả phía khách -->
+                        <div class="col-md-12">
+                            <label class="form-label fw-bold">Tiêu Đề Banner Phía Khách (Hero Title)</label>
+                            <input type="text" class="form-control" name="hero_title" value="{{ settings.hero_title }}" placeholder="Hệ Thống Khảo Thí Thông Minh">
+                            <div class="form-text small">Dòng chữ lớn nổi bật ở đầu trang chủ dành cho thí sinh & người dùng.</div>
+                        </div>
+
+                        <div class="col-md-12">
+                            <label class="form-label fw-bold">Đoạn Văn Mô Tả Banner (Hero Subtitle)</label>
+                            <textarea class="form-control" name="hero_subtitle" rows="2" placeholder="Nền tảng thi trắc nghiệm trực tuyến chuẩn hóa...">{{ settings.hero_subtitle }}</textarea>
+                            <div class="form-text small">Đoạn văn giới thiệu ngắn dưới tiêu đề trang chủ.</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 2. Thông Tin Website & Liên Hệ -->
+                <div class="card border-0 shadow-sm rounded-4 p-4 mb-4 bg-white">
+                    <div class="d-flex align-items-center gap-2 mb-3 pb-2 border-bottom">
+                        <span class="fs-4">🌐</span>
+                        <h5 class="fw-bold text-dark mb-0">Thông Tin Website & Đơn Vị</h5>
+                    </div>
+
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Tên Website / Tên Trường Học</label>
+                            <input type="text" class="form-control" name="site_title" value="{{ settings.site_title }}" required>
+                            <div class="form-text small">Hiển thị ở Logo, thanh tiêu đề và chân trang.</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Khẩu hiệu (Slogan)</label>
+                            <input type="text" class="form-control" name="site_slogan" value="{{ settings.site_slogan }}">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Hotline liên hệ / Hỗ trợ</label>
+                            <input type="text" class="form-control" name="hotline" value="{{ settings.hotline }}">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Email hỗ trợ kỹ thuật</label>
+                            <input type="email" class="form-control" name="contact_email" value="{{ settings.contact_email }}">
+                        </div>
+                        <div class="col-md-12">
+                            <label class="form-label fw-bold">Văn bản bản quyền chân trang (Footer Text)</label>
+                            <input type="text" class="form-control" name="footer_text" value="{{ settings.footer_text }}" placeholder="© 2026 ProEdu - Hệ Thống Khảo Thí & Luyện Lập Trình. All rights reserved.">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 3. Cấu hình VietQR & AI -->
+                <div class="card border-0 shadow-sm rounded-4 p-4 bg-white">
+                    <div class="d-flex align-items-center gap-2 mb-3 pb-2 border-bottom">
+                        <span class="fs-4">💳</span>
+                        <h5 class="fw-bold text-dark mb-0">Cấu Hình Cổng Thanh Toán Tự Động (VietQR) & AI</h5>
+                    </div>
+
+                    <div class="alert alert-info border-0 rounded-3 small mb-4">
+                        💡 <strong>Nguyên lý VietQR:</strong> Hệ thống tự động sinh ảnh mã QR Napas theo chuẩn ngân hàng. Khi khách hàng quét mã, toàn bộ Số tiền và Cú pháp chuyển khoản sẽ được điền tự động chính xác 100%.
+                    </div>
+
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">Mã ngân hàng (Bank ID)</label>
+                            <input type="text" class="form-control font-monospace text-uppercase" name="bank_id" value="{{ settings.bank_id }}" required placeholder="VD: MB, VCB, TCB, VPB">
+                            <div class="form-text small">Mã chuẩn Napas (MB, VCB, ACB, TPB...)</div>
+                        </div>
+                        <div class="col-md-8">
+                            <label class="form-label fw-bold">Số tài khoản nhận tiền</label>
+                            <input type="text" class="form-control font-monospace fs-6" name="bank_account_number" value="{{ settings.bank_account_number }}" required>
+                        </div>
+                        <div class="col-md-8">
+                            <label class="form-label fw-bold">Tên chủ tài khoản (In hoa không dấu)</label>
+                            <input type="text" class="form-control text-uppercase" name="bank_account_name" value="{{ settings.bank_account_name }}" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">Tiền tố cú pháp (Prefix)</label>
+                            <input type="text" class="form-control font-monospace text-uppercase" name="payment_prefix" value="{{ settings.payment_prefix }}">
+                            <div class="form-text small">VD: PROEDU</div>
+                        </div>
+                        <div class="col-md-12">  
+                            <label class="form-label fw-bold">Gemini API Key</label>
+                            <input type="password" class="form-control font-monospace" name="gemini_api_key" value="{{ settings.gemini_api_key }}">
+                            <div class="form-text small">Khoá API Google Gemini phục vụ các tính năng AI trích xuất tài liệu Math/LaTeX.</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Cột phải: Chế độ hệ thống & Xem trước giao diện khách -->
+            <div class="col-lg-4">
+                <!-- Tuỳ chọn hệ thống -->
+                <div class="card border-0 shadow-sm rounded-4 p-4 mb-4 bg-white">
+                    <div class="d-flex align-items-center gap-2 mb-3 pb-2 border-bottom">
+                        <span class="fs-4">🔒</span>
+                        <h5 class="fw-bold text-dark mb-0">Chế Độ Vận Hành</h5>
+                    </div>
+
+                    <div class="form-check form-switch mb-3">
+                        <input class="form-check-input" type="checkbox" id="enableReg" name="enable_registration" {% if settings.enable_registration %}checked{% endif %}>
+                        <label class="form-check-label fw-bold" for="enableReg">Cho phép đăng ký mới</label>
+                        <div class="text-muted small">Mở tính năng cho học sinh tự tạo tài khoản.</div>
+                    </div>
+
+                    <div class="form-check form-switch mb-3">
+                        <input class="form-check-input" type="checkbox" id="enableQR" name="enable_vietqr" {% if settings.enable_vietqr %}checked{% endif %}>
+                        <label class="form-check-label fw-bold" for="enableQR">Bật thanh toán VietQR</label>
+                        <div class="text-muted small">Hiển thị mã QR ngân hàng tại trang thanh toán.</div>
+                    </div>
+
+                    <div class="form-check form-switch mb-3">
+                        <input class="form-check-input" type="checkbox" id="maint" name="maintenance_mode" {% if settings.maintenance_mode %}checked{% endif %}>
+                        <label class="form-check-label fw-bold text-danger" for="maint">Chế độ bảo trì hệ thống</label>
+                        <div class="text-muted small">Tạm thời khoá truy cập người dùng thường.</div>
+                    </div>
+
+                    <div class="pt-3 border-top">
+                        <button type="submit" class="btn btn-warning text-dark w-100 rounded-pill py-3 fw-extrabold shadow-sm fs-6">
+                            💾 Lưu Toàn Bộ Cấu Hình
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Preview Nhận Diện Thương Hiệu Phía Khách (Live Mockup) -->
+                <div class="card border-0 shadow-sm rounded-4 p-4 mb-4 bg-white">
+                    <div class="d-flex align-items-center gap-2 mb-3 pb-2 border-bottom">
+                        <span class="fs-5">👁️</span>
+                        <h6 class="fw-bold text-dark mb-0">Mô Phỏng Phía Khách (Live Preview)</h6>
+                    </div>
+
+                    <!-- Giả lập Thanh Navbar -->
+                    <div class="rounded-3 overflow-hidden border mb-3 shadow-xs">
+                        <div class="bg-dark p-2 text-white d-flex align-items-center justify-content-between">
+                            <div class="d-flex align-items-center gap-2">
+                                {% if settings.logo_url %}
+                                    <img src="{{ settings.logo_url }}" alt="Logo" style="height: 24px; max-width: 80px; object-fit: contain;">
+                                {% else %}
+                                    <span class="text-warning fw-bold">⚡</span>
+                                {% endif %}
+                                <span class="fw-bold text-warning small text-truncate" style="max-width: 140px;">{{ settings.site_title }}</span>
+                            </div>
+                            <span class="badge bg-warning text-dark rounded-pill px-2 py-1" style="font-size: 0.65rem;">Vào Thi</span>
+                        </div>
+
+                        <!-- Giả lập Hero Banner -->
+                        <div class="p-3 text-center position-relative" style="background: {% if settings.banner_url %}linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.5)), url('{{ settings.banner_url }}') center/cover{% else %}linear-gradient(135deg, #1e1b4b 0%, #312e81 100%){% endif %}; color: white;">
+                            <div class="fw-bold small mb-1 text-truncate">{{ settings.hero_title }}</div>
+                            <div class="text-white-50" style="font-size: 0.7rem; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">
+                                {{ settings.hero_subtitle }}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="small text-muted text-center">
+                        Mô phỏng cách học sinh & khách hàng nhìn thấy Logo, Tên trường và Banner khi truy cập hệ thống.
+                    </div>
+                </div>
+
+                <!-- Preview QR mẫu -->
+                <div class="card border-0 shadow-sm rounded-4 p-4 bg-white text-center">
+                    <h6 class="fw-bold text-muted small text-uppercase mb-3">Xem Trước Mã QR VietQR Mẫu</h6>
+                    <div class="p-3 bg-light rounded-4 d-inline-block shadow-xs mb-3">
+                        <img src="https://img.vietqr.io/image/{{ settings.bank_id }}-{{ settings.bank_account_number }}-compact2.png?amount=100000&addInfo=PROEDU%20TEST&accountName={{ settings.bank_account_name|urlencode }}" alt="QR Test" class="img-fluid rounded-3" style="max-width: 170px;">
+                    </div>
+                    <div class="small text-muted">
+                        Ngân hàng: <strong>{{ settings.bank_id }}</strong><br>
+                        STK: <strong class="font-monospace">{{ settings.bank_account_number }}</strong><br>
+                        Chủ TK: <strong>{{ settings.bank_account_name }}</strong>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+{% endblock %}

@@ -1,0 +1,124 @@
+{% extends 'quiz/base.html' %}
+
+{% block title %}Sổ Giao Dịch & Đơn Hàng - ProEdu Admin{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4 px-lg-5">
+    <!-- Sub-Navbar -->
+    {% include 'quiz/admin/admin_nav.html' %}
+
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3">
+        <div>
+            <h3 class="fw-bold text-dark mb-1">💳 Sổ Đơn Hàng & Lịch Sử Giao Dịch</h3>
+            <p class="text-muted small mb-0">Theo dõi toàn bộ các lượt quét mã VietQR, trạng thái thanh toán và kích hoạt gói thủ công khi cần.</p>
+        </div>
+    </div>
+
+    <!-- Filters & Search Bar -->
+    <div class="card border-0 shadow-sm rounded-4 p-3 mb-4 bg-white">
+        <form method="GET" action="{% url 'admin_transactions' %}" class="row g-2 align-items-center">
+            <div class="col-md-5">
+                <div class="input-group">
+                    <span class="input-group-text bg-light border-end-0">🔍</span>
+                    <input type="text" name="q" class="form-control border-start-0" placeholder="Tìm theo mã đơn (PE...), username, cú pháp..." value="{{ query }}">
+                </div>
+            </div>
+            <div class="col-md-4">
+                <select name="status" class="form-select" onchange="this.form.submit()">
+                    <option value="">-- Tất cả trạng thái --</option>
+                    <option value="PENDING" {% if status_filter == 'PENDING' %}selected{% endif %}>Chờ thanh toán (PENDING)</option>
+                    <option value="SUCCESS" {% if status_filter == 'SUCCESS' %}selected{% endif %}>Thành công (SUCCESS)</option>
+                    <option value="CANCELLED" {% if status_filter == 'CANCELLED' %}selected{% endif %}>Đã huỷ (CANCELLED)</option>
+                </select>
+            </div>
+            <div class="col-md-3 d-flex gap-2">
+                <button type="submit" class="btn btn-primary rounded-pill px-3 fw-bold flex-grow-1">Lọc Dữ Liệu</button>
+                {% if query or status_filter %}
+                <a href="{% url 'admin_transactions' %}" class="btn btn-outline-secondary rounded-pill px-3">Xoá Lọc</a>
+                {% endif %}
+            </div>
+        </form>
+    </div>
+
+    <!-- Transaction Table -->
+    <div class="card border-0 shadow-sm rounded-4 p-4 bg-white">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0 small">
+                <thead class="table-light">
+                    <tr>
+                        <th>Mã đơn hàng</th>
+                        <th>Khách hàng</th>
+                        <th>Gói dịch vụ</th>
+                        <th>Số tiền</th>
+                        <th>Cú pháp chuyển khoản</th>
+                        <th>Phương thức</th>
+                        <th>Trạng thái</th>
+                        <th>Thời gian</th>
+                        <th class="text-end">Hành động</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for tx in transactions %}
+                    <tr>
+                        <td class="font-monospace fw-bold text-primary">{{ tx.transaction_code }}</td>
+                        <td>
+                            <div class="fw-bold text-dark">{{ tx.user.get_full_name|default:tx.user.username }}</div>
+                            <div class="text-muted" style="font-size: 0.75rem;">@{{ tx.user.username }}</div>
+                        </td>
+                        <td>
+                            <span class="badge bg-light text-dark border rounded-pill">
+                                {{ tx.plan.name|default:"Tùy chọn" }}
+                            </span>
+                        </td>
+                        <td class="fw-bold text-danger fs-6">{{ tx.amount|floatformat:0 }}đ</td>
+                        <td>
+                            <code class="text-dark bg-light px-2 py-1 rounded">{{ tx.transfer_content }}</code>
+                        </td>
+                        <td>
+                            <span class="badge bg-secondary-subtle text-secondary rounded-pill">
+                                {{ tx.get_payment_method_display }}
+                            </span>
+                        </td>
+                        <td>
+                            {% if tx.status == 'SUCCESS' %}
+                                <span class="badge bg-success-subtle text-success rounded-pill fw-bold">✔ Thành công</span>
+                            {% elif tx.status == 'PENDING' %}
+                                <span class="badge bg-warning-subtle text-warning rounded-pill fw-bold">⏳ Chờ xử lý</span>
+                            {% else %}
+                                <span class="badge bg-danger-subtle text-danger rounded-pill fw-bold">✕ {{ tx.status }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-muted">
+                            <div>{{ tx.created_at|date:"d/m/Y" }}</div>
+                            <div style="font-size: 0.75rem;">{{ tx.created_at|date:"H:i:s" }}</div>
+                        </td>
+                        <td class="text-end">
+                            {% if tx.status == 'PENDING' %}
+                            <div class="d-flex justify-content-end gap-1">
+                                <a href="{% url 'admin_approve_tx' tx.id %}" class="btn btn-sm btn-success rounded-pill px-3 fw-bold" onclick="return confirm('Xác nhận đã nhận tiền và kích hoạt gói {{ tx.plan.name }} cho tài khoản {{ tx.user.username }}?');">
+                                    ⚡ Duyệt Đơn
+                                </a>
+                                <a href="{% url 'admin_cancel_tx' tx.id %}" class="btn btn-sm btn-outline-danger rounded-pill px-2" onclick="return confirm('Huỷ đơn hàng này?');">
+                                    ✕
+                                </a>
+                            </div>
+                            {% elif tx.status == 'SUCCESS' %}
+                                <span class="text-success small fw-semibold">Đã kích hoạt</span>
+                            {% else %}
+                                <span class="text-muted small">Đã huỷ</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="9" class="text-center text-muted py-5">
+                            Không tìm thấy giao dịch nào phù hợp với bộ lọc.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

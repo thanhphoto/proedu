@@ -68,9 +68,7 @@
                     </div>
                 </div>
                 <div class="col-lg-4 text-lg-end mt-4 mt-lg-0">
-                    <button class="btn btn-light fw-bold text-primary shadow-sm" data-bs-toggle="modal" data-bs-target="#apiKeyModal">
-                        <i class="fas fa-key me-1"></i> Cấu hình Gemini API Key
-                    </button>
+
                     {% if has_system_api_key %}
                     <div class="small text-white-50 mt-2"><i class="fas fa-check-circle text-success"></i> API Key hệ thống: Đang sẵn sàng</div>
                     {% endif %}
@@ -87,6 +85,74 @@
                     <h5 class="fw-bold mb-0 text-dark"><i class="fas fa-cloud-upload-alt text-primary me-2"></i> Tải Lên Tệp Tài Liệu</h5>
                 </div>
                 <div class="card-body p-4">
+                    <!-- Quota / Subscription Status Banner -->
+                    {% if not user.is_authenticated %}
+                    <div class="alert alert-warning border-0 shadow-sm rounded-3 d-flex align-items-center justify-content-between p-3 mb-3">
+                        <div class="d-flex align-items-center">
+                            <div class="bg-warning text-dark rounded-circle p-2 me-3 d-flex align-items-center justify-content-center" style="width: 38px; height: 38px;">
+                                <i class="fas fa-user-lock"></i>
+                            </div>
+                            <div>
+                                <div class="fw-bold text-dark mb-0">Chưa đăng nhập tài khoản</div>
+                                <small class="text-muted">Đăng nhập để nhận <strong>01 trang chuyển đổi miễn phí</strong> dùng thử.</small>
+                            </div>
+                        </div>
+                        <a href="{% url 'login' %}?next={% url 'math_converter' %}" class="btn btn-warning btn-sm fw-bold px-3 shadow-sm text-nowrap ms-2">
+                            <i class="fas fa-sign-in-alt me-1"></i> Đăng nhập
+                        </a>
+                    </div>
+                    {% elif not has_active_package %}
+                        {% if quota_remaining > 0 %}
+                        <div class="alert alert-primary border-0 shadow-sm rounded-3 d-flex align-items-center justify-content-between p-3 mb-3">
+                            <div class="d-flex align-items-center">
+                                <div class="bg-primary text-white rounded-circle p-2 me-3 d-flex align-items-center justify-content-center" style="width: 38px; height: 38px;">
+                                    <i class="fas fa-gift"></i>
+                                </div>
+                                <div>
+                                    <div class="fw-bold text-primary mb-0">Gói Dùng thử: Miễn phí 1 trang</div>
+                                    <small class="text-muted">Bạn còn lại: <strong class="text-success">{{ quota_remaining }} trang</strong> (Từ trang thứ 2 cần nâng cấp gói).</small>
+                                </div>
+                            </div>
+                            <a href="{% url 'pricing' %}" class="btn btn-outline-primary btn-sm fw-bold px-3 text-nowrap ms-2">
+                                <i class="fas fa-crown me-1"></i> Nâng cấp gói
+                            </a>
+                        </div>
+                        {% else %}
+                        <div class="alert alert-danger border-0 shadow-sm rounded-3 d-flex align-items-center justify-content-between p-3 mb-3">
+                            <div class="d-flex align-items-center">
+                                <div class="bg-danger text-white rounded-circle p-2 me-3 d-flex align-items-center justify-content-center" style="width: 38px; height: 38px;">
+                                    <i class="fas fa-exclamation-triangle"></i>
+                                </div>
+                                <div>
+                                    <div class="fw-bold text-danger mb-0">Đã hết lượt dùng thử miễn phí</div>
+                                    <small class="text-muted">Đã dùng hết 1 trang miễn phí. Vui lòng nâng cấp gói để tiếp tục chuyển đổi.</small>
+                                </div>
+                            </div>
+                            <a href="{% url 'pricing' %}" class="btn btn-danger btn-sm fw-bold px-3 shadow-sm text-nowrap ms-2">
+                                <i class="fas fa-rocket me-1"></i> Nâng cấp ngay
+                            </a>
+                        </div>
+                        {% endif %}
+                    {% else %}
+                    <div class="alert alert-success border-0 shadow-sm rounded-3 d-flex align-items-center justify-content-between p-3 mb-3">
+                        <div class="d-flex align-items-center">
+                            <div class="bg-success text-white rounded-circle p-2 me-3 d-flex align-items-center justify-content-center" style="width: 38px; height: 38px;">
+                                <i class="fas fa-crown"></i>
+                            </div>
+                            <div>
+                                <div class="fw-bold text-success mb-0">
+                                    Gói {% if user_plan %}{{ user_plan.name }}{% else %}VIP{% endif %}
+                                    {% if user.is_superuser %}<span class="badge bg-danger ms-1">Admin</span>{% endif %}
+                                </div>
+                                <small class="text-muted">Đã dùng: <strong>{{ quota_used }}/{{ quota_limit }}</strong> trang trong tháng (Còn lại: <strong class="text-primary">{{ quota_remaining }}</strong>).</small>
+                            </div>
+                        </div>
+                        <a href="{% url 'pricing' %}" class="btn btn-outline-success btn-sm fw-semibold px-3 text-nowrap ms-2">
+                            <i class="fas fa-gem me-1"></i> Xem gói
+                        </a>
+                    </div>
+                    {% endif %}
+
                     <form id="convertDocForm" enctype="multipart/form-data">
                         {% csrf_token %}
                         <div class="upload-box" id="dropZone">
@@ -194,7 +260,15 @@
             <span class="badge bg-primary">{{ conversions.count }} bản ghi</span>
         </div>
         <div class="card-body p-0">
-            {% if conversions %}
+            {% if not user.is_authenticated %}
+            <div class="p-5 text-center text-muted">
+                <i class="fas fa-user-lock fs-2 mb-2 text-warning opacity-75"></i>
+                <p class="mb-2">Vui lòng đăng nhập để lưu trữ và quản lý lịch sử chuyển đổi tài liệu của bạn.</p>
+                <a href="{% url 'login' %}?next={% url 'math_converter' %}" class="btn btn-outline-primary btn-sm fw-semibold">
+                    <i class="fas fa-sign-in-alt me-1"></i> Đăng nhập ngay
+                </a>
+            </div>
+            {% elif conversions %}
             <div class="table-responsive">
                 <table class="table table-hover align-middle mb-0">
                     <thead class="table-light">
@@ -266,31 +340,7 @@
     </div>
 </div>
 
-<!-- MODAL CẤU HÌNH API KEY -->
-<div class="modal fade" id="apiKeyModal" tabindex="-1" aria-labelledby="apiKeyModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content shadow">
-            <div class="modal-header bg-primary text-white">
-                <h5 class="modal-title" id="apiKeyModalLabel"><i class="fas fa-key me-2"></i> Cấu hình Google Gemini API Key</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <p class="small text-muted mb-3">Tính năng chuyển đổi ảnh/PDF chứa công thức toán sử dụng công nghệ nhận diện thị giác của <strong>Google Gemini Vision</strong>. Bạn có thể lấy API Key miễn phí tại <a href="https://aistudio.google.com/app/apikey" target="_blank" class="fw-bold text-decoration-none">Google AI Studio</a>.</p>
-                <div class="mb-3">
-                    <label class="form-label fw-bold">Gemini API Key của bạn:</label>
-                    <input type="password" id="userApiKeyInput" class="form-control font-monospace" placeholder="AIzaSy...">
-                    <div class="form-text">API Key sẽ được lưu an toàn trong phiên làm việc hiện tại của bạn.</div>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
-                <button type="button" class="btn btn-primary fw-bold" id="btnSaveApiKey">
-                    <i class="fas fa-save me-1"></i> Lưu API Key
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
+
 
 <!-- MODAL XEM CHI TIẾT NỘI DUNG LATEX LỊCH SỬ -->
 <div class="modal fade" id="historyDetailModal" tabindex="-1" aria-labelledby="historyDetailModalLabel" aria-hidden="true">
@@ -350,24 +400,7 @@ const Toast = Swal.mixin({
     timerProgressBar: true,
 });
 
-// Khôi phục API Key từ localStorage nếu có
-const storedApiKey = localStorage.getItem('gemini_api_key') || '';
-if (storedApiKey) {
-    document.getElementById('userApiKeyInput').value = storedApiKey;
-}
 
-document.getElementById('btnSaveApiKey').addEventListener('click', function() {
-    const key = document.getElementById('userApiKeyInput').value.trim();
-    if (key) {
-        localStorage.setItem('gemini_api_key', key);
-        Toast.fire({ icon: 'success', title: 'Đã lưu API Key thành công!' });
-        bootstrap.Modal.getInstance(document.getElementById('apiKeyModal')).hide();
-    } else {
-        localStorage.removeItem('gemini_api_key');
-        Toast.fire({ icon: 'info', title: 'Đã xóa API Key cá nhân.' });
-        bootstrap.Modal.getInstance(document.getElementById('apiKeyModal')).hide();
-    }
-});
 
 // Drag & Drop
 const dropZone = document.getElementById('dropZone');
@@ -430,10 +463,53 @@ function formatBytes(bytes, decimals = 2) {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
 }
 
+// Biến trạng thái người dùng từ server
+const IS_AUTHENTICATED = {{ user.is_authenticated|yesno:"true,false" }};
+const HAS_ACTIVE_PACKAGE = {{ has_active_package|yesno:"true,false" }};
+const QUOTA_REMAINING = {{ quota_remaining|default:0 }};
+const LOGIN_URL = "{% url 'login' %}?next={% url 'math_converter' %}";
+const PRICING_URL = "{% url 'pricing' %}";
+
 // Convert Document Form Submission
 document.getElementById('convertDocForm').addEventListener('submit', function(e) {
     e.preventDefault();
     
+    // 1. Kiểm tra đăng nhập
+    if (!IS_AUTHENTICATED) {
+        Swal.fire({
+            icon: 'warning',
+            title: 'Yêu cầu đăng nhập',
+            html: '<p class="mb-2">Bạn cần đăng nhập tài khoản trước khi thực hiện chuyển đổi tài liệu.</p><p class="text-muted small mb-0">Hệ thống tặng <strong>01 trang miễn phí</strong> dùng thử khi bạn đăng nhập tài khoản!</p>',
+            showCancelButton: true,
+            confirmButtonText: '<i class="fas fa-sign-in-alt me-1"></i> Đăng nhập ngay',
+            cancelButtonText: 'Để sau',
+            confirmButtonColor: '#3b82f6',
+        }).then((result) => {
+            if (result.isConfirmed) {
+                window.location.href = LOGIN_URL;
+            }
+        });
+        return;
+    }
+
+    // 2. Kiểm tra hạn mức người dùng chưa mua gói
+    if (!HAS_ACTIVE_PACKAGE && QUOTA_REMAINING <= 0) {
+        Swal.fire({
+            icon: 'warning',
+            title: 'Hết lượt dùng thử miễn phí',
+            html: '<p class="mb-2">Bạn đã sử dụng hết <strong>01 trang chuyển đổi miễn phí</strong>.</p><p class="text-muted small mb-0">Từ trang thứ 2 hoặc tài liệu nhiều trang, vui lòng nâng cấp gói để tiếp tục sử dụng không giới hạn!</p>',
+            showCancelButton: true,
+            confirmButtonText: '<i class="fas fa-crown me-1"></i> Xem bảng giá & Nâng cấp',
+            cancelButtonText: 'Đóng',
+            confirmButtonColor: '#e11d48',
+        }).then((result) => {
+            if (result.isConfirmed) {
+                window.location.href = PRICING_URL;
+            }
+        });
+        return;
+    }
+
     if (!fileInput.files.length) {
         Toast.fire({ icon: 'warning', title: 'Vui lòng chọn tệp ảnh hoặc PDF cần chuyển đổi!' });
         return;
@@ -458,7 +534,18 @@ document.getElementById('convertDocForm').addEventListener('submit', function(e)
             'X-Requested-With': 'XMLHttpRequest'
         }
     })
-    .then(res => res.json())
+    .then(async res => {
+        let data;
+        try {
+            data = await res.json();
+        } catch(e) {
+            throw new Error('Lỗi phản hồi máy chủ không hợp lệ.');
+        }
+        if (!res.ok) {
+            throw { status: res.status, data: data };
+        }
+        return data;
+    })
     .then(data => {
         btnSubmit.disabled = false;
         processingCard.style.display = 'none';
@@ -483,10 +570,10 @@ document.getElementById('convertDocForm').addEventListener('submit', function(e)
                 MathJax.typesetPromise([renderedDiv]).catch(err => console.log(err));
             }
 
-            // Reload history table after 2s
+            // Reload history table after 2.5s
             setTimeout(() => {
                 window.location.reload();
-            }, 3000);
+            }, 2500);
         } else {
             Swal.fire({
                 icon: 'error',
@@ -498,11 +585,42 @@ document.getElementById('convertDocForm').addEventListener('submit', function(e)
     .catch(err => {
         btnSubmit.disabled = false;
         processingCard.style.display = 'none';
-        Swal.fire({
-            icon: 'error',
-            title: 'Lỗi kết nối',
-            text: 'Không thể kết nối đến máy chủ xử lý: ' + err.message
-        });
+
+        if (err.data && (err.status === 401 || err.data.require_login)) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'Yêu cầu đăng nhập',
+                html: `<p class="mb-2">${err.data.error || 'Vui lòng đăng nhập để bắt đầu chuyển đổi.'}</p><p class="text-muted small mb-0">Đăng nhập tài khoản để nhận 01 trang dùng thử miễn phí.</p>`,
+                showCancelButton: true,
+                confirmButtonText: '<i class="fas fa-sign-in-alt me-1"></i> Đăng nhập ngay',
+                cancelButtonText: 'Đóng',
+                confirmButtonColor: '#3b82f6',
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    window.location.href = LOGIN_URL;
+                }
+            });
+        } else if (err.data && (err.status === 403 || err.data.require_upgrade)) {
+            Swal.fire({
+                icon: 'info',
+                title: 'Yêu cầu nâng cấp gói',
+                html: `<p class="mb-2">${err.data.error || 'Vui lòng nâng cấp gói để tiếp tục.'}</p><p class="text-muted small mb-0">Gói nâng cấp cho phép chuyển đổi PDF nhiều trang và số lượng lớn tài liệu mỗi tháng.</p>`,
+                showCancelButton: true,
+                confirmButtonText: '<i class="fas fa-crown me-1"></i> Xem bảng giá & Nâng cấp',
+                cancelButtonText: 'Để sau',
+                confirmButtonColor: '#e11d48',
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    window.location.href = PRICING_URL;
+                }
+            });
+        } else {
+            Swal.fire({
+                icon: 'error',
+                title: 'Lỗi',
+                text: (err.data && err.data.error) ? err.data.error : (err.message || 'Không thể kết nối đến máy chủ xử lý.')
+            });
+        }
     });
 });
 

@@ -58,9 +58,20 @@
 
                         <!-- Thông tin cơ bản -->
                         <div class="row">
-                            <div class="col-md-8 mb-3">
+                            <div class="col-md-3 mb-3">
+                                <label class="form-label fw-bold">Mã bài toán (Code)</label>
+                                {{ form.code }}
+                                {% if form.code.errors %}
+                                    <div class="text-danger small mt-1">{{ form.code.errors.0 }}</div>
+                                {% endif %}
+                                <div class="form-text small">Tự sinh nếu để trống.</div>
+                            </div>
+                            <div class="col-md-5 mb-3">
                                 <label class="form-label fw-bold">Tên bài toán <span class="text-danger">*</span></label>
                                 {{ form.title }}
+                                {% if form.title.errors %}
+                                    <div class="text-danger small mt-1">{{ form.title.errors.0 }}</div>
+                                {% endif %}
                             </div>
                             <div class="col-md-4 mb-3">
                                 <label class="form-label fw-bold">Thuộc đề thi (đã thi)</label>

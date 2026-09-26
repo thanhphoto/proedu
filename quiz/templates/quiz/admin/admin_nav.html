@@ -1,0 +1,33 @@
+<!-- Admin Navigation Sub-header Bar -->
+<div class="card border-0 shadow-sm rounded-4 mb-4 bg-white p-2">
+    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 px-2">
+        <div class="d-flex align-items-center gap-1 overflow-auto py-1">
+            <a href="{% url 'admin_dashboard' %}" class="btn btn-sm rounded-pill px-3 fw-bold {% if request.resolver_match.url_name == 'admin_dashboard' %}btn-primary text-white shadow-xs{% else %}btn-light text-dark{% endif %}">
+                ⚡ Tổng Quan
+            </a>
+            <a href="{% url 'user_management' %}" class="btn btn-sm rounded-pill px-3 fw-bold {% if request.resolver_match.url_name == 'user_management' or request.resolver_match.url_name == 'admin_users' %}btn-primary text-white shadow-xs{% else %}btn-light text-dark{% endif %}">
+                👥 Người Dùng
+            </a>
+            <a href="{% url 'admin_plans' %}" class="btn btn-sm rounded-pill px-3 fw-bold {% if request.resolver_match.url_name == 'admin_plans' %}btn-primary text-white shadow-xs{% else %}btn-light text-dark{% endif %}">
+                💎 Gói & Thuê Bao
+            </a>
+            <a href="{% url 'admin_transactions' %}" class="btn btn-sm rounded-pill px-3 fw-bold {% if request.resolver_match.url_name == 'admin_transactions' %}btn-primary text-white shadow-xs{% else %}btn-light text-dark{% endif %}">
+                💳 Sổ Giao Dịch
+            </a>
+            <a href="{% url 'admin_licenses' %}" class="btn btn-sm rounded-pill px-3 fw-bold {% if request.resolver_match.url_name == 'admin_licenses' %}btn-primary text-white shadow-xs{% else %}btn-light text-dark{% endif %}">
+                🏛️ Bản Quyền B2B
+            </a>
+            <a href="{% url 'admin_settings' %}" class="btn btn-sm rounded-pill px-3 fw-bold {% if request.resolver_match.url_name == 'admin_settings' %}btn-primary text-white shadow-xs{% else %}btn-light text-dark{% endif %}">
+                ⚙️ Cài Đặt Hệ Thống
+            </a>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="{% url 'home' %}" class="btn btn-sm btn-outline-secondary rounded-pill px-3">
+                🏠 Về Trang Chủ
+            </a>
+            <a href="/admin/" target="_blank" class="btn btn-sm btn-outline-dark rounded-pill px-3">
+                🛠️ Django Admin
+            </a>
+        </div>
+    </div>
+</div>

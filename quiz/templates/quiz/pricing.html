@@ -1,0 +1,277 @@
+{% extends 'quiz/base.html' %}
+
+{% block title %}Bảng Giá Dịch Vụ & Bản Quyền - ProEdu{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <!-- Header Section -->
+    <div class="text-center max-w-700 mx-auto mb-5">
+        <span class="badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill px-3 py-2 fw-semibold mb-3">
+            💎 GIẢI PHÁP KHẢO THÍ & LUYỆN LẬP TRÌNH TOÀN DIỆN
+        </span>
+        <h1 class="display-5 fw-bold text-dark mb-3">Chọn Gói Dịch Vụ Phù Hợp</h1>
+        <p class="lead text-muted">
+            Tối ưu hóa học tập và giảng dạy với công nghệ chấm thi thông minh, AI chuyển đổi tài liệu và nền tảng luyện lập trình thi đấu chuyên nghiệp.
+        </p>
+
+        <!-- Current Subscription Status Alert -->
+        {% if current_sub and current_sub.is_valid %}
+        <div class="alert alert-success d-inline-flex align-items-center rounded-pill px-4 py-2 mt-2 shadow-sm border-0">
+            <span class="fs-5 me-2">✨</span>
+            <span class="fw-medium">Bạn đang sử dụng gói: <strong class="text-success">{{ current_sub.plan.name }}</strong> 
+                {% if current_sub.end_date %}
+                (Hạn dùng đến: {{ current_sub.end_date|date:"d/m/Y" }})
+                {% else %}
+                (Hiệu lực vĩnh viễn)
+                {% endif %}
+            </span>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Navigation Tabs B2C vs B2B -->
+    <div class="d-flex justify-content-center mb-5">
+        <ul class="nav nav-pills bg-light p-1 rounded-pill shadow-sm border" id="pricingTab" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active rounded-pill px-4 py-2 fw-bold" id="b2c-tab" data-bs-toggle="pill" data-bs-target="#b2c-content" type="button" role="tab">
+                    👤 Cá Nhân & Giáo Viên (B2C)
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link rounded-pill px-4 py-2 fw-bold" id="b2b-tab" data-bs-toggle="pill" data-bs-target="#b2b-content" type="button" role="tab">
+                    🏫 Trường Học & Trung Tâm (B2B)
+                </button>
+            </li>
+        </ul>
+    </div>
+
+    <div class="tab-content" id="pricingTabContent">
+        <!-- TAB 1: B2C PLANS -->
+        <div class="tab-pane fade show active" id="b2c-content" role="tabpanel">
+            <div class="row g-4 align-items-stretch justify-content-center">
+                {% for plan in b2c_plans %}
+                <div class="col-lg-4 col-md-6">
+                    <div class="card h-100 rounded-4 border-0 transition hover-shadow {% if plan.is_featured %}shadow-lg border-2 border-primary position-relative{% else %}shadow-sm{% endif %}">
+                        {% if plan.badge_text %}
+                        <div class="position-absolute top-0 start-50 translate-middle">
+                            <span class="badge {% if plan.is_featured %}bg-primary text-white shadow-sm{% else %}bg-secondary text-white{% endif %} rounded-pill px-3 py-1 fw-bold text-uppercase" style="font-size: 0.75rem;">
+                                {{ plan.badge_text }}
+                            </span>
+                        </div>
+                        {% endif %}
+
+                        <div class="card-body p-4 p-xl-5 d-flex flex-column">
+                            <div class="mb-3">
+                                <h4 class="fw-bold text-dark mb-1">{{ plan.name }}</h4>
+                                <p class="text-muted small mb-0">{{ plan.short_description }}</p>
+                            </div>
+
+                            <!-- Pricing Display -->
+                            <div class="my-4 pb-3 border-bottom">
+                                {% if plan.price == 0 %}
+                                    <h2 class="display-6 fw-bold text-dark mb-0">Miễn Phí</h2>
+                                    <span class="text-muted small">Dành cho mọi học sinh</span>
+                                {% else %}
+                                    <div class="d-flex align-items-baseline">
+                                        <h2 class="display-6 fw-bold text-primary mb-0">{{ plan.price|floatformat:0 }}đ</h2>
+                                        <span class="text-muted ms-2">/ năm</span>
+                                    </div>
+                                    {% if plan.original_price and plan.original_price > plan.price %}
+                                    <div class="mt-1">
+                                        <span class="text-muted text-decoration-line-through small me-2">{{ plan.original_price|floatformat:0 }}đ</span>
+                                        <span class="badge bg-danger-subtle text-danger rounded-pill small">Tiết kiệm 40%</span>
+                                    </div>
+                                    {% endif %}
+                                {% endif %}
+                            </div>
+
+                            <!-- Features List -->
+                            <ul class="list-unstyled mb-4 flex-grow-1">
+                                {% for feat in plan.features_list %}
+                                <li class="d-flex align-items-start mb-3">
+                                    <span class="text-success me-2 fs-6">✔</span>
+                                    <span class="text-secondary small">{{ feat }}</span>
+                                </li>
+                                {% endfor %}
+                            </ul>
+
+                            <!-- Call to Action Button -->
+                            <div class="mt-auto">
+                                {% if current_sub and current_sub.plan.code == plan.code and current_sub.is_valid %}
+                                    <button class="btn btn-secondary w-100 rounded-pill py-2 fw-bold" disabled>
+                                        Đang Kích Hoạt
+                                    </button>
+                                {% elif plan.price == 0 %}
+                                    <a href="{% url 'checkout' plan.code %}" class="btn btn-outline-secondary w-100 rounded-pill py-2 fw-bold">
+                                        Bắt Đầu Ngay
+                                    </a>
+                                {% else %}
+                                    <a href="{% url 'checkout' plan.code %}" class="btn {% if plan.is_featured %}btn-primary shadow{% else %}btn-outline-primary{% endif %} w-100 rounded-pill py-2 fw-bold">
+                                        Nâng Cấp Gói &rarr;
+                                    </a>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- TAB 2: B2B ENTERPRISE PLANS -->
+        <div class="tab-pane fade" id="b2b-content" role="tabpanel">
+            <div class="row g-4 align-items-stretch justify-content-center">
+                {% for plan in b2b_plans %}
+                <div class="col-lg-6">
+                    <div class="card h-100 rounded-4 border-0 shadow-sm transition hover-shadow p-4 p-xl-5">
+                        <div class="d-flex justify-content-between align-items-start mb-3">
+                            <div>
+                                <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle rounded-pill px-3 py-1 fw-bold mb-2">
+                                    {{ plan.badge_text|default:"GIẢI PHÁP TỔ CHỨC" }}
+                                </span>
+                                <h3 class="fw-bold text-dark mb-1">{{ plan.name }}</h3>
+                                <p class="text-muted">{{ plan.short_description }}</p>
+                            </div>
+                        </div>
+
+                        <div class="my-3 pb-3 border-bottom">
+                            <div class="d-flex align-items-baseline">
+                                <h2 class="display-6 fw-bold text-dark mb-0">{{ plan.price|floatformat:0 }}đ</h2>
+                                <span class="text-muted ms-2">/ năm</span>
+                            </div>
+                            <span class="badge bg-success-subtle text-success mt-1">Bao gồm toàn bộ chi phí máy chủ & bảo trì định kỳ</span>
+                        </div>
+
+                        <ul class="list-unstyled mb-4">
+                            {% for feat in plan.features_list %}
+                            <li class="d-flex align-items-start mb-3">
+                                <span class="text-primary me-2 fs-5">🚀</span>
+                                <span class="text-secondary">{{ feat }}</span>
+                            </li>
+                            {% endfor %}
+                        </ul>
+
+                        <div class="mt-auto d-flex gap-3">
+                            <a href="https://zalo.me/0987654321" target="_blank" class="btn btn-primary rounded-pill px-4 py-2 fw-bold flex-grow-1">
+                                💬 Tư Vấn Triển Khai Ngay
+                            </a>
+                            <a href="mailto:contact@proedu.vn" class="btn btn-outline-secondary rounded-pill px-4 py-2 fw-bold">
+                                ✉️ Nhận Báo Giá
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Comparison Table Section -->
+    <div class="mt-5 pt-4">
+        <div class="text-center mb-4">
+            <h3 class="fw-bold text-dark">So Sánh Chi Tiết Quyền Lợi</h3>
+            <p class="text-muted">Bảng đối chiếu cụ thể hạn mức giữa các gói dịch vụ</p>
+        </div>
+
+        <div class="table-responsive rounded-4 shadow-sm border bg-white p-3">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th class="py-3 px-4">Tính năng hệ thống</th>
+                        <th class="text-center py-3">Miễn Phí</th>
+                        <th class="text-center py-3 text-primary">Học Sinh PRO</th>
+                        <th class="text-center py-3 text-success">Giáo Viên & Khảo Thí</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td class="px-4 fw-medium">Luyện code & chấm bài tự động</td>
+                        <td class="text-center">Cơ bản</td>
+                        <td class="text-center fw-bold text-success">Toàn bộ ngân hàng</td>
+                        <td class="text-center fw-bold text-success">Toàn bộ ngân hàng</td>
+                    </tr>
+                    <tr>
+                        <td class="px-4 fw-medium">Xem lời giải mẫu (Editorial)</td>
+                        <td class="text-center text-muted">✕</td>
+                        <td class="text-center text-success fw-bold">✔ Có</td>
+                        <td class="text-center text-success fw-bold">✔ Có</td>
+                    </tr>
+                    <tr>
+                        <td class="px-4 fw-medium">Xem dữ liệu Testcase ẩn</td>
+                        <td class="text-center text-muted">✕</td>
+                        <td class="text-center text-success fw-bold">✔ Có</td>
+                        <td class="text-center text-success fw-bold">✔ Có</td>
+                    </tr>
+                    <tr>
+                        <td class="px-4 fw-medium">AI Chuyển Đổi Toán $\LaTeX$ / Word</td>
+                        <td class="text-center">5 trang / tháng</td>
+                        <td class="text-center">30 trang / tháng</td>
+                        <td class="text-center fw-bold text-primary">150 trang / tháng</td>
+                    </tr>
+                    <tr>
+                        <td class="px-4 fw-medium">Chấm phiếu trắc nghiệm OpenCV</td>
+                        <td class="text-center">Tối đa 10 bài</td>
+                        <td class="text-center">Tối đa 20 bài</td>
+                        <td class="text-center fw-bold text-success">Không giới hạn</td>
+                    </tr>
+                    <tr>
+                        <td class="px-4 fw-medium">Tạo đề thi ma trận & Tổ chức thi riêng</td>
+                        <td class="text-center text-muted">✕</td>
+                        <td class="text-center text-muted">✕</td>
+                        <td class="text-center fw-bold text-success">✔ Tối đa 200 HS/lần</td>
+                    </tr>
+                    <tr>
+                        <td class="px-4 fw-medium">Tự tạo kỳ thi Luyện Code riêng</td>
+                        <td class="text-center text-muted">✕</td>
+                        <td class="text-center text-muted">✕</td>
+                        <td class="text-center fw-bold text-success">✔ Không giới hạn</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- FAQ Accordion -->
+    <div class="max-w-800 mx-auto mt-5 pt-4">
+        <h4 class="fw-bold text-center text-dark mb-4">Câu Hỏi Thường Gặp (FAQ)</h4>
+        <div class="accordion shadow-sm rounded-4 overflow-hidden border" id="faqAccordion">
+            <div class="accordion-item border-0 border-bottom">
+                <h2 class="accordion-header">
+                    <button class="accordion-button fw-semibold collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq1">
+                        1. Sau khi quét mã thanh toán, tài khoản được kích hoạt trong bao lâu?
+                    </button>
+                </h2>
+                <div id="faq1" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+                    <div class="accordion-body text-muted small">
+                        Hệ thống đối soát tự động qua mã QR. Ngay khi giao dịch chuyển khoản thành công, tài khoản của bạn sẽ được tự động kích hoạt chỉ trong vòng 3 – 5 giây mà không cần thao tác thủ công.
+                    </div>
+                </div>
+            </div>
+            <div class="accordion-item border-0 border-bottom">
+                <h2 class="accordion-header">
+                    <button class="accordion-button fw-semibold collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq2">
+                        2. Trường học hoặc Trung tâm cần xuất hoá đơn VAT không?
+                    </button>
+                </h2>
+                <div id="faq2" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+                    <div class="accordion-body text-muted small">
+                        Có. Với các gói triển khai Trường học / Doanh nghiệp (B2B), chúng tôi cung cấp đầy đủ hợp đồng kinh tế, biên bản nghiệm thu và hoá đơn điện tử VAT theo đúng quy định.
+                    </div>
+                </div>
+            </div>
+            <div class="accordion-item border-0">
+                <h2 class="accordion-header">
+                    <button class="accordion-button fw-semibold collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq3">
+                        3. Tôi có thể nâng cấp từ gói Học Sinh lên gói Giáo Viên được không?
+                    </button>
+                </h2>
+                <div id="faq3" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+                    <div class="accordion-body text-muted small">
+                        Hoàn toàn được. Hệ thống sẽ tự động trừ phần giá trị thời gian còn lại của gói cũ và tính toán số tiền bù chênh lệch phù hợp nhất cho bạn.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

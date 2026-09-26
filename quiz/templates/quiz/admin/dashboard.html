@@ -1,0 +1,466 @@
+{% extends 'quiz/base.html' %}
+
+{% block title %}Bảng Điều Khiển Quản Trị Hệ Thống - ProEdu{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4 px-lg-5">
+    <!-- Sub-Navbar -->
+    {% include 'quiz/admin/admin_nav.html' %}
+
+    <!-- Header Section -->
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 pb-3 border-bottom gap-3">
+        <div>
+            <div class="d-flex align-items-center gap-2 mb-1">
+                <span class="badge bg-danger rounded-pill px-3 py-1 fw-bold">QUẢN TRỊ VIÊN</span>
+                <span class="text-muted small">Phiên bản ProEdu Enterprise 2.5</span>
+            </div>
+            <h2 class="fw-bold text-dark mb-0">⚡ Trung Tâm Điều Hành & Quản Trị Hệ Thống</h2>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="{% url 'admin_settings' %}" class="btn btn-outline-primary rounded-pill px-3 fw-bold d-flex align-items-center gap-2">
+                <span>⚙️</span>
+                <span>Cài Đặt Website & VietQR</span>
+            </a>
+            <a href="/admin/" target="_blank" class="btn btn-dark rounded-pill px-3 fw-bold d-flex align-items-center gap-2 shadow-sm">
+                <span>🛠️</span>
+                <span>Django Admin Cấp Cao</span>
+            </a>
+        </div>
+    </div>
+
+    <!-- Alert Thông báo Bản Quyền B2B -->
+    {% if license_info.licensed %}
+    <div class="card border-0 bg-primary-subtle text-primary-emphasis rounded-4 p-3 mb-4 shadow-xs">
+        <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
+            <div class="d-flex align-items-center gap-3">
+                <span class="fs-2">🏛️</span>
+                <div>
+                    <h6 class="fw-bold mb-0">Hệ thống đã kích hoạt Bản quyền Doanh nghiệp / Trường học (B2B)</h6>
+                    <small class="text-secondary">Đơn vị: <strong>{{ license_info.organization }}</strong> | Hạng: <strong>{{ license_info.tier }}</strong> | Hết hạn: <strong>{{ license_info.expires_at|date:"d/m/Y" }}</strong></small>
+                </div>
+            </div>
+            <a href="{% url 'admin_licenses' %}" class="btn btn-sm btn-primary rounded-pill px-3 fw-bold">Quản lý bản quyền</a>
+        </div>
+    </div>
+    {% else %}
+    <div class="card border-0 bg-warning-subtle text-warning-emphasis rounded-4 p-3 mb-4 shadow-xs">
+        <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
+            <div class="d-flex align-items-center gap-3">
+                <span class="fs-2">⚠️</span>
+                <div>
+                    <h6 class="fw-bold mb-0">Chế độ Standalone Community (Chưa đăng ký Bản quyền Trường học B2B)</h6>
+                    <small class="text-secondary">Bạn có thể cấu hình thông tin Bản quyền riêng cho trường học tại bảng quản trị System License.</small>
+                </div>
+            </div>
+            <a href="{% url 'admin_licenses' %}" class="btn btn-sm btn-warning rounded-pill px-3 fw-bold">Thêm License B2B</a>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- 1. KPI Metrics Grid (Thống kê toàn hệ thống) -->
+    <div class="row g-3 mb-4">
+        <!-- Metric 1: Doanh thu -->
+        <div class="col-xl-3 col-md-6">
+            <div class="card border-0 shadow-sm rounded-4 h-100 p-3 bg-white">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <span class="text-muted small fw-bold text-uppercase">Tổng Doanh Thu</span>
+                    <span class="p-2 bg-success-subtle text-success rounded-circle fs-5">💰</span>
+                </div>
+                <h3 class="fw-bold text-success mb-1">{{ total_revenue|floatformat:0 }}đ</h3>
+                <div class="small text-muted d-flex align-items-center gap-1">
+                    <span class="badge bg-success-subtle text-success rounded-pill fw-bold">{{ active_subscriptions }} gói Active</span>
+                    <span>đang sử dụng</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Metric 2: Người dùng -->
+        <div class="col-xl-3 col-md-6">
+            <div class="card border-0 shadow-sm rounded-4 h-100 p-3 bg-white">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <span class="text-muted small fw-bold text-uppercase">Tổng Thành Viên</span>
+                    <span class="p-2 bg-primary-subtle text-primary rounded-circle fs-5">👥</span>
+                </div>
+                <h3 class="fw-bold text-primary mb-1">{{ total_users }}</h3>
+                <div class="small text-muted d-flex align-items-center gap-1">
+                    <span class="badge bg-primary-subtle text-primary rounded-pill fw-bold">+{{ new_users_week }} tuần này</span>
+                    <span>({{ student_count }} HS, {{ manager_count }} GV)</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Metric 3: Luyện code thi đấu -->
+        <div class="col-xl-3 col-md-6">
+            <div class="card border-0 shadow-sm rounded-4 h-100 p-3 bg-white">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <span class="text-muted small fw-bold text-uppercase">Phân Hệ Luyện Code</span>
+                    <span class="p-2 bg-info-subtle text-info rounded-circle fs-5">💻</span>
+                </div>
+                <h3 class="fw-bold text-dark mb-1">{{ total_coding_questions }} bài toán</h3>
+                <div class="small text-muted d-flex align-items-center gap-1">
+                    <span class="badge bg-info-subtle text-info rounded-pill fw-bold">{{ total_submissions }} lượt nộp</span>
+                    <span>(Tỉ lệ AC: {{ ac_rate }}%)</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Metric 4: Khảo thí & AI -->
+        <div class="col-xl-3 col-md-6">
+            <div class="card border-0 shadow-sm rounded-4 h-100 p-3 bg-white">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <span class="text-muted small fw-bold text-uppercase">Khảo Thí & AI LaTeX</span>
+                    <span class="p-2 bg-warning-subtle text-warning-emphasis rounded-circle fs-5">📝</span>
+                </div>
+                <h3 class="fw-bold text-dark mb-1">{{ total_questions }} câu hỏi</h3>
+                <div class="small text-muted d-flex align-items-center gap-1">
+                    <span class="badge bg-warning-subtle text-dark rounded-pill fw-bold">{{ total_quizzes }} đề thi</span>
+                    <span>| {{ completed_math_conversions }} tài liệu AI</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. Management Hub Cards (Lối tắt dẫn đến các nhiệm vụ quản lý) -->
+    <div class="mb-4">
+        <h5 class="fw-bold text-dark mb-3">🚀 Danh Mục Nhiệm Vụ Quản Trị</h5>
+        <div class="row g-3">
+            <!-- Hub 1: Quản lý người dùng -->
+            <div class="col-xl-3 col-md-6">
+                <div class="card border-0 shadow-sm rounded-4 h-100 hover-shadow transition p-3">
+                    <div class="d-flex align-items-center gap-3 mb-2">
+                        <div class="p-3 bg-danger-subtle text-danger rounded-3 fs-4">👥</div>
+                        <div>
+                            <h6 class="fw-bold mb-0">Quản Trị Người Dùng</h6>
+                            <small class="text-muted">Phân quyền, khoá & kích hoạt</small>
+                        </div>
+                    </div>
+                    <p class="text-secondary small mb-3">Quản lý {{ total_users }} tài khoản, thiết lập vai trò Học sinh / Giáo viên / Admin.</p>
+                    <div class="mt-auto">
+                        <a href="{% url 'user_management' %}" class="btn btn-sm btn-outline-danger w-100 rounded-pill fw-bold">Mở Quản Trị Người Dùng &rarr;</a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Hub 2: Quản lý Gói & Thương mại -->
+            <div class="col-xl-3 col-md-6">
+                <div class="card border-0 shadow-sm rounded-4 h-100 hover-shadow transition p-3">
+                    <div class="d-flex align-items-center gap-3 mb-2">
+                        <div class="p-3 bg-success-subtle text-success rounded-3 fs-4">💎</div>
+                        <div>
+                            <h6 class="fw-bold mb-0">Gói Dịch Vụ & Khách Hàng</h6>
+                            <small class="text-muted">Bảng giá, hạn mức & đơn hàng</small>
+                        </div>
+                    </div>
+                    <p class="text-secondary small mb-3">{{ total_plans }} gói dịch vụ đang cấu hình, theo dõi đơn hàng và đăng ký active.</p>
+                    <div class="mt-auto d-flex gap-2">
+                        <a href="{% url 'admin_plans' %}" class="btn btn-sm btn-outline-success flex-grow-1 rounded-pill fw-bold">Quản Lý Gói</a>
+                        <a href="{% url 'admin_plans' %}" class="btn btn-sm btn-success rounded-pill px-3 fw-bold">Thuê Bao</a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Hub 3: Cài đặt thanh toán & VietQR -->
+            <div class="col-xl-3 col-md-6">
+                <div class="card border-0 shadow-sm rounded-4 h-100 hover-shadow transition p-3">
+                    <div class="d-flex align-items-center gap-3 mb-2">
+                        <div class="p-3 bg-primary-subtle text-primary rounded-3 fs-4">💳</div>
+                        <div>
+                            <h6 class="fw-bold mb-0">Cài Đặt Thanh Toán QR</h6>
+                            <small class="text-muted">Ngân hàng, VietQR, SePay</small>
+                        </div>
+                    </div>
+                    <p class="text-secondary small mb-3">Tài khoản: {{ settings.bank_id }} - {{ settings.bank_account_number }} ({{ settings.bank_account_name }}).</p>
+                    <div class="mt-auto d-flex gap-2">
+                        <a href="{% url 'admin_settings' %}" class="btn btn-sm btn-outline-primary flex-grow-1 rounded-pill fw-bold">Đổi Cấu Hình</a>
+                        <a href="{% url 'admin_transactions' %}" class="btn btn-sm btn-primary rounded-pill px-3 fw-bold">Sổ GD</a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Hub 4: Bản quyền B2B Enterprise -->
+            <div class="col-xl-3 col-md-6">
+                <div class="card border-0 shadow-sm rounded-4 h-100 hover-shadow transition p-3">
+                    <div class="d-flex align-items-center gap-3 mb-2">
+                        <div class="p-3 bg-warning-subtle text-warning-emphasis rounded-3 fs-4">🏛️</div>
+                        <div>
+                            <h6 class="fw-bold mb-0">Bản Quyền Đơn Vị (B2B)</h6>
+                            <small class="text-muted">White-label & Domain riêng</small>
+                        </div>
+                    </div>
+                    <p class="text-secondary small mb-3">Cấp quyền triển khai hệ thống cho trường học, trung tâm với tên miền riêng.</p>
+                    <div class="mt-auto">
+                        <a href="{% url 'admin_licenses' %}" class="btn btn-sm btn-outline-warning text-dark w-100 rounded-pill fw-bold">Quản Lý License B2B &rarr;</a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Hub 5: Ngân hàng đề & Khảo thí -->
+            <div class="col-xl-3 col-md-6">
+                <div class="card border-0 shadow-sm rounded-4 h-100 hover-shadow transition p-3">
+                    <div class="d-flex align-items-center gap-3 mb-2">
+                        <div class="p-3 bg-secondary-subtle text-secondary rounded-3 fs-4">📚</div>
+                        <div>
+                            <h6 class="fw-bold mb-0">Ngân Hàng Đề & Bài Thi</h6>
+                            <small class="text-muted">Tạo ma trận, trộn đề, chấm thi</small>
+                        </div>
+                    </div>
+                    <p class="text-secondary small mb-3">{{ total_questions }} câu hỏi trong ngân hàng, tổ chức các kỳ thi trực tuyến.</p>
+                    <div class="mt-auto d-flex gap-2">
+                        <a href="{% url 'manage_question_bank' %}" class="btn btn-sm btn-outline-secondary flex-grow-1 rounded-pill fw-bold">Ngân Hàng</a>
+                        <a href="{% url 'exam_list' %}" class="btn btn-sm btn-secondary rounded-pill px-3 fw-bold">Bài Thi</a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Hub 6: Quản trị Luyện Code Thi Đấu -->
+            <div class="col-xl-3 col-md-6">
+                <div class="card border-0 shadow-sm rounded-4 h-100 hover-shadow transition p-3">
+                    <div class="d-flex align-items-center gap-3 mb-2">
+                        <div class="p-3 bg-info-subtle text-info rounded-3 fs-4">💻</div>
+                        <div>
+                            <h6 class="fw-bold mb-0">Quản Trị Luyện Code</h6>
+                            <small class="text-muted">Bài toán, testcases & kỳ thi code</small>
+                        </div>
+                    </div>
+                    <p class="text-secondary small mb-3">{{ total_coding_questions }} bài tập thuật toán, {{ total_coding_exams }} kỳ thi lập trình.</p>
+                    <div class="mt-auto d-flex gap-2">
+                        <a href="{% url 'coding_manage_list' %}" class="btn btn-sm btn-outline-info flex-grow-1 rounded-pill fw-bold">Quản Lý Bài</a>
+                        <a href="{% url 'coding_exam_list' %}" class="btn btn-sm btn-info text-white rounded-pill px-3 fw-bold">Kỳ Thi</a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Hub 7: Chấm điểm phiếu trắc nghiệm OpenCV -->
+            <div class="col-xl-3 col-md-6">
+                <div class="card border-0 shadow-sm rounded-4 h-100 hover-shadow transition p-3">
+                    <div class="d-flex align-items-center gap-3 mb-2">
+                        <div class="p-3 bg-dark-subtle text-dark rounded-3 fs-4">🎯</div>
+                        <div>
+                            <h6 class="fw-bold mb-0">Chấm Trắc Nghiệm OpenCV</h6>
+                            <small class="text-muted">Quét phiếu, nhận diện điểm số</small>
+                        </div>
+                    </div>
+                    <p class="text-secondary small mb-3">Bảng điều khiển khảo thí, quản lý barem đáp án và xuất bảng điểm Excel.</p>
+                    <div class="mt-auto">
+                        <a href="{% url 'grading_dashboard' %}" class="btn btn-sm btn-outline-dark w-100 rounded-pill fw-bold">Mở Dashboard Chấm Thi &rarr;</a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Hub 8: Cấu hình Website & Thương Hiệu -->
+            <div class="col-xl-3 col-md-6">
+                <div class="card border-0 shadow-sm rounded-4 h-100 hover-shadow transition p-3">
+                    <div class="d-flex align-items-center gap-3 mb-2">
+                        <div class="p-3 bg-light text-dark rounded-3 fs-4">⚙️</div>
+                        <div>
+                            <h6 class="fw-bold mb-0">Cấu Hình Website</h6>
+                            <small class="text-muted">Tên web, slogan, hotline</small>
+                        </div>
+                    </div>
+                    <p class="text-secondary small mb-3">{{ settings.site_title|truncatechars:35 }} | Hotline: {{ settings.hotline }}</p>
+                    <div class="mt-auto">
+                        <a href="{% url 'admin_settings' %}" class="btn btn-sm btn-outline-secondary w-100 rounded-pill fw-bold">Chỉnh Sửa Cấu Hình &rarr;</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 3. Tables: Giao dịch gần nhất & Người dùng mới -->
+    <div class="row g-4">
+        <!-- Bảng Giao dịch gần đây -->
+        <div class="col-lg-7">
+            <div class="card border-0 shadow-sm rounded-4 h-100 p-4 bg-white">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 class="fw-bold text-dark mb-0">💳 Giao Dịch Thanh Toán Gần Nhất</h5>
+                    <a href="{% url 'admin_transactions' %}" class="small fw-bold text-primary text-decoration-none">Xem tất cả &rarr;</a>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0 small">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Mã đơn</th>
+                                <th>Khách hàng</th>
+                                <th>Gói</th>
+                                <th>Số tiền</th>
+                                <th>Trạng thái</th>
+                                <th>Thời gian</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for tx in recent_transactions %}
+                            <tr>
+                                <td class="font-monospace fw-bold">{{ tx.transaction_code }}</td>
+                                <td>{{ tx.user.username }}</td>
+                                <td><span class="badge bg-light text-dark border">{{ tx.plan.name|default:"Tùy chọn" }}</span></td>
+                                <td class="fw-bold text-danger">{{ tx.amount|floatformat:0 }}đ</td>
+                                <td>
+                                    {% if tx.status == 'SUCCESS' %}
+                                        <span class="badge bg-success-subtle text-success rounded-pill">Thành công</span>
+                                    {% elif tx.status == 'PENDING' %}
+                                        <span class="badge bg-warning-subtle text-warning rounded-pill">Chờ xử lý</span>
+                                    {% else %}
+                                        <span class="badge bg-danger-subtle text-danger rounded-pill">{{ tx.status }}</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-muted">{{ tx.created_at|date:"d/m H:i" }}</td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="6" class="text-center text-muted py-3">Chưa có giao dịch nào được tạo.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bảng Thành viên mới nhất -->
+        <div class="col-lg-5">
+            <div class="card border-0 shadow-sm rounded-4 h-100 p-4 bg-white">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 class="fw-bold text-dark mb-0">👤 Thành Viên Mới Đăng Ký</h5>
+                    <a href="{% url 'user_management' %}" class="small fw-bold text-primary text-decoration-none">Quản lý users &rarr;</a>
+                </div>
+                <div class="list-group list-group-flush">
+                    {% for u in recent_users %}
+                    <div class="list-group-item d-flex align-items-center justify-content-between px-0 py-2 border-bottom">
+                        <div class="d-flex align-items-center gap-2">
+                            <img src="{{ u.profile.avatar_url|default:'/static/quiz/avatars/avatar-1.svg' }}" alt="Avatar" class="rounded-circle border" width="34" height="34" style="object-fit: contain;">
+                            <div>
+                                <div class="fw-semibold text-dark mb-0 small">{{ u.get_full_name|default:u.username }}</div>
+                                <div class="text-muted" style="font-size: 0.75rem;">@{{ u.username }} &bull; {{ u.date_joined|date:"d/m/Y" }}</div>
+                            </div>
+                        </div>
+                        <div>
+                            {% if u.is_superuser %}
+                                <span class="badge bg-danger rounded-pill small">Admin</span>
+                            {% elif u.profile.role == 'MANAGER' %}
+                                <span class="badge bg-warning text-dark rounded-pill small">Quản lý</span>
+                            {% else %}
+                                <span class="badge bg-light text-secondary border rounded-pill small">Học sinh</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% empty %}
+                    <div class="text-center text-muted py-3">Chưa có thành viên nào.</div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL CÀI ĐẶT TOÀN DIỆN: WEBSITE & THANH TOÁN VIETQR -->
+<div class="modal fade" id="settingsModal" tabindex="-1" aria-labelledby="settingsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content rounded-4 border-0 shadow-lg">
+            <div class="modal-header bg-primary text-white p-4">
+                <h5 class="modal-title fw-bold" id="settingsModalLabel">⚙️ Cấu Hình Website & Cổng Thanh Toán VietQR</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="POST" action="{% url 'admin_dashboard' %}">
+                {% csrf_token %}
+                <input type="hidden" name="update_settings" value="1">
+                
+                <div class="modal-body p-4">
+                    <!-- Tab Cấu hình -->
+                    <ul class="nav nav-pills mb-4 gap-2" id="modalConfigTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active rounded-pill fw-bold" id="tab-site" data-bs-toggle="pill" data-bs-target="#config-site" type="button" role="tab">
+                                🌐 Thông Tin Website
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link rounded-pill fw-bold" id="tab-payment" data-bs-toggle="pill" data-bs-target="#config-payment" type="button" role="tab">
+                                💳 Thanh Toán VietQR
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link rounded-pill fw-bold" id="tab-system" data-bs-toggle="pill" data-bs-target="#config-system" type="button" role="tab">
+                                🔒 Tuỳ Chọn Hệ Thống
+                            </button>
+                        </li>
+                    </ul>
+
+                    <div class="tab-content" id="modalConfigTabsContent">
+                        <!-- TAB 1: WEBSITE -->
+                        <div class="tab-pane fade show active" id="config-site" role="tabpanel">
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Tên Website / Hệ thống</label>
+                                <input type="text" class="form-control" name="site_title" value="{{ settings.site_title }}" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Khẩu hiệu (Slogan)</label>
+                                <input type="text" class="form-control" name="site_slogan" value="{{ settings.site_slogan }}">
+                            </div>
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold">Hotline liên hệ</label>
+                                    <input type="text" class="form-control" name="hotline" value="{{ settings.hotline }}">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold">Email hỗ trợ</label>
+                                    <input type="email" class="form-control" name="contact_email" value="{{ settings.contact_email }}">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- TAB 2: VIETQR -->
+                        <div class="tab-pane fade" id="config-payment" role="tabpanel">
+                            <div class="alert alert-info small border-0 rounded-3 mb-3">
+                                ℹ️ Thông tin này được dùng để tạo mã VietQR QuickLink tự động khi khách hàng bấm mua gói tài khoản.
+                            </div>
+                            <div class="row g-3">
+                                <div class="col-md-4">
+                                    <label class="form-label fw-bold">Mã ngân hàng (Bank ID)</label>
+                                    <input type="text" class="form-control text-uppercase" name="bank_id" value="{{ settings.bank_id }}" placeholder="VD: MB, VCB, TCB, VPB" required>
+                                    <div class="form-text small">Viết tắt chuẩn Napas (VD: MB, VCB, BIDV, ACB)</div>
+                                </div>
+                                <div class="col-md-8">
+                                    <label class="form-label fw-bold">Số tài khoản nhận tiền</label>
+                                    <input type="text" class="form-control font-monospace" name="bank_account_number" value="{{ settings.bank_account_number }}" required>
+                                </div>
+                                <div class="col-md-8">
+                                    <label class="form-label fw-bold">Tên chủ tài khoản (In hoa không dấu)</label>
+                                    <input type="text" class="form-control text-uppercase" name="bank_account_name" value="{{ settings.bank_account_name }}" required>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label fw-bold">Tiền tố cú pháp (Prefix)</label>
+                                    <input type="text" class="form-control text-uppercase font-monospace" name="payment_prefix" value="{{ settings.payment_prefix }}">
+                                    <div class="form-text small">VD: PROEDU</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- TAB 3: SYSTEM OPTIONS -->
+                        <div class="tab-pane fade" id="config-system" role="tabpanel">
+                            <div class="form-check form-switch mb-3">
+                                <input class="form-check-input" type="checkbox" id="enableReg" name="enable_registration" {% if settings.enable_registration %}checked{% endif %}>
+                                <label class="form-check-label fw-bold" for="enableReg">Cho phép người dùng tự đăng ký tài khoản</label>
+                                <div class="text-muted small">Nếu tắt, chỉ quản trị viên mới có thể tạo người dùng mới.</div>
+                            </div>
+                            <div class="form-check form-switch mb-3">
+                                <input class="form-check-input" type="checkbox" id="enableVietQR" name="enable_vietqr" {% if settings.enable_vietqr %}checked{% endif %}>
+                                <label class="form-check-label fw-bold" for="enableVietQR">Bật cổng thanh toán tự động VietQR</label>
+                                <div class="text-muted small">Hiển thị mã QR ngân hàng tại trang thanh toán gói.</div>
+                            </div>
+                            <div class="form-check form-switch mb-3">
+                                <input class="form-check-input" type="checkbox" id="maintenance" name="maintenance_mode" {% if settings.maintenance_mode %}checked{% endif %}>
+                                <label class="form-check-label fw-bold text-danger" for="maintenance">Chế độ bảo trì hệ thống</label>
+                                <div class="text-muted small">Chỉ admin mới có quyền truy cập khi kích hoạt.</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-footer bg-light p-3">
+                    <button type="button" class="btn btn-outline-secondary rounded-pill px-4" data-bs-dismiss="modal">Đóng</button>
+                    <button type="submit" class="btn btn-primary rounded-pill px-4 fw-bold shadow-sm">💾 Lưu Cấu Hình Ngay</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

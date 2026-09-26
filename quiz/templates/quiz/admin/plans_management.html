@@ -1,0 +1,268 @@
+{% extends 'quiz/base.html' %}
+
+{% block title %}Quản Lý Gói Dịch Vụ & Thuê Bao - ProEdu Admin{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4 px-lg-5">
+    <!-- Sub-Navbar -->
+    {% include 'quiz/admin/admin_nav.html' %}
+
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3">
+        <div>
+            <h3 class="fw-bold text-dark mb-1">💎 Quản Lý Gói Dịch Vụ & Khách Hàng Thuê Bao</h3>
+            <p class="text-muted small mb-0">Cấu hình bảng giá niêm yết, hạn mức tính năng và theo dõi thời hạn sử dụng của học sinh/giáo viên.</p>
+        </div>
+        <button class="btn btn-primary rounded-pill px-4 fw-bold shadow-sm d-flex align-items-center gap-2" data-bs-toggle="modal" data-bs-target="#planModal" onclick="openCreatePlanModal()">
+            <span>➕</span>
+            <span>Thêm Gói Mới</span>
+        </button>
+    </div>
+
+    <!-- 1. Danh sách các gói dịch vụ (Plans) -->
+    <div class="row g-3 mb-5">
+        {% for plan in plans %}
+        <div class="col-xl-3 col-md-6">
+            <div class="card h-100 rounded-4 border-0 shadow-sm transition hover-shadow p-4 {% if plan.is_featured %}border-2 border-primary{% endif %}">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <span class="badge {% if plan.is_active %}bg-success-subtle text-success{% else %}bg-secondary-subtle text-secondary{% endif %} rounded-pill px-3 py-1 fw-bold">
+                        {% if plan.is_active %}Đang Mở Bán{% else %}Tạm Dừng{% endif %}
+                    </span>
+                    <span class="badge bg-light text-dark border rounded-pill">{{ plan.code }}</span>
+                </div>
+
+                <h4 class="fw-bold text-dark mb-1 mt-2">{{ plan.name }}</h4>
+                <p class="text-muted small mb-3">{{ plan.short_description|default:"Chưa có mô tả ngắn" }}</p>
+
+                <div class="mb-3 pb-3 border-bottom">
+                    <div class="d-flex align-items-baseline">
+                        <h3 class="fw-bold text-primary mb-0">{{ plan.price|floatformat:0 }}đ</h3>
+                        <span class="text-muted small ms-1">/ {{ plan.get_billing_cycle_display }}</span>
+                    </div>
+                    {% if plan.original_price %}
+                    <span class="text-muted text-decoration-line-through small">{{ plan.original_price|floatformat:0 }}đ</span>
+                    {% endif %}
+                </div>
+
+                <div class="small text-muted mb-4 flex-grow-1">
+                    <div class="fw-bold text-dark mb-2">Quyền lợi nổi bật ({{ plan.features_list|length }} mục):</div>
+                    <ul class="list-unstyled mb-0">
+                        {% for f in plan.features_list|slice:":4" %}
+                        <li class="text-truncate mb-1">✔ {{ f }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+
+                <div class="d-flex gap-2 mt-auto pt-2">
+                    <button class="btn btn-sm btn-outline-primary flex-grow-1 rounded-pill fw-bold" onclick="openEditPlanModal('{{ plan.id }}', '{{ plan.name|escapejs }}', '{{ plan.code|escapejs }}', '{{ plan.price }}', '{{ plan.original_price }}', '{{ plan.billing_cycle }}', '{{ plan.plan_type }}', '{{ plan.badge_text|escapejs }}', '{{ plan.short_description|escapejs }}', `{{ plan.features_list|join:'\n'|escapejs }}`, '{{ plan.is_active|lower }}', '{{ plan.is_featured|lower }}')">
+                        ✏️ Sửa
+                    </button>
+                    <a href="{% url 'admin_toggle_plan' plan.id %}" class="btn btn-sm {% if plan.is_active %}btn-outline-warning text-dark{% else %}btn-outline-success{% endif %} rounded-pill px-3 fw-bold">
+                        {% if plan.is_active %}Tạm Dừng{% else %}Mở Bán{% endif %}
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- 2. Danh sách thuê bao người dùng (Subscriptions) -->
+    <div class="card border-0 shadow-sm rounded-4 p-4 bg-white">
+        <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
+            <div>
+                <h5 class="fw-bold text-dark mb-0">👥 Danh Sách Người Dùng Đang Sử Dụng Gói ({{ subscriptions|length }})</h5>
+                <small class="text-muted">Theo dõi tài khoản VIP và gia hạn thời gian sử dụng</small>
+            </div>
+            <input type="text" id="subSearch" class="form-control form-control-sm rounded-pill px-3" style="max-width: 250px;" placeholder="🔍 Tìm tài khoản / email..." onkeyup="filterSubs()">
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0 small" id="subTable">
+                <thead class="table-light">
+                    <tr>
+                        <th>Người dùng</th>
+                        <th>Gói dịch vụ</th>
+                        <th>Ngày kích hoạt</th>
+                        <th>Hạn dùng</th>
+                        <th>Trạng thái</th>
+                        <th class="text-end">Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for s in subscriptions %}
+                    <tr>
+                        <td>
+                            <div class="d-flex align-items-center gap-2">
+                                <img src="{{ s.user.profile.avatar_url|default:'/static/quiz/avatars/avatar-1.svg' }}" alt="Avatar" class="rounded-circle border" width="32" height="32" style="object-fit: contain;">
+                                <div>
+                                    <div class="fw-bold text-dark">{{ s.user.get_full_name|default:s.user.username }}</div>
+                                    <div class="text-muted" style="font-size: 0.75rem;">@{{ s.user.username }} &bull; {{ s.user.email }}</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            <span class="badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill fw-bold">
+                                {{ s.plan.name|default:"Chưa có gói" }}
+                            </span>
+                        </td>
+                        <td>{{ s.start_date|date:"d/m/Y H:i" }}</td>
+                        <td>
+                            {% if s.end_date %}
+                                <span class="{% if not s.is_valid %}text-danger fw-bold{% else %}text-dark{% endif %}">
+                                    {{ s.end_date|date:"d/m/Y" }}
+                                </span>
+                            {% else %}
+                                <span class="badge bg-success-subtle text-success rounded-pill">Vĩnh viễn</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if s.is_valid %}
+                                <span class="badge bg-success-subtle text-success rounded-pill">Đang hoạt động</span>
+                            {% else %}
+                                <span class="badge bg-danger-subtle text-danger rounded-pill">Đã hết hạn</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end">
+                            <a href="{% url 'admin_extend_sub' s.id %}" class="btn btn-sm btn-outline-success rounded-pill px-3 fw-bold" onclick="return confirm('Bạn có chắc muốn gia hạn thêm 1 năm cho tài khoản {{ s.user.username }}?');">
+                                ➕ Gia hạn 1 năm
+                            </a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="text-center text-muted py-4">Chưa có người dùng nào đăng ký gói.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL THÊM / CHỈNH SỬA GÓI DỊCH VỤ -->
+<div class="modal fade" id="planModal" tabindex="-1" aria-labelledby="planModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content rounded-4 border-0 shadow-lg">
+            <div class="modal-header bg-primary text-white p-4">
+                <h5 class="modal-title fw-bold" id="planModalLabel">💎 Cấu Hình Gói Dịch Vụ</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="POST" action="{% url 'admin_plans' %}">
+                {% csrf_token %}
+                <input type="hidden" name="save_plan" value="1">
+                <input type="hidden" name="plan_id" id="modalPlanId" value="">
+
+                <div class="modal-body p-4">
+                    <div class="row g-3">
+                        <div class="col-md-7">
+                            <label class="form-label fw-bold">Tên gói dịch vụ</label>
+                            <input type="text" class="form-control" name="name" id="modalPlanName" required placeholder="VD: Gói Học Sinh Chuyên Tin">
+                        </div>
+                        <div class="col-md-5">
+                            <label class="form-label fw-bold">Mã định danh (Code / Slug)</label>
+                            <input type="text" class="form-control font-monospace text-uppercase" name="code" id="modalPlanCode" required placeholder="VD: PRO_OLYMPIC">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Giá bán thực tế (VNĐ)</label>
+                            <input type="number" class="form-control font-monospace" name="price" id="modalPlanPrice" required value="0">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Giá niêm yết gốc (Gạch chân)</label>
+                            <input type="number" class="form-control font-monospace" name="original_price" id="modalPlanOrigPrice" value="0">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">Chu kỳ thanh toán</label>
+                            <select class="form-select" name="billing_cycle" id="modalPlanCycle">
+                                <option value="YEAR">Hàng năm (Mặc định)</option>
+                                <option value="MONTH">Hàng tháng</option>
+                                <option value="LIFETIME">Trọn đời</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">Phân loại</label>
+                            <select class="form-select" name="plan_type" id="modalPlanType">
+                                <option value="B2C">Cá nhân (B2C)</option>
+                                <option value="B2B">Trường học (B2B)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">Huy hiệu (Badge)</label>
+                            <input type="text" class="form-control" name="badge_text" id="modalPlanBadge" placeholder="VD: Phổ biến nhất">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label fw-bold">Mô tả ngắn</label>
+                            <input type="text" class="form-control" name="short_description" id="modalPlanDesc" placeholder="Mô tả 1 dòng dành cho ai...">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label fw-bold">Danh sách tính năng nổi bật (Mỗi dòng 1 tính năng)</label>
+                            <textarea class="form-control" name="features_list" id="modalPlanFeatures" rows="4" placeholder="Mở khoá toàn bộ ngân hàng bài toán&#10;Xem lời giải chi tiết Editorial&#10;Chấm code ưu tiên..."></textarea>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-check form-switch mt-2">
+                                <input class="form-check-input" type="checkbox" id="modalPlanActive" name="is_active" checked>
+                                <label class="form-check-label fw-bold" for="modalPlanActive">Đang mở bán trên trang Bảng giá</label>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-check form-switch mt-2">
+                                <input class="form-check-input" type="checkbox" id="modalPlanFeatured" name="is_featured">
+                                <label class="form-check-label fw-bold" for="modalPlanFeatured">Đặt làm Gói nổi bật (Highlight)</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-footer bg-light p-3">
+                    <button type="button" class="btn btn-outline-secondary rounded-pill px-4" data-bs-dismiss="modal">Đóng</button>
+                    <button type="submit" class="btn btn-primary rounded-pill px-4 fw-bold shadow-sm">💾 Lưu Gói Dịch Vụ</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+function openCreatePlanModal() {
+    document.getElementById('planModalLabel').innerText = "➕ Thêm Gói Dịch Vụ Mới";
+    document.getElementById('modalPlanId').value = "";
+    document.getElementById('modalPlanName').value = "";
+    document.getElementById('modalPlanCode').value = "";
+    document.getElementById('modalPlanCode').readOnly = false;
+    document.getElementById('modalPlanPrice').value = "0";
+    document.getElementById('modalPlanOrigPrice').value = "0";
+    document.getElementById('modalPlanCycle').value = "YEAR";
+    document.getElementById('modalPlanType').value = "B2C";
+    document.getElementById('modalPlanBadge').value = "";
+    document.getElementById('modalPlanDesc').value = "";
+    document.getElementById('modalPlanFeatures').value = "";
+    document.getElementById('modalPlanActive').checked = true;
+    document.getElementById('modalPlanFeatured').checked = false;
+}
+
+function openEditPlanModal(id, name, code, price, origPrice, cycle, type, badge, desc, features, isActive, isFeatured) {
+    document.getElementById('planModalLabel').innerText = "✏️ Chỉnh Sửa Gói " + name;
+    document.getElementById('modalPlanId').value = id;
+    document.getElementById('modalPlanName').value = name;
+    document.getElementById('modalPlanCode').value = code;
+    document.getElementById('modalPlanCode').readOnly = true;
+    document.getElementById('modalPlanPrice').value = price;
+    document.getElementById('modalPlanOrigPrice').value = origPrice;
+    document.getElementById('modalPlanCycle').value = cycle;
+    document.getElementById('modalPlanType').value = type;
+    document.getElementById('modalPlanBadge').value = badge;
+    document.getElementById('modalPlanDesc').value = desc;
+    document.getElementById('modalPlanFeatures').value = features;
+    document.getElementById('modalPlanActive').checked = isActive;
+    document.getElementById('modalPlanFeatured').checked = isFeatured;
+    new bootstrap.Modal(document.getElementById('planModal')).show();
+}
+
+function filterSubs() {
+    let input = document.getElementById("subSearch").value.toLowerCase();
+    let rows = document.querySelectorAll("#subTable tbody tr");
+    rows.forEach(row => {
+        let text = row.innerText.toLowerCase();
+        row.style.display = text.includes(input) ? "" : "none";
+    });
+}
+</script>
+{% endblock %}

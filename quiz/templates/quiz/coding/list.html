@@ -79,9 +79,14 @@
                             {% endif %}
                         </td>
                         <td>
-                            <a href="{% url 'coding_detail' q.id %}" class="text-decoration-none fw-bold fs-6">
-                                {{ q.title }}
-                            </a>
+                            <div class="d-flex align-items-center gap-2 flex-wrap">
+                                {% if q.code %}
+                                    <span class="badge bg-light text-primary border font-monospace">{{ q.code }}</span>
+                                {% endif %}
+                                <a href="{% url 'coding_detail' q.code|default:q.id %}" class="text-decoration-none fw-bold fs-6">
+                                    {{ q.title }}
+                                </a>
+                            </div>
                             <div class="text-muted small mt-1">Tác giả: 
                                 {% if q.created_by %}
                                     {{ q.created_by.get_full_name|default:q.created_by.username }}
@@ -112,7 +117,7 @@
                             <small class="text-muted d-block"><i class="fas fa-memory"></i> {{ q.memory_limit }}MB</small>
                         </td>
                         <td class="text-center">
-                            <a href="{% url 'coding_detail' q.id %}" class="btn btn-sm btn-outline-primary">
+                            <a href="{% url 'coding_detail' q.code|default:q.id %}" class="btn btn-sm btn-outline-primary">
                                 <i class="fas fa-play"></i> Làm bài
                             </a>
                         </td>

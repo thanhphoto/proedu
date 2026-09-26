@@ -1,0 +1,23 @@
+# Dockerfile cho Sandbox chấm code an toàn ProEdu Judge
+FROM alpine:3.19
+
+# Cài đặt Python 3, G++, GCC và thư viện cần thiết
+RUN apk update && apk add --no-cache \
+    python3 \
+    py3-pip \
+    g++ \
+    gcc \
+    musl-dev \
+    libstdc++ \
+    coreutils
+
+# Tạo người dùng không đặc quyền (non-root) để chạy code học sinh
+RUN adduser -D -u 1000 -s /bin/sh sandbox
+
+# Tạo thư mục làm việc
+WORKDIR /workspace
+
+# Chuyển sang user sandbox
+USER sandbox
+
+CMD ["/bin/sh"]

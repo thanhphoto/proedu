@@ -1,0 +1,244 @@
+{% extends 'quiz/base.html' %}
+
+{% block title %}Bản Quyền Đơn Vị B2B - ProEdu Admin{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4 px-lg-5">
+    <!-- Sub-Navbar -->
+    {% include 'quiz/admin/admin_nav.html' %}
+
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3">
+        <div>
+            <h3 class="fw-bold text-dark mb-1">🏛️ Quản Lý Bản Quyền Trường Học & Đơn Vị (B2B)</h3>
+            <p class="text-muted small mb-0">Cấp phép triển khai hệ thống độc lập cho Trường học, Trung tâm Tin học gắn với tên miền và thương hiệu riêng (White-label).</p>
+        </div>
+        <button class="btn btn-warning text-dark rounded-pill px-4 fw-bold shadow-sm d-flex align-items-center gap-2" data-bs-toggle="modal" data-bs-target="#licenseModal" onclick="openCreateLicenseModal()">
+            <span>➕</span>
+            <span>Cấp Bản Quyền Mới</span>
+        </button>
+    </div>
+
+    <!-- License Cards Grid -->
+    <div class="row g-4 mb-4">
+        {% for lic in licenses %}
+        <div class="col-xl-6">
+            <div class="card border-0 shadow-sm rounded-4 p-4 h-100 bg-white position-relative">
+                <div class="d-flex justify-content-between align-items-start mb-3">
+                    <div>
+                        <span class="badge {% if lic.is_valid %}bg-success-subtle text-success{% else %}bg-danger-subtle text-danger{% endif %} rounded-pill px-3 py-1 fw-bold mb-2">
+                            {% if lic.is_valid %}✔ Đang Hoạt Động{% else %}✕ Hết Hạn Bản Quyền{% endif %}
+                        </span>
+                        <h4 class="fw-bold text-dark mb-1">{{ lic.organization_name }}</h4>
+                        <div class="text-muted small">Tên miền được cấp phép: <a href="https://{{ lic.domain }}" target="_blank" class="fw-bold text-primary">{{ lic.domain }}</a></div>
+                    </div>
+                    <span class="badge bg-light text-dark border rounded-pill px-3 py-2 fw-bold">
+                        {{ lic.get_tier_display }}
+                    </span>
+                </div>
+
+                <div class="bg-light p-3 rounded-3 mb-3 border">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <small class="text-muted fw-bold">Khoá Bản Quyền (License Key):</small>
+                        <button class="btn btn-sm btn-link text-decoration-none p-0 fw-bold" onclick="copyText('{{ lic.license_key }}')">Sao chép key</button>
+                    </div>
+                    <code class="text-break text-dark small font-monospace">{{ lic.license_key }}</code>
+                </div>
+
+                <div class="row g-2 small text-muted mb-3">
+                    <div class="col-6">
+                        <div>👤 Người đại diện: <strong class="text-dark">{{ lic.contact_person|default:"Chưa rõ" }}</strong></div>
+                        <div>✉️ Email: <strong class="text-dark">{{ lic.contact_email }}</strong></div>
+                        <div>📞 SĐT: <strong class="text-dark">{{ lic.contact_phone|default:"Chưa rõ" }}</strong></div>
+                    </div>
+                    <div class="col-6">
+                        <div>🎓 Hạn mức HS: <strong class="text-dark">{% if lic.max_students == 0 %}Không giới hạn{% else %}{{ lic.max_students }} HS{% endif %}</strong></div>
+                        <div>💼 Hạn mức GV: <strong class="text-dark">{% if lic.max_teachers == 0 %}Không giới hạn{% else %}{{ lic.max_teachers }} GV{% endif %}</strong></div>
+                        <div>📅 Hết hạn: <strong class="{% if not lic.is_valid %}text-danger{% else %}text-success{% endif %}">{{ lic.expires_at|date:"d/m/Y" }}</strong></div>
+                    </div>
+                </div>
+
+                <div class="d-flex gap-2 pt-2 border-top mt-auto">
+                    <button class="btn btn-sm btn-outline-primary flex-grow-1 rounded-pill fw-bold"
+                            data-id="{{ lic.id }}"
+                            data-org="{{ lic.organization_name }}"
+                            data-person="{{ lic.contact_person }}"
+                            data-email="{{ lic.contact_email }}"
+                            data-phone="{{ lic.contact_phone }}"
+                            data-domain="{{ lic.domain }}"
+                            data-tier="{{ lic.tier }}"
+                            data-students="{{ lic.max_students }}"
+                            data-teachers="{{ lic.max_teachers }}"
+                            data-active="{{ lic.is_active|yesno:'1,0' }}"
+                            data-brand-title="{{ lic.brand_title }}"
+                            data-brand-logo="{{ lic.brand_logo_url }}"
+                            data-brand-banner="{{ lic.brand_banner_url }}"
+                            data-brand-slogan="{{ lic.brand_slogan }}"
+                            onclick="openEditLicenseFromButton(this)">
+                        ✏️ Sửa Thông Tin
+                    </button>
+                    <a href="{% url 'admin_extend_license' lic.id %}" class="btn btn-sm btn-outline-success rounded-pill px-3 fw-bold" onclick="return confirm('Bạn có chắc muốn gia hạn thêm 1 năm bản quyền cho {{ lic.organization_name }}?');">
+                        ➕ Gia Hạn 1 Năm
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <div class="col-12">
+            <div class="card border-0 shadow-sm rounded-4 p-5 text-center bg-white">
+                <span class="fs-1 mb-2">🏛️</span>
+                <h5 class="fw-bold text-dark">Chưa Có Bản Quyền B2B Nào</h5>
+                <p class="text-muted small">Hãy bấm nút "Cấp Bản Quyền Mới" để tạo License đầu tiên cho trường học hoặc trung tâm đào tạo.</p>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- MODAL CẤP / SỬA BẢN QUYỀN B2B -->
+<div class="modal fade" id="licenseModal" tabindex="-1" aria-labelledby="licenseModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content rounded-4 border-0 shadow-lg">
+            <div class="modal-header bg-warning text-dark p-4">
+                <h5 class="modal-title fw-bold" id="licenseModalLabel">🏛️ Cấp Phép Bản Quyền Đơn Vị (B2B)</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="POST" action="{% url 'admin_licenses' %}">
+                {% csrf_token %}
+                <input type="hidden" name="save_license" value="1">
+                <input type="hidden" name="license_id" id="modalLicId" value="">
+
+                <div class="modal-body p-4">
+                    <div class="row g-3">
+                        <div class="col-md-7">
+                            <label class="form-label fw-bold">Tên trường học / Trung tâm</label>
+                            <input type="text" class="form-control" name="organization_name" id="modalLicOrg" required placeholder="VD: THPT Chuyên Nguyễn Huệ">
+                        </div>
+                        <div class="col-md-5">
+                            <label class="form-label fw-bold">Tên miền được cấp phép</label>
+                            <input type="text" class="form-control font-monospace" name="domain" id="modalLicDomain" required placeholder="VD: code.thptchuyen.edu.vn">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">Người đại diện</label>
+                            <input type="text" class="form-control" name="contact_person" id="modalLicPerson" placeholder="Họ và tên">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">Email liên hệ</label>
+                            <input type="email" class="form-control" name="contact_email" id="modalLicEmail" required placeholder="admin@tentruong.edu.vn">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">Số điện thoại</label>
+                            <input type="text" class="form-control" name="contact_phone" id="modalLicPhone" placeholder="09xxxxxxxx">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">Hạng bản quyền</label>
+                            <select class="form-select" name="tier" id="modalLicTier">
+                                <option value="STANDARD">Gói Trung Tâm (< 500 HS)</option>
+                                <option value="CAMPUS" selected>Gói Trường Học (< 2.500 HS)</option>
+                                <option value="ENTERPRISE">Gói Sở GD / Toàn Tỉnh</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">Hạn mức Học sinh</label>
+                            <input type="number" class="form-control" name="max_students" id="modalLicStudents" value="500">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">Hạn mức Giáo viên</label>
+                            <input type="number" class="form-control" name="max_teachers" id="modalLicTeachers" value="20">
+                        </div>
+                        <div class="col-md-6" id="durationWrapper">
+                            <label class="form-label fw-bold">Thời hạn cấp mới</label>
+                            <select class="form-select" name="duration_years">
+                                <option value="1" selected>1 năm</option>
+                                <option value="2">2 năm</option>
+                                <option value="3">3 năm</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6" id="activeWrapper" style="display: none;">
+                            <div class="form-check form-switch mt-4">
+                                <input class="form-check-input" type="checkbox" id="modalLicActive" name="is_active" checked>
+                                <label class="form-check-label fw-bold" for="modalLicActive">Đang kích hoạt hiệu lực</label>
+                            </div>
+                        </div>
+
+                        <!-- Cấu hình White-label riêng cho Đơn vị / Trường học -->
+                        <div class="col-12 mt-3 pt-3 border-top">
+                            <h6 class="fw-bold text-primary mb-1">🎨 Tuỳ Biến Nhận Diện Thương Hiệu Riêng (White-Label)</h6>
+                            <p class="text-muted small mb-3">Tự động kích hoạt khi học sinh hoặc giáo viên truy cập qua Tên miền được cấp phép.</p>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold small">Tiêu đề thương hiệu trường (Brand Title)</label>
+                            <input type="text" class="form-control form-control-sm" name="brand_title" id="modalLicBrandTitle" placeholder="VD: THPT Chuyên Nguyễn Huệ">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold small">Khẩu hiệu riêng (Slogan)</label>
+                            <input type="text" class="form-control form-control-sm" name="brand_slogan" id="modalLicBrandSlogan" placeholder="VD: Nền tảng khảo thí số 1...">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold small">URL Logo trường học (PNG, SVG)</label>
+                            <input type="url" class="form-control form-control-sm" name="brand_logo_url" id="modalLicBrandLogo" placeholder="https://domain.edu.vn/logo.png">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold small">URL Banner trường học</label>
+                            <input type="url" class="form-control form-control-sm" name="brand_banner_url" id="modalLicBrandBanner" placeholder="https://domain.edu.vn/banner.jpg">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-footer bg-light p-3">
+                    <button type="button" class="btn btn-outline-secondary rounded-pill px-4" data-bs-dismiss="modal">Đóng</button>
+                    <button type="submit" class="btn btn-warning text-dark rounded-pill px-4 fw-bold shadow-sm">💾 Lưu Bản Quyền B2B</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+function copyText(val) {
+    navigator.clipboard.writeText(val).then(() => {
+        alert("Đã sao chép License Key vào Clipboard!");
+    });
+}
+
+function openCreateLicenseModal() {
+    document.getElementById('licenseModalLabel').innerText = "🏛️ Cấp Phép Bản Quyền Đơn Vị (B2B)";
+    document.getElementById('modalLicId').value = "";
+    document.getElementById('modalLicOrg').value = "";
+    document.getElementById('modalLicDomain').value = "";
+    document.getElementById('modalLicPerson').value = "";
+    document.getElementById('modalLicEmail').value = "";
+    document.getElementById('modalLicPhone').value = "";
+    document.getElementById('modalLicTier').value = "CAMPUS";
+    document.getElementById('modalLicStudents').value = "500";
+    document.getElementById('modalLicTeachers').value = "20";
+    document.getElementById('modalLicBrandTitle').value = "";
+    document.getElementById('modalLicBrandSlogan').value = "";
+    document.getElementById('modalLicBrandLogo').value = "";
+    document.getElementById('modalLicBrandBanner').value = "";
+    document.getElementById('durationWrapper').style.display = "block";
+    document.getElementById('activeWrapper').style.display = "none";
+}
+
+function openEditLicenseFromButton(btn) {
+    const ds = btn.dataset;
+    document.getElementById('licenseModalLabel').innerText = "✏️ Chỉnh Sửa Bản Quyền: " + ds.org;
+    document.getElementById('modalLicId').value = ds.id || "";
+    document.getElementById('modalLicOrg').value = ds.org || "";
+    document.getElementById('modalLicDomain').value = ds.domain || "";
+    document.getElementById('modalLicPerson').value = ds.person || "";
+    document.getElementById('modalLicEmail').value = ds.email || "";
+    document.getElementById('modalLicPhone').value = ds.phone || "";
+    document.getElementById('modalLicTier').value = ds.tier || "CAMPUS";
+    document.getElementById('modalLicStudents').value = ds.students || "500";
+    document.getElementById('modalLicTeachers').value = ds.teachers || "20";
+    document.getElementById('modalLicBrandTitle').value = ds.brandTitle || "";
+    document.getElementById('modalLicBrandSlogan').value = ds.brandSlogan || "";
+    document.getElementById('modalLicBrandLogo').value = ds.brandLogo || "";
+    document.getElementById('modalLicBrandBanner').value = ds.brandBanner || "";
+    document.getElementById('durationWrapper').style.display = "none";
+    document.getElementById('activeWrapper').style.display = "block";
+    document.getElementById('modalLicActive').checked = (ds.active === '1');
+    new bootstrap.Modal(document.getElementById('licenseModal')).show();
+}
+</script>
+{% endblock %}

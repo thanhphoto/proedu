@@ -10,43 +10,69 @@ from django.contrib import messages
 
 from .models import MathDocConversion
 from .math_converter import call_gemini_vision_ocr, convert_markdown_latex_to_docx, get_gemini_api_key
+from .subscription_service import get_user_subscription, get_user_plan
 
-@login_required
 def math_converter_view(request):
     """Trang giao diện chính chuyển đổi ảnh/PDF chứa công thức Toán sang Word."""
-    conversions = MathDocConversion.objects.filter(user=request.user).order_by('-created_at')
-    
+    conversions = []
+    has_active_package = False
+    quota_limit = 1
+    quota_used = 0
+    quota_remaining = 1
+    user_plan = None
+
+    if request.user.is_authenticated:
+        conversions = MathDocConversion.objects.filter(user=request.user).order_by('-created_at')
+        sub = get_user_subscription(request.user)
+        user_plan = get_user_plan(request.user)
+        has_active_package = (sub is not None and sub.is_valid) or request.user.is_superuser
+
+        if not has_active_package:
+            # Tài khoản chưa mua gói: Miễn phí 1 trang duy nhất
+            quota_limit = 1
+            quota_used = MathDocConversion.objects.filter(user=request.user, status='Completed').count()
+            quota_remaining = max(0, quota_limit - quota_used)
+        else:
+            now = timezone.now()
+            quota_used = MathDocConversion.objects.filter(
+                user=request.user,
+                status='Completed',
+                created_at__year=now.year,
+                created_at__month=now.month
+            ).count()
+            quota_limit = user_plan.limits.get('max_math_ocr_per_month', 999999 if request.user.is_superuser else 30) if user_plan.limits else 30
+            quota_remaining = max(0, quota_limit - quota_used)
+
     # Kiểm tra xem hệ thống đã có sẵn GEMINI_API_KEY chưa
     has_system_api_key = bool(get_gemini_api_key())
     
     return render(request, 'quiz/math_converter.html', {
         'conversions': conversions,
         'has_system_api_key': has_system_api_key,
+        'has_active_package': has_active_package,
+        'quota_limit': quota_limit,
+        'quota_used': quota_used,
+        'quota_remaining': quota_remaining,
+        'user_plan': user_plan,
+        'can_convert': quota_remaining > 0 or request.user.is_superuser,
         'title': 'Chuyển Đổi Ảnh / PDF Sang Word (Toán & Bảng Biểu LaTeX)'
     })
 
-@login_required
+
 @require_POST
 def api_convert_math_doc(request):
     """API tiếp nhận file ảnh hoặc PDF, thực hiện nhận diện và tạo file Word."""
+    # 1. BẮT BUỘC ĐĂNG NHẬP TRƯỚC KHI CHUYỂN ĐỔI
+    if not request.user.is_authenticated:
+        return JsonResponse({
+            'success': False,
+            'require_login': True,
+            'error': 'Bạn cần đăng nhập tài khoản trước khi thực hiện chuyển đổi tài liệu.'
+        }, status=401)
+
     uploaded_file = request.FILES.get('doc_file')
     if not uploaded_file:
         return JsonResponse({'success': False, 'error': 'Vui lòng chọn tệp ảnh hoặc PDF cần chuyển đổi.'})
-
-    user_api_key = request.POST.get('api_key', '').strip()
-    
-    # Lưu vào session nếu người dùng nhập key mới
-    if user_api_key:
-        request.session['user_gemini_api_key'] = user_api_key
-    elif 'user_gemini_api_key' in request.session:
-        user_api_key = request.session['user_gemini_api_key']
-        
-    api_key_to_use = get_gemini_api_key(user_api_key)
-    if not api_key_to_use:
-        return JsonResponse({
-            'success': False, 
-            'error': 'Chưa cấu hình Google Gemini API Key. Vui lòng nhập API Key của bạn để bắt đầu chuyển đổi.'
-        })
 
     orig_name = uploaded_file.name
     ext = os.path.splitext(orig_name)[1].lower()
@@ -72,6 +98,70 @@ def api_convert_math_doc(request):
     # Giới hạn kích thước tệp 25MB
     if uploaded_file.size > 25 * 1024 * 1024:
         return JsonResponse({'success': False, 'error': 'Kích thước tệp vượt quá giới hạn cho phép (tối đa 25MB).'})
+
+    # 2. KIỂM TRA SỐ TRANG CỦA TỆP
+    page_count = 1
+    if ext == '.pdf':
+        try:
+            from pypdf import PdfReader
+            uploaded_file.seek(0)
+            reader = PdfReader(uploaded_file)
+            page_count = len(reader.pages)
+            uploaded_file.seek(0)
+        except Exception:
+            page_count = 1
+
+    # 3. KIỂM TRA QUYỀN HẠN & HẠN MỨC GÓI CỦA NGƯỜI DÙNG
+    sub = get_user_subscription(request.user)
+    plan = get_user_plan(request.user)
+    has_active_package = (sub is not None and sub.is_valid) or request.user.is_superuser
+
+    if not has_active_package:
+        # TÀI KHOẢN CHƯA MUA GÓI: MIỄN PHÍ 1 TRANG ĐẦU TIÊN
+        total_completed = MathDocConversion.objects.filter(user=request.user, status='Completed').count()
+        if total_completed >= 1:
+            return JsonResponse({
+                'success': False,
+                'require_upgrade': True,
+                'error': 'Bạn đã sử dụng hết 01 trang chuyển đổi miễn phí dành cho tài khoản dùng thử. Vui lòng nâng cấp gói để tiếp tục sử dụng!'
+            }, status=403)
+        
+        if page_count > 1:
+            return JsonResponse({
+                'success': False,
+                'require_upgrade': True,
+                'error': f'Tài khoản dùng thử miễn phí chỉ được chuyển đổi tài liệu 01 trang (Tệp của bạn có {page_count} trang). Vui lòng nâng cấp gói để chuyển đổi tài liệu nhiều trang!'
+            }, status=403)
+    else:
+        # TÀI KHOẢN ĐÃ MUA GÓI: KIỂM TRA HẠN MỨC TRONG THÁNG
+        if not request.user.is_superuser:
+            now = timezone.now()
+            monthly_used = MathDocConversion.objects.filter(
+                user=request.user,
+                status='Completed',
+                created_at__year=now.year,
+                created_at__month=now.month
+            ).count()
+            max_limit = plan.limits.get('max_math_ocr_per_month', 30) if plan.limits else 30
+            if monthly_used + page_count > max_limit:
+                return JsonResponse({
+                    'success': False,
+                    'require_upgrade': True,
+                    'error': f'Bạn đã sử dụng {monthly_used}/{max_limit} trang trong tháng này. Tệp có {page_count} trang vượt quá hạn mức còn lại. Vui lòng nâng cấp gói cao hơn!'
+                }, status=403)
+
+    user_api_key = request.POST.get('api_key', '').strip()
+    if user_api_key:
+        request.session['user_gemini_api_key'] = user_api_key
+    elif 'user_gemini_api_key' in request.session:
+        user_api_key = request.session['user_gemini_api_key']
+        
+    api_key_to_use = get_gemini_api_key(user_api_key)
+    if not api_key_to_use:
+        return JsonResponse({
+            'success': False, 
+            'error': 'Chưa cấu hình Google Gemini API Key. Vui lòng cấu hình API Key để bắt đầu chuyển đổi.'
+        })
 
     # Tạo bản ghi lịch sử ban đầu
     conversion = MathDocConversion.objects.create(

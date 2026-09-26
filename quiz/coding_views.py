@@ -1,16 +1,16 @@
 import json
 import requests
-from django.shortcuts import render, get_object_or_404
+from django.shortcuts import render, get_object_or_404, redirect
 from django.http import JsonResponse
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_POST
 from django.views.decorators.csrf import csrf_exempt
-
-from .models import CodingQuestion, TestCase, CodeSubmission, CodingComment, CodingExam, CodingExamAttempt, CodingExamRegistration
-from django.shortcuts import render, get_object_or_404, redirect
-from django.contrib.auth.decorators import login_required
+from django.urls import reverse
 from django import forms
 from django.core.exceptions import PermissionDenied
+from django.contrib import messages
+
+from .models import CodingQuestion, TestCase, CodeSubmission, CodingComment, CodingExam, CodingExamAttempt, CodingExamRegistration, CodingTopic
 
 import sys
 import subprocess
@@ -20,95 +20,25 @@ import uuid
 
 PISTON_API_URL = "https://emkc.org/api/v2/piston/execute"
 
+from .judge_sandbox import run_code_secure
+
 def execute_code_locally(language, code, stdin, run_timeout_sec):
-    import time
-    if language not in ('python', 'cpp'):
-        return {'status': 'System Error', 'output': 'Ngôn ngữ này chưa được hỗ trợ chạy nội bộ'}
-        
-    if language == 'python':
-        python_bin = sys.executable
-        
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
-            f.write(code)
-            temp_file = f.name
-            
-        try:
-            start_time = time.perf_counter()
-            process = subprocess.run(
-                [python_bin, temp_file],
-                input=stdin,
-                text=True,
-                capture_output=True,
-                timeout=run_timeout_sec
-            )
-            exec_time = time.perf_counter() - start_time
-            if process.returncode == 0:
-                return {'status': 'Accepted', 'output': process.stdout, 'time': exec_time}
-            else:
-                return {'status': 'Runtime Error', 'output': process.stderr, 'time': exec_time}
-        except subprocess.TimeoutExpired:
-            return {'status': 'Time Limit Exceeded', 'output': ''}
-        except Exception as e:
-            return {'status': 'System Error', 'output': str(e)}
-        finally:
-            if os.path.exists(temp_file):
-                os.remove(temp_file)
-                
-    elif language == 'cpp':
-        from django.conf import settings
-        includes_dir = os.path.join(settings.BASE_DIR, 'quiz', 'cpp_includes')
-        
-        with tempfile.TemporaryDirectory() as tmpdirname:
-            source_file = os.path.join(tmpdirname, 'solution.cpp')
-            executable = os.path.join(tmpdirname, 'solution')
-            
-            with open(source_file, 'w') as f:
-                f.write(code)
-            
-            try:
-                compile_process = subprocess.run(
-                    ['g++', '-O2', source_file, '-o', executable, '-I', includes_dir],
-                    capture_output=True,
-                    text=True,
-                    timeout=10
-                )
-                if compile_process.returncode != 0:
-                    return {'status': 'Compilation Error', 'output': compile_process.stderr}
-            except subprocess.TimeoutExpired:
-                return {'status': 'Compilation Error', 'output': 'Quá thời gian biên dịch (10s)'}
-            except Exception as e:
-                return {'status': 'System Error', 'output': f'Lỗi gọi trình biên dịch (Vui lòng cài đặt gcc/g++): {str(e)}'}
-                
-            try:
-                start_time = time.perf_counter()
-                run_process = subprocess.run(
-                    [executable],
-                    input=stdin,
-                    capture_output=True,
-                    text=True,
-                    timeout=run_timeout_sec
-                )
-                exec_time = time.perf_counter() - start_time
-                if run_process.returncode == 0:
-                    return {'status': 'Accepted', 'output': run_process.stdout, 'time': exec_time}
-                else:
-                    return {'status': 'Runtime Error', 'output': run_process.stderr, 'time': exec_time}
-            except subprocess.TimeoutExpired:
-                return {'status': 'Time Limit Exceeded', 'output': ''}
-            except Exception as e:
-                return {'status': 'System Error', 'output': str(e)}
+    """Ủy thác toàn bộ sang module Sandbox bảo mật ProEdu"""
+    return run_code_secure(language, code, stdin, run_timeout_sec)
+
 
 class CodingQuestionForm(forms.ModelForm):
     class Meta:
         model = CodingQuestion
         fields = [
-            'title', 'description', 'time_limit', 'memory_limit',
+            'code', 'title', 'description', 'time_limit', 'memory_limit',
             'initial_code_cpp', 'initial_code_python',
             'solution_code_cpp', 'solution_code_python',
             'difficulty', 'max_score', 'is_public', 'is_active',
             'topics', 'past_exam'
         ]
         widgets = {
+            'code': forms.TextInput(attrs={'class': 'form-control font-monospace text-uppercase', 'placeholder': 'VD: SO_SIEU_NT, BAI_01 (để trống sẽ tự sinh)'}),
             'title': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'VD: Số siêu nguyên tố'}),
             'past_exam': forms.Select(attrs={'class': 'form-select select2-exam', 'data-placeholder': 'VD: HSG Tỉnh 2023...'}),
             'description': forms.Textarea(attrs={'class': 'form-control', 'rows': 5, 'placeholder': 'Nội dung đề bài (hỗ trợ MathJax LaTeX)...'}),
@@ -124,6 +54,18 @@ class CodingQuestionForm(forms.ModelForm):
             'is_active': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'topics': forms.SelectMultiple(attrs={'class': 'form-select', 'size': 4}),
         }
+
+    def clean_code(self):
+        code = self.cleaned_data.get('code')
+        if code and code.strip():
+            code = code.strip().upper()
+            qs = CodingQuestion.objects.filter(code__iexact=code)
+            if self.instance.pk:
+                qs = qs.exclude(pk=self.instance.pk)
+            if qs.exists():
+                raise forms.ValidationError(f"Mã bài toán '{code}' đã tồn tại, vui lòng chọn mã khác.")
+            return code
+        return ""
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -628,7 +570,7 @@ def coding_manage_list(request):
         questions = questions.annotate(
             title_unaccent=Func('title', function='unaccent', output_field=CharField())
         ).filter(
-            Q(title__icontains=q_search) | Q(title_unaccent__icontains=q_unaccent)
+            Q(title__icontains=q_search) | Q(title_unaccent__icontains=q_unaccent) | Q(code__icontains=q_search)
         )
     if difficulty:
         questions = questions.filter(difficulty=difficulty)
@@ -1027,7 +969,7 @@ def coding_list_view(request):
         questions = questions.annotate(
             title_unaccent=Func('title', function='unaccent', output_field=CharField())
         ).filter(
-            Q(title__icontains=q_search) | Q(title_unaccent__icontains=q_unaccent)
+            Q(title__icontains=q_search) | Q(title_unaccent__icontains=q_unaccent) | Q(code__icontains=q_search)
         )
     if difficulty:
         questions = questions.filter(difficulty=difficulty)
@@ -1084,11 +1026,38 @@ def coding_list_view(request):
         'author_q': author_q
     })
 
-def coding_detail_view(request, question_id):
-    question = get_object_or_404(CodingQuestion, id=question_id)
+def get_coding_question_by_code_or_id(identifier):
+    """
+    Tìm CodingQuestion theo mã code trước (VD: TINH_TONG_HAI_SO_A_B),
+    nếu không tìm thấy hoặc là số thì tìm tiếp theo ID để đảm bảo tương thích ngược 100%.
+    """
+    from django.http import Http404
+    q_str = str(identifier).strip()
+    question = CodingQuestion.objects.filter(code__iexact=q_str).first()
+    if not question and q_str.isdigit():
+        question = CodingQuestion.objects.filter(id=int(q_str)).first()
+    if not question:
+        raise Http404(f"Không tìm thấy bài toán với mã hoặc ID: '{identifier}'")
+    return question
+
+def coding_detail_view(request, question_code):
+    question = get_coding_question_by_code_or_id(question_code)
     latest_submission = None
     attempt = None
     remaining_time = None
+    exam = None
+    is_exam_mode = False
+
+    # Kiểm tra xem người dùng có vào làm bài trong ngữ cảnh kỳ thi cụ thể hay không
+    exam_id = request.GET.get('exam_id')
+    if exam_id and str(exam_id).isdigit():
+        try:
+            exam = CodingExam.objects.get(id=int(exam_id))
+            # Xác nhận bài này thuộc về kỳ thi này
+            if question.exam_id == exam.id:
+                is_exam_mode = True
+        except CodingExam.DoesNotExist:
+            exam = None
 
     latest_submission_passed_count = 0
     details_json = "null"
@@ -1101,15 +1070,38 @@ def coding_detail_view(request, question_id):
             import json
             details_json = json.dumps(latest_submission.details)
         
-        if question.exam_id:
-            try:
-                attempt = CodingExamAttempt.objects.get(user=request.user, exam=question.exam)
-                if question.exam.duration > 0:
-                    from django.utils import timezone
-                    elapsed = (timezone.now() - attempt.start_time).total_seconds()
-                    remaining_time = max(0, int(question.exam.duration * 60 - elapsed))
-            except CodingExamAttempt.DoesNotExist:
-                return redirect('coding_exam_detail', exam_id=question.exam_id)
+        # Chỉ kiểm tra CodingExamAttempt khi truy cập từ 1 kỳ thi cụ thể (Exam Mode)
+        if is_exam_mode and exam:
+            can_manage = (
+                hasattr(request.user, 'profile') 
+                and request.user.profile.is_coding_contributor() 
+                and (request.user.profile.is_admin() or exam.created_by == request.user)
+            )
+
+            # Nếu kỳ thi chưa kích hoạt và không phải quản trị viên
+            if not exam.is_active and not can_manage:
+                messages.warning(request, "Kỳ thi này hiện chưa được mở hoặc đã kết thúc.")
+                return redirect('coding_exam_detail', exam_id=exam.id)
+
+            # Nếu là kỳ thi cần duyệt thí sinh và không phải quản trị viên
+            if exam.exam_type == 'registered' and not can_manage:
+                reg = CodingExamRegistration.objects.filter(user=request.user, exam=exam).first()
+                if not reg or reg.status != 'approved':
+                    messages.warning(request, "Bạn cần đăng ký và được ban tổ chức duyệt để tham gia kỳ thi này.")
+                    return redirect('coding_exam_detail', exam_id=exam.id)
+
+            # Tự động lấy hoặc khởi tạo attempt cho thí sinh / giáo viên khi vào làm bài
+            attempt, _ = CodingExamAttempt.objects.get_or_create(user=request.user, exam=exam)
+            if exam.duration > 0:
+                from django.utils import timezone
+                elapsed = (timezone.now() - attempt.start_time).total_seconds()
+                remaining_time = max(0, int(exam.duration * 60 - elapsed))
+                if remaining_time <= 0 and not can_manage:
+                    messages.info(request, "Thời gian làm bài của bạn cho kỳ thi này đã kết thúc.")
+                    return redirect('coding_exam_detail', exam_id=exam.id)
+    elif is_exam_mode and exam:
+        # Nếu chưa đăng nhập mà truy cập theo chế độ thi thì yêu cầu đăng nhập
+        return redirect(f"{reverse('login')}?next={request.get_full_path()}")
     
     comments = question.comments.all()
     
@@ -1120,13 +1112,15 @@ def coding_detail_view(request, question_id):
         'details_json': details_json,
         'comments': comments,
         'attempt': attempt,
-        'remaining_time': remaining_time
+        'remaining_time': remaining_time,
+        'exam': exam,
+        'is_exam_mode': is_exam_mode
     })
 
 @login_required
 @require_POST
-def add_coding_comment(request, question_id):
-    question = get_object_or_404(CodingQuestion, id=question_id)
+def add_coding_comment(request, question_code):
+    question = get_coding_question_by_code_or_id(question_code)
     content = request.POST.get('content', '').strip()
     if content:
         CodingComment.objects.create(
@@ -1134,31 +1128,50 @@ def add_coding_comment(request, question_id):
             question=question,
             content=content
         )
-    return redirect('coding_detail', question_id=question.id)
+    exam_id = request.POST.get('exam_id') or request.GET.get('exam_id')
+    target_code = question.code or question.id
+    if exam_id and str(exam_id).isdigit():
+        return redirect(f"{reverse('coding_detail', kwargs={'question_code': target_code})}?exam_id={exam_id}")
+    return redirect('coding_detail', question_code=target_code)
 
 @login_required
 @require_POST
-def submit_code_api(request, question_id):
-    question = get_object_or_404(CodingQuestion, id=question_id)
+def submit_code_api(request, question_code):
+    question = get_coding_question_by_code_or_id(question_code)
     
-    if question.exam_id:
-        try:
-            attempt = CodingExamAttempt.objects.get(user=request.user, exam=question.exam)
-            if question.exam.duration > 0:
-                from django.utils import timezone
-                elapsed = (timezone.now() - attempt.start_time).total_seconds()
-                # Thêm 5 giây buffer
-                if elapsed > (question.exam.duration * 60 + 5):
-                    return JsonResponse({'error': 'Đã hết thời gian làm bài'}, status=403)
-        except CodingExamAttempt.DoesNotExist:
-            return JsonResponse({'error': 'Bạn chưa bắt đầu kỳ thi này'}, status=403)
-    
+    # Lấy exam_id từ Query Param hoặc Request Body
+    exam_id = request.GET.get('exam_id')
+    exam = None
+    attempt = None
+
     try:
         data = json.loads(request.body)
         code = data.get('code', '')
         language = data.get('language', 'python')
+        if not exam_id and data.get('exam_id'):
+            exam_id = str(data.get('exam_id'))
     except Exception:
         return JsonResponse({'error': 'Invalid request body'}, status=400)
+
+    # Chỉ kiểm tra thời gian và attempt nếu nộp bài trong ngữ cảnh kỳ thi
+    if exam_id and str(exam_id).isdigit():
+        try:
+            exam = CodingExam.objects.get(id=int(exam_id))
+            if question.exam_id == exam.id:
+                attempt, _ = CodingExamAttempt.objects.get_or_create(user=request.user, exam=exam)
+                if exam.duration > 0:
+                    from django.utils import timezone
+                    elapsed = (timezone.now() - attempt.start_time).total_seconds()
+                    can_manage = (
+                        hasattr(request.user, 'profile') 
+                        and request.user.profile.is_coding_contributor() 
+                        and (request.user.profile.is_admin() or exam.created_by == request.user)
+                    )
+                    # Thêm 5 giây buffer cho độ trễ kết nối mạng
+                    if elapsed > (exam.duration * 60 + 5) and not can_manage:
+                        return JsonResponse({'error': 'Đã hết thời gian làm bài kỳ thi'}, status=403)
+        except CodingExam.DoesNotExist:
+            pass
 
     if not code:
         return JsonResponse({'error': 'Code is required'}, status=400)
@@ -1234,18 +1247,15 @@ def submit_code_api(request, question_id):
         details=results
     )
 
-    if question.exam_id:
+    # Chỉ cập nhật điểm vào CodingExamAttempt nếu đang làm bài trong kỳ thi đó
+    if attempt and exam:
         from django.db.models import Max
-        try:
-            attempt = CodingExamAttempt.objects.get(user=request.user, exam_id=question.exam_id)
-            exam_scores = CodeSubmission.objects.filter(
-                student=request.user, 
-                question__exam_id=question.exam_id
-            ).values('question').annotate(max_score=Max('score'))
-            attempt.total_score = sum(item['max_score'] for item in exam_scores)
-            attempt.save()
-        except CodingExamAttempt.DoesNotExist:
-            pass
+        exam_scores = CodeSubmission.objects.filter(
+            student=request.user, 
+            question__exam=exam
+        ).values('question').annotate(max_score=Max('score'))
+        attempt.total_score = sum(item['max_score'] for item in exam_scores)
+        attempt.save()
 
     return JsonResponse({
         'submission_id': submission.id,

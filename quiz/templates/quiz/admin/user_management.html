@@ -3,22 +3,21 @@
 {% block title %}Quản Trị Người Dùng - SmartQuiz Pro{% endblock %}
 
 {% block content %}
-<div class="container py-3">
-    <!-- Header Banner -->
-    <div class="p-4 mb-4 rounded-4 text-white shadow-sm" style="background: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #4338ca 100%);">
-        <div class="row align-items-center">
-            <div class="col-md-8">
-                <span class="badge bg-warning text-dark px-3 py-2 rounded-pill fw-bold mb-2">🛡️ Khu Vực Quản Trị Hệ Thống</span>
-                <h2 class="fw-bold mb-2">Quản Lý Người Dùng & Phân Quyền</h2>
-                <p class="mb-0 text-white-50">
-                    Phân quyền 3 cấp (Quản trị viên, Quản lý, Người dùng), kiểm soát trạng thái kích hoạt tài khoản và bảo mật quyền hạn hệ thống.
-                </p>
-            </div>
-            <div class="col-md-4 text-md-end mt-3 mt-md-0">
-                <a href="/admin/" target="_blank" class="btn btn-outline-light rounded-pill px-4 fw-semibold shadow-sm">
-                    ⚙️ Django Admin Nâng Cao
-                </a>
-            </div>
+<div class="container-fluid py-4 px-lg-5">
+    <!-- Sub-Navbar Quản Trị -->
+    {% include 'quiz/admin/admin_nav.html' %}
+
+    <!-- Header Section -->
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3">
+        <div>
+            <h3 class="fw-bold text-dark mb-1">👥 Quản Lý Người Dùng & Phân Quyền</h3>
+            <p class="text-muted small mb-0">Phân quyền 3 cấp (Quản trị viên, Quản lý, Người dùng), kiểm soát trạng thái kích hoạt tài khoản và bảo mật quyền hạn hệ thống.</p>
+        </div>
+        <div>
+            <a href="/admin/auth/user/add/" target="_blank" class="btn btn-primary rounded-pill px-4 fw-bold shadow-sm d-flex align-items-center gap-2">
+                <span>➕</span>
+                <span>Thêm Người Dùng Mới</span>
+            </a>
         </div>
     </div>
 

@@ -65,3 +65,50 @@ admin.site.register(ExamPeriod)
 admin.site.register(Subject)
 admin.site.register(Topic)
 admin.site.register(ExamResult)
+
+# --- QUẢN LÝ THƯƠNG MẠI HOÁ (PLANS & SUBSCRIPTIONS) ---
+from .models import Plan, UserSubscription, PaymentTransaction, SystemLicense
+
+@admin.register(Plan)
+class PlanAdmin(admin.ModelAdmin):
+    list_display = ('name', 'code', 'plan_type', 'billing_cycle', 'price', 'is_active', 'is_featured', 'sort_order')
+    list_filter = ('plan_type', 'billing_cycle', 'is_active', 'is_featured')
+    search_fields = ('name', 'code', 'short_description')
+    list_editable = ('price', 'is_active', 'is_featured', 'sort_order')
+
+@admin.register(UserSubscription)
+class UserSubscriptionAdmin(admin.ModelAdmin):
+    list_display = ('user', 'plan', 'status', 'start_date', 'end_date', 'is_valid_status')
+    list_filter = ('status', 'plan')
+    search_fields = ('user__username', 'user__email', 'user__first_name', 'user__last_name')
+
+    def is_valid_status(self, obj):
+        return obj.is_valid
+    is_valid_status.boolean = True
+    is_valid_status.short_description = "Còn hiệu lực?"
+
+@admin.register(PaymentTransaction)
+class PaymentTransactionAdmin(admin.ModelAdmin):
+    list_display = ('transaction_code', 'user', 'plan', 'amount', 'payment_method', 'status', 'created_at', 'paid_at')
+    list_filter = ('status', 'payment_method', 'created_at')
+    search_fields = ('transaction_code', 'user__username', 'transfer_content')
+    readonly_fields = ('transaction_code', 'created_at')
+
+@admin.register(SystemLicense)
+class SystemLicenseAdmin(admin.ModelAdmin):
+    list_display = ('organization_name', 'domain', 'tier', 'is_active', 'expires_at', 'is_valid_status')
+    list_filter = ('tier', 'is_active', 'expires_at')
+    search_fields = ('organization_name', 'domain', 'contact_email', 'contact_phone')
+
+    def is_valid_status(self, obj):
+        return obj.is_valid
+    is_valid_status.boolean = True
+    is_valid_status.short_description = "Bản quyền hợp lệ?"
+
+from .models import SystemSetting
+
+@admin.register(SystemSetting)
+class SystemSettingAdmin(admin.ModelAdmin):
+    list_display = ('site_title', 'hotline', 'contact_email', 'bank_id', 'bank_account_number', 'updated_at')
+
+

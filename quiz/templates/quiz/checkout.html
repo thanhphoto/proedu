@@ -1,0 +1,106 @@
+{% extends 'quiz/base.html' %}
+
+{% block title %}Thanh Toán Gói {{ plan.name }} - ProEdu{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card border-0 shadow-lg rounded-4 overflow-hidden">
+                <div class="bg-primary text-white p-4 text-center">
+                    <span class="badge bg-white text-primary rounded-pill px-3 py-1 fw-bold mb-2">ĐƠN HÀNG #{{ transaction.transaction_code }}</span>
+                    <h3 class="fw-bold mb-1">Thanh Toán Gói {{ plan.name }}</h3>
+                    <p class="mb-0 text-white-50">Vui lòng quét mã QR ngân hàng hoặc chuyển khoản theo thông tin bên dưới để kích hoạt</p>
+                </div>
+
+                <div class="card-body p-4 p-md-5">
+                    <div class="row g-4 align-items-center">
+                        <!-- Cột Mã QR VietQR -->
+                        <div class="col-md-6 text-center border-end-md">
+                            <div class="p-3 bg-light rounded-4 d-inline-block shadow-sm mb-3">
+                                <img src="{{ vietqr_url }}" alt="VietQR Code" class="img-fluid rounded-3" style="max-width: 240px;" />
+                            </div>
+                            <div class="d-flex align-items-center justify-content-center text-muted small">
+                                <span class="spinner-grow spinner-grow-sm text-primary me-2" role="status"></span>
+                                Đang tự động đối soát giao dịch...
+                            </div>
+                        </div>
+
+                        <!-- Cột Thông tin chuyển khoản -->
+                        <div class="col-md-6">
+                            <h5 class="fw-bold text-dark mb-3">Thông Tin Chuyển Khoản</h5>
+
+                            <div class="mb-3">
+                                <label class="text-muted small">Ngân hàng:</label>
+                                <div class="fw-bold text-dark fs-6">{{ bank_id }} (Ngân hàng Quân Đội)</div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="text-muted small">Số tài khoản:</label>
+                                <div class="d-flex align-items-center">
+                                    <span class="fw-bold fs-5 text-primary me-2 font-monospace">{{ account_no }}</span>
+                                    <button class="btn btn-sm btn-outline-secondary rounded-pill py-0 px-2" onclick="copyText('{{ account_no }}')">Sao chép</button>
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="text-muted small">Chủ tài khoản:</label>
+                                <div class="fw-bold text-dark">{{ account_name }}</div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="text-muted small">Số tiền cần thanh toán:</label>
+                                <div class="fw-bold text-danger fs-4">{{ transaction.amount|floatformat:0 }} VNĐ</div>
+                            </div>
+
+                            <div class="mb-4 p-3 bg-warning-subtle rounded-3 border border-warning-subtle">
+                                <label class="text-warning-emphasis small fw-bold">Nội dung chuyển khoản (bắt buộc chính xác):</label>
+                                <div class="d-flex align-items-center justify-content-between mt-1">
+                                    <span class="fw-bold font-monospace text-dark fs-5">{{ transaction.transfer_content }}</span>
+                                    <button class="btn btn-sm btn-warning rounded-pill py-0 px-2 fw-bold" onclick="copyText('{{ transaction.transfer_content }}')">Sao chép</button>
+                                </div>
+                            </div>
+
+                            <!-- Testing helper for staff/superuser -->
+                            {% if user.is_staff or user.is_superuser %}
+                            <div class="border-top pt-3">
+                                <div class="small text-muted mb-2">⚙️ <strong>Dành cho Quản trị viên thử nghiệm:</strong></div>
+                                <a href="{% url 'simulate_payment' transaction.transaction_code %}" class="btn btn-sm btn-outline-success rounded-pill w-100 fw-bold">
+                                    ⚡ Kích hoạt giả lập ngay (Test)
+                                </a>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card-footer bg-light p-3 text-center text-muted small">
+                    🔒 Giao dịch được bảo mật và tự động kích hoạt bởi hệ thống ProEdu. Nếu cần hỗ trợ khẩn cấp, vui lòng liên hệ Hotline: <strong>0987.654.321</strong>.
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function copyText(val) {
+    navigator.clipboard.writeText(val).then(() => {
+        alert("Đã sao chép: " + val);
+    });
+}
+
+// Polling kiểm tra trạng thái thanh toán tự động
+const txCode = "{{ transaction.transaction_code }}";
+const checkInterval = setInterval(() => {
+    fetch(`/api/thanh-toan/kiem-tra/${txCode}/`)
+        .then(res => res.json())
+        .then(data => {
+            if (data.paid) {
+                clearInterval(checkInterval);
+                window.location.href = "{% url 'pricing' %}";
+            }
+        })
+        .catch(err => console.log(err));
+}, 3000);
+</script>
+{% endblock %}

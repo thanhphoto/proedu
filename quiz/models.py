@@ -582,6 +582,14 @@ class CodingQuestion(models.Model):
 
     exam = models.ForeignKey(CodingExam, on_delete=models.CASCADE, related_name='questions', null=True, blank=True, verbose_name="Kỳ thi")
 
+    code = models.CharField(
+        max_length=50, 
+        unique=True, 
+        blank=True, 
+        null=True, 
+        verbose_name="Mã bài toán (Code)",
+        help_text="Mã định danh duy nhất (VD: SO_SIEU_NT, BAI_01). Để trống sẽ tự sinh theo tên bài."
+    )
     title = models.CharField(max_length=255, verbose_name="Tên bài toán")
     description = models.TextField(verbose_name="Mô tả chi tiết")
     time_limit = models.FloatField(default=1.0, verbose_name="Giới hạn thời gian (giây)")
@@ -608,7 +616,36 @@ class CodingQuestion(models.Model):
         ordering = ['-created_at']
 
     def __str__(self):
-        return self.title
+        return f"[{self.code}] {self.title}" if self.code else self.title
+
+    def generate_code(self):
+        import unicodedata, re
+        title = self.title or ""
+        s = unicodedata.normalize('NFKD', title).encode('ascii', 'ignore').decode('utf-8')
+        s = re.sub(r'[^a-zA-Z0-9]+', '_', s).strip('_').upper()
+        s = s[:25].strip('_')
+        if not s:
+            s = f"BAI_{self.id}" if self.id else "BAI"
+        
+        candidate = s
+        counter = 1
+        qs = CodingQuestion.objects.filter(code__iexact=candidate)
+        if self.id:
+            qs = qs.exclude(id=self.id)
+        while qs.exists():
+            candidate = f"{s[:20]}_{counter}"
+            counter += 1
+            qs = CodingQuestion.objects.filter(code__iexact=candidate)
+            if self.id:
+                qs = qs.exclude(id=self.id)
+        return candidate
+
+    def save(self, *args, **kwargs):
+        if not self.code or not str(self.code).strip():
+            self.code = self.generate_code()
+        else:
+            self.code = str(self.code).strip().upper()
+        super().save(*args, **kwargs)
 
 class TestCase(models.Model):
     question = models.ForeignKey(CodingQuestion, on_delete=models.CASCADE, related_name="testcases")
@@ -710,4 +747,258 @@ class MathDocConversion(models.Model):
 
     def __str__(self):
         return f"{self.user.username} - {self.original_filename} ({self.status})"
+
+
+# ==========================================
+# CÁC MÔ HÌNH THƯƠNG MẠI HOÁ (COMMERCIAL MODELS)
+# ==========================================
+
+class Plan(models.Model):
+    PLAN_TYPES = (
+        ('B2C', 'Người dùng cá nhân (Học sinh / Giáo viên)'),
+        ('B2B', 'Triển khai Trường học / Doanh nghiệp'),
+    )
+    BILLING_CYCLES = (
+        ('MONTH', 'Hàng tháng'),
+        ('YEAR', 'Hàng năm'),
+        ('LIFETIME', 'Trọn đời'),
+    )
+
+    name = models.CharField(max_length=150, verbose_name="Tên gói")
+    code = models.SlugField(max_length=50, unique=True, verbose_name="Mã định danh gói (slug)")
+    plan_type = models.CharField(max_length=10, choices=PLAN_TYPES, default='B2C', verbose_name="Phân loại gói")
+    billing_cycle = models.CharField(max_length=10, choices=BILLING_CYCLES, default='YEAR', verbose_name="Chu kỳ thanh toán")
+    
+    price = models.PositiveIntegerField(default=0, verbose_name="Giá bán thực tế (VNĐ)")
+    original_price = models.PositiveIntegerField(default=0, verbose_name="Giá niêm yết gốc (VNĐ)")
+    
+    badge_text = models.CharField(max_length=50, blank=True, default="", verbose_name="Huy hiệu hiển thị (VD: Phổ biến nhất)")
+    short_description = models.CharField(max_length=255, blank=True, default="", verbose_name="Mô tả ngắn")
+    description = models.TextField(blank=True, default="", verbose_name="Chi tiết gói")
+    
+    # Danh sách các quyền lợi hiển thị dạng bullet-points (JSON list: ["Tính năng A", "Tính năng B"])
+    features_list = models.JSONField(default=list, blank=True, verbose_name="Danh sách quyền lợi nổi bật")
+    
+    # Hạn mức kỹ thuật chi tiết
+    limits = models.JSONField(default=dict, blank=True, verbose_name="Cấu hình hạn mức (Limits JSON)")
+    
+    is_active = models.BooleanField(default=True, verbose_name="Đang mở bán")
+    is_featured = models.BooleanField(default=False, verbose_name="Gói nổi bật (Highlight)")
+    sort_order = models.PositiveIntegerField(default=0, verbose_name="Thứ tự hiển thị")
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Gói dịch vụ (Plan)"
+        verbose_name_plural = "Quản lý Gói dịch vụ (Plans)"
+        ordering = ['sort_order', 'price']
+
+    def __str__(self):
+        return f"{self.name} - {self.price:,}đ/{self.get_billing_cycle_display()}"
+
+
+class UserSubscription(models.Model):
+    STATUS_CHOICES = (
+        ('ACTIVE', 'Đang hoạt động'),
+        ('EXPIRED', 'Đã hết hạn'),
+        ('CANCELLED', 'Đã huỷ'),
+        ('TRIAL', 'Dùng thử'),
+    )
+
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='subscription', verbose_name="Người dùng")
+    plan = models.ForeignKey(Plan, on_delete=models.SET_NULL, null=True, blank=True, related_name='subscribers', verbose_name="Gói đang dùng")
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='ACTIVE', verbose_name="Trạng thái")
+    
+    start_date = models.DateTimeField(verbose_name="Ngày kích hoạt")
+    end_date = models.DateTimeField(null=True, blank=True, verbose_name="Ngày hết hạn (để trống = trọn đời)")
+    
+    auto_renew = models.BooleanField(default=False, verbose_name="Tự động gia hạn")
+    note = models.TextField(blank=True, default="", verbose_name="Ghi chú quản trị")
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Đăng ký của người dùng (Subscription)"
+        verbose_name_plural = "Danh sách Đăng ký người dùng (Subscriptions)"
+
+    def __str__(self):
+        plan_name = self.plan.name if self.plan else "Chưa có gói"
+        return f"{self.user.username} - {plan_name} ({self.status})"
+
+    @property
+    def is_valid(self):
+        from django.utils import timezone
+        if self.status not in ('ACTIVE', 'TRIAL'):
+            return False
+        if self.end_date and self.end_date < timezone.now():
+            return False
+        return True
+
+
+class PaymentTransaction(models.Model):
+    STATUS_CHOICES = (
+        ('PENDING', 'Chờ thanh toán'),
+        ('SUCCESS', 'Thành công'),
+        ('FAILED', 'Thất bại'),
+        ('CANCELLED', 'Đã huỷ'),
+    )
+    GATEWAY_CHOICES = (
+        ('VIETQR', 'VietQR (Quét mã ngân hàng)'),
+        ('SEPAY', 'Cổng thanh toán SePay'),
+        ('PAYOS', 'Cổng thanh toán PayOS'),
+        ('VNPAY', 'Cổng VNPAY'),
+        ('MOMO', 'Ví điện tử MoMo'),
+        ('MANUAL', 'Kích hoạt thủ công'),
+    )
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='payment_transactions', verbose_name="Khách hàng")
+    plan = models.ForeignKey(Plan, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Gói chọn mua")
+    
+    transaction_code = models.CharField(max_length=64, unique=True, verbose_name="Mã đơn hàng / Giao dịch")
+    amount = models.PositiveIntegerField(verbose_name="Số tiền (VNĐ)")
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='PENDING', verbose_name="Trạng thái")
+    payment_method = models.CharField(max_length=20, choices=GATEWAY_CHOICES, default='VIETQR', verbose_name="Phương thức thanh toán")
+    
+    transfer_content = models.CharField(max_length=100, blank=True, default="", verbose_name="Cú pháp chuyển khoản")
+    gateway_transaction_id = models.CharField(max_length=150, blank=True, default="", verbose_name="Mã GD phía cổng thanh toán")
+    raw_response = models.JSONField(default=dict, blank=True, verbose_name="Phản hồi Webhook JSON")
+    
+    paid_at = models.DateTimeField(null=True, blank=True, verbose_name="Thời điểm thanh toán thành công")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Thời gian tạo")
+
+    class Meta:
+        verbose_name = "Giao dịch thanh toán"
+        verbose_name_plural = "Lịch sử giao dịch thanh toán"
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.transaction_code} - {self.user.username} - {self.amount:,}đ [{self.status}]"
+
+
+class SystemLicense(models.Model):
+    """
+    Quản lý bản quyền theo năm cho mô hình B2B (Trường học / Trung tâm đào tạo triển khai hệ thống riêng)
+    """
+    TIER_CHOICES = (
+        ('STANDARD', 'Gói Trung Tâm (Dưới 500 học sinh)'),
+        ('CAMPUS', 'Gói Trường Học (Dưới 2.500 học sinh)'),
+        ('ENTERPRISE', 'Gói Sở GD / Toàn Tỉnh (Không giới hạn)'),
+    )
+
+    organization_name = models.CharField(max_length=200, verbose_name="Tên trường / Đơn vị triển khai")
+    contact_person = models.CharField(max_length=100, blank=True, default="", verbose_name="Người đại diện")
+    contact_email = models.EmailField(verbose_name="Email liên hệ")
+    contact_phone = models.CharField(max_length=30, blank=True, default="", verbose_name="Số điện thoại")
+    
+    domain = models.CharField(max_length=150, unique=True, verbose_name="Tên miền được cấp phép (Domain)")
+    license_key = models.TextField(verbose_name="Khoá bản quyền mã hoá (License Key)")
+    tier = models.CharField(max_length=20, choices=TIER_CHOICES, default='STANDARD', verbose_name="Hạng bản quyền")
+    
+    max_students = models.PositiveIntegerField(default=500, verbose_name="Số học sinh tối đa (0 = Không giới hạn)")
+    max_teachers = models.PositiveIntegerField(default=20, verbose_name="Số giáo viên tối đa (0 = Không giới hạn)")
+    
+    is_active = models.BooleanField(default=True, verbose_name="Đang kích hoạt")
+    issued_at = models.DateTimeField(verbose_name="Ngày cấp")
+    expires_at = models.DateTimeField(verbose_name="Ngày hết hạn bản quyền")
+    
+    # White-label Branding
+    brand_title = models.CharField(max_length=150, blank=True, default="", verbose_name="Tiêu đề thương hiệu riêng")
+    brand_logo_url = models.CharField(max_length=500, blank=True, default="", verbose_name="URL Logo trường")
+    brand_banner_url = models.CharField(max_length=500, blank=True, default="", verbose_name="URL Banner trường")
+    brand_slogan = models.CharField(max_length=255, blank=True, default="", verbose_name="Khẩu hiệu riêng")
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Bản quyền hệ thống B2B (System License)"
+        verbose_name_plural = "Quản lý Bản quyền B2B (System Licenses)"
+
+    def __str__(self):
+        return f"{self.organization_name} ({self.domain}) - Hết hạn: {self.expires_at.strftime('%d/%m/%Y')}"
+
+    @property
+    def is_valid(self):
+        from django.utils import timezone
+        if not self.is_active:
+            return False
+        return self.expires_at >= timezone.now()
+
+
+class SystemSetting(models.Model):
+    """
+    Cấu hình toàn hệ thống (Website, Thanh toán & Thương hiệu White-label)
+    """
+    site_title = models.CharField(max_length=200, default="ProEdu - Hệ Thống Khảo Thí & Luyện Lập Trình", verbose_name="Tên hệ thống / Website")
+    site_slogan = models.CharField(max_length=255, default="Nền tảng thi trực tuyến, luyện code và chuyển đổi tài liệu AI", verbose_name="Khẩu hiệu (Slogan)")
+    hotline = models.CharField(max_length=50, default="0987.654.321", verbose_name="Hotline liên hệ")
+    contact_email = models.EmailField(default="contact@proedu.vn", verbose_name="Email hỗ trợ")
+    
+    # Nhận diện thương hiệu & White-label
+    brand_logo = models.ImageField(upload_to='branding/', blank=True, null=True, verbose_name="Logo thương hiệu (Upload file)")
+    brand_logo_url = models.CharField(max_length=500, blank=True, default="", verbose_name="Hoặc Link URL ảnh Logo")
+    brand_favicon = models.ImageField(upload_to='branding/', blank=True, null=True, verbose_name="Favicon trình duyệt (Upload file .ico/.png)")
+    brand_favicon_url = models.CharField(max_length=500, blank=True, default="", verbose_name="Hoặc Link URL Favicon")
+    hero_banner = models.ImageField(upload_to='branding/', blank=True, null=True, verbose_name="Ảnh Banner trang chủ (Upload)")
+    hero_banner_url = models.CharField(max_length=500, blank=True, default="", verbose_name="Hoặc Link URL ảnh Banner")
+    hero_title = models.CharField(max_length=255, blank=True, default="Hệ Thống Khảo Thí Thông Minh", verbose_name="Tiêu đề Banner chính")
+    hero_subtitle = models.TextField(blank=True, default="Nền tảng thi trắc nghiệm trực tuyến chuẩn hóa, hỗ trợ câu hỏi toán học MathJax/LaTeX, đồng hồ đếm ngược thông minh và chấm điểm tức thì.", verbose_name="Đoạn văn mô tả Banner")
+    footer_text = models.CharField(max_length=255, blank=True, default="© 2026 ProEdu - Hệ Thống Khảo Thí & Luyện Lập Trình. All rights reserved.", verbose_name="Bản quyền chân trang (Footer)")
+
+    # Cấu hình thanh toán VietQR
+    bank_id = models.CharField(max_length=20, default="MB", verbose_name="Mã ngân hàng (VietQR)")
+    bank_account_number = models.CharField(max_length=50, default="0987654321", verbose_name="Số tài khoản ngân hàng")
+    bank_account_name = models.CharField(max_length=150, default="PROEDU VIETNAM", verbose_name="Tên chủ tài khoản")
+    payment_prefix = models.CharField(max_length=20, default="PROEDU", verbose_name="Cú pháp nạp tiền (Prefix)")
+    
+    # Tính năng hệ thống
+    enable_registration = models.BooleanField(default=True, verbose_name="Cho phép đăng ký tài khoản mới")
+    enable_vietqr = models.BooleanField(default=True, verbose_name="Bật thanh toán tự động VietQR")
+    maintenance_mode = models.BooleanField(default=False, verbose_name="Chế độ bảo trì hệ thống")
+    gemini_api_key = models.CharField(max_length=255, blank=True, default="", verbose_name="Gemini API Key")
+
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Cấu hình hệ thống"
+        verbose_name_plural = "Cấu hình hệ thống"
+
+    def __str__(self):
+        return self.site_title
+
+    @property
+    def logo_url(self):
+        if self.brand_logo:
+            try:
+                return self.brand_logo.url
+            except Exception:
+                pass
+        return self.brand_logo_url or ""
+
+    @property
+    def favicon_url(self):
+        if self.brand_favicon:
+            try:
+                return self.brand_favicon.url
+            except Exception:
+                pass
+        return self.brand_favicon_url or ""
+
+    @property
+    def banner_url(self):
+        if self.hero_banner:
+            try:
+                return self.hero_banner.url
+            except Exception:
+                pass
+        return self.hero_banner_url or ""
+
+    @classmethod
+    def get_settings(cls):
+        setting, _ = cls.objects.get_or_create(id=1)
+        return setting
+
+
 
