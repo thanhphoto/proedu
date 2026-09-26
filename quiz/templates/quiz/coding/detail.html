@@ -71,17 +71,122 @@
                     {% endif %}
                 </div>
                 <div class="card-body problem-description">
-                    <div class="mb-3">
+                    <div class="mb-3 d-flex flex-wrap gap-2 align-items-center">
                         <span class="badge bg-primary">Thời gian: {{ question.time_limit }}s</span>
                         <span class="badge bg-info">Bộ nhớ: {{ question.memory_limit }}MB</span>
+                        <span class="badge bg-success">Điểm: {{ question.max_score }}</span>
+                        {% if question.difficulty %}
+                        <span class="badge bg-secondary">{{ question.difficulty }}</span>
+                        {% endif %}
                         {% if question.past_exam %}
                         <span class="badge bg-warning text-dark"><i class="fas fa-trophy"></i> {{ question.past_exam }}</span>
                         {% endif %}
                     </div>
+                    {% if question.topics.all %}
+                    <div class="mb-3">
+                        {% for t in question.topics.all %}
+                        <span class="badge bg-light text-dark border me-1"><i class="fas fa-tag text-muted"></i> {{ t.name }}</span>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
                     <hr>
-                    <div class="description-content">
+                    <div class="description-content mb-4">
                         {{ question.description|linebreaks }}
                     </div>
+
+                    {% if question.input_format and question.input_format.content or question.input_format.file %}
+                    <div class="mb-3 p-3 bg-light rounded border">
+                        <h6 class="fw-bold text-primary mb-2">
+                            <i class="fas fa-sign-in-alt"></i> Dữ liệu vào (Input)
+                            {% if question.input_format.file %}
+                            <span class="badge bg-dark font-monospace ms-1">{{ question.input_format.file }}</span>
+                            {% endif %}
+                        </h6>
+                        {% if question.input_format.content %}
+                            {% if question.input_format.content|length > 0 %}
+                            <ul class="mb-0 ps-3">
+                                {% for item in question.input_format.content %}
+                                <li>{{ item }}</li>
+                                {% endfor %}
+                            </ul>
+                            {% endif %}
+                        {% endif %}
+                    </div>
+                    {% endif %}
+
+                    {% if question.output_format and question.output_format.content or question.output_format.file %}
+                    <div class="mb-3 p-3 bg-light rounded border">
+                        <h6 class="fw-bold text-success mb-2">
+                            <i class="fas fa-sign-out-alt"></i> Dữ liệu ra (Output)
+                            {% if question.output_format.file %}
+                            <span class="badge bg-dark font-monospace ms-1">{{ question.output_format.file }}</span>
+                            {% endif %}
+                        </h6>
+                        {% if question.output_format.content %}
+                            {% if question.output_format.content|length > 0 %}
+                            <ul class="mb-0 ps-3">
+                                {% for item in question.output_format.content %}
+                                <li>{{ item }}</li>
+                                {% endfor %}
+                            </ul>
+                            {% endif %}
+                        {% endif %}
+                    </div>
+                    {% endif %}
+
+                    {% if question.subtasks and question.subtasks|length > 0 %}
+                    <div class="mb-3">
+                        <h6 class="fw-bold text-dark mb-2"><i class="fas fa-layer-group text-warning"></i> Subtasks & Ràng buộc</h6>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-bordered mb-0 small">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Subtask</th>
+                                        <th>Ràng buộc</th>
+                                        <th class="text-end">Điểm</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for st in question.subtasks %}
+                                    <tr>
+                                        <td class="fw-bold">{{ st.name }}</td>
+                                        <td>{{ st.constraints }}</td>
+                                        <td class="text-end text-primary fw-bold">{{ st.score }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- Testcases mẫu -->
+                    {% with sample_tests=question.testcases.all %}
+                    {% if sample_tests %}
+                    <div class="mb-3">
+                        <h6 class="fw-bold text-dark mb-2"><i class="fas fa-flask text-info"></i> Ví dụ mẫu (Sample Testcases)</h6>
+                        {% for tc in sample_tests %}
+                        {% if not tc.is_hidden and forloop.counter <= 3 %}
+                        <div class="card mb-2 bg-light border">
+                            <div class="card-header py-1 px-2 bg-white small fw-bold text-muted">Ví dụ {{ forloop.counter }}</div>
+                            <div class="card-body p-2">
+                                <div class="row">
+                                    <div class="col-6">
+                                        <div class="small fw-bold text-muted mb-1">Input:</div>
+                                        <pre class="bg-white p-2 border rounded font-monospace small mb-0">{{ tc.input_data }}</pre>
+                                    </div>
+                                    <div class="col-6">
+                                        <div class="small fw-bold text-muted mb-1">Output:</div>
+                                        <pre class="bg-white p-2 border rounded font-monospace small mb-0">{{ tc.expected_output }}</pre>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                    {% endwith %}
                 </div>
             </div>
         </div>

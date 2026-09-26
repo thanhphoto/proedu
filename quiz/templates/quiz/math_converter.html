@@ -1,0 +1,672 @@
+{% extends 'quiz/base.html' %}
+{% load static %}
+
+{% block title %}Chuyển Đổi Ảnh / PDF Sang Word (Toán & Bảng Biểu LaTeX) - SmartQuiz Pro{% endblock %}
+
+{% block extra_css %}
+<style>
+    .upload-box {
+        border: 2px dashed #cbd5e1;
+        border-radius: 12px;
+        background-color: #f8fafc;
+        transition: all 0.3s ease;
+        cursor: pointer;
+        padding: 40px 20px;
+        text-align: center;
+    }
+    .upload-box:hover, .upload-box.dragover {
+        border-color: #3b82f6;
+        background-color: #eff6ff;
+        transform: translateY(-2px);
+    }
+    .upload-icon {
+        font-size: 3rem;
+        color: #3b82f6;
+        margin-bottom: 15px;
+    }
+    .feature-badge {
+        font-size: 0.85rem;
+        padding: 6px 12px;
+        border-radius: 20px;
+        background-color: #e0f2fe;
+        color: #0369a1;
+        font-weight: 600;
+        display: inline-block;
+        margin: 4px;
+    }
+    .preview-card {
+        border-radius: 10px;
+        border: 1px solid #e2e8f0;
+    }
+    .step-badge {
+        width: 32px;
+        height: 32px;
+        line-height: 32px;
+        border-radius: 50%;
+        text-align: center;
+        display: inline-block;
+        font-weight: bold;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <!-- Header -->
+    <div class="card shadow-sm border-0 mb-4 bg-primary text-white" style="background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);">
+        <div class="card-body p-4 p-md-5">
+            <div class="row align-items-center">
+                <div class="col-lg-8">
+                    <span class="badge bg-warning text-dark px-3 py-2 fw-bold mb-2"><i class="fas fa-sparkles me-1"></i> AI Vision OCR Multimodal</span>
+                    <h2 class="fw-bold mb-2">📐 Chuyển Đổi Ảnh / PDF Sang Word</h2>
+                    <p class="lead mb-3 text-white-50">Tự động nhận diện công thức toán học, biểu thức đại số, bảng biến thiên, bảng số liệu và chuyển thành mã LaTeX chuẩn trong file Word (.docx).</p>
+                    <div>
+                        <span class="feature-badge"><i class="fas fa-square-root-alt me-1"></i> Công thức $\LaTeX$ ($...$)</span>
+                        <span class="feature-badge"><i class="fas fa-table me-1"></i> Bảng biểu & Bảng biến thiên</span>
+                        <span class="feature-badge"><i class="fas fa-file-pdf me-1"></i> Hỗ trợ PDF đa trang</span>
+                        <span class="feature-badge"><i class="fas fa-image me-1"></i> Ảnh PNG, JPG, WEBP</span>
+                    </div>
+                </div>
+                <div class="col-lg-4 text-lg-end mt-4 mt-lg-0">
+                    <button class="btn btn-light fw-bold text-primary shadow-sm" data-bs-toggle="modal" data-bs-target="#apiKeyModal">
+                        <i class="fas fa-key me-1"></i> Cấu hình Gemini API Key
+                    </button>
+                    {% if has_system_api_key %}
+                    <div class="small text-white-50 mt-2"><i class="fas fa-check-circle text-success"></i> API Key hệ thống: Đang sẵn sàng</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Upload & Action Area -->
+    <div class="row">
+        <div class="col-lg-6 mb-4">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-header bg-white py-3 border-bottom">
+                    <h5 class="fw-bold mb-0 text-dark"><i class="fas fa-cloud-upload-alt text-primary me-2"></i> Tải Lên Tệp Tài Liệu</h5>
+                </div>
+                <div class="card-body p-4">
+                    <form id="convertDocForm" enctype="multipart/form-data">
+                        {% csrf_token %}
+                        <div class="upload-box" id="dropZone">
+                            <i class="fas fa-file-invoice upload-icon"></i>
+                            <h5 class="fw-bold text-dark">Kéo thả tệp ảnh hoặc PDF vào đây</h5>
+                            <p class="text-muted small mb-3">Hỗ trợ các định dạng: <strong>.pdf, .png, .jpg, .jpeg, .webp</strong> (tối đa 25MB)</p>
+                            <button type="button" class="btn btn-outline-primary btn-sm px-4 fw-semibold" onclick="document.getElementById('fileInput').click()">
+                                <i class="fas fa-folder-open me-1"></i> Chọn tệp từ máy tính
+                            </button>
+                            <input type="file" id="fileInput" name="doc_file" class="d-none" accept=".pdf,.png,.jpg,.jpeg,.webp">
+                        </div>
+
+                        <div id="fileSelectedInfo" class="alert alert-info mt-3 py-2 align-items-center justify-content-between" style="display: none;">
+                            <div class="d-flex align-items-center text-truncate">
+                                <i class="fas fa-file-alt fs-4 me-2 text-primary"></i>
+                                <div class="text-truncate">
+                                    <div class="fw-bold text-truncate" id="selectedFileName">filename.pdf</div>
+                                    <small class="text-muted" id="selectedFileSize">0 KB</small>
+                                </div>
+                            </div>
+                            <button type="button" class="btn btn-sm text-danger" onclick="clearSelectedFile()"><i class="fas fa-times"></i></button>
+                        </div>
+
+                        <div class="mt-4">
+                            <button type="submit" class="btn btn-primary w-100 py-3 fw-bold fs-6 shadow-sm" id="btnSubmitConvert">
+                                <i class="fas fa-file-word me-2"></i> Chuyển Đổi Sang File Word (.docx)
+                            </button>
+                        </div>
+                    </form>
+
+                    <!-- Processing Status Alert -->
+                    <div id="processingCard" class="mt-4 p-3 bg-light rounded border text-center" style="display: none;">
+                        <div class="spinner-border text-primary mb-2" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <h6 class="fw-bold text-primary mb-1" id="processStatusText">AI đang phân tích và nhận diện công thức...</h6>
+                        <p class="text-muted small mb-0">Quá trình có thể mất từ 5 - 20 giây tùy theo dung lượng và số lượng công thức toán.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Latest Result Card -->
+        <div class="col-lg-6 mb-4">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
+                    <h5 class="fw-bold mb-0 text-dark"><i class="fas fa-check-circle text-success me-2"></i> Kết Quả Chuyển Đổi Mới Nhất</h5>
+                    <span id="resultBadge" class="badge bg-secondary">Chưa có kết quả</span>
+                </div>
+                <div class="card-body p-4 d-flex flex-column justify-content-center" id="resultEmptyState">
+                    <div class="text-center py-5 text-muted">
+                        <i class="fas fa-file-word fs-1 text-black-50 mb-3"></i>
+                        <h6>Chưa có tệp nào được chuyển đổi trong phiên này.</h6>
+                        <p class="small">Hãy tải lên ảnh hoặc PDF ở bên trái để bắt đầu trích xuất công thức LaTeX và tạo file Word.</p>
+                    </div>
+                </div>
+
+                <div class="card-body p-4 d-flex flex-column" id="resultContentState" style="display: none;">
+                    <div class="alert alert-success d-flex align-items-center justify-content-between mb-3 py-3">
+                        <div>
+                            <h6 class="fw-bold mb-1 text-success"><i class="fas fa-check-circle me-1"></i> Chuyển đổi thành công!</h6>
+                            <small class="text-muted" id="resultFileName">toan_de_thi.docx</small>
+                        </div>
+                        <a href="#" id="btnDownloadDocx" class="btn btn-success fw-bold shadow-sm px-3">
+                            <i class="fas fa-download me-1"></i> Tải File Word (.docx)
+                        </a>
+                    </div>
+
+                    <!-- Tabs xem trước kết quả -->
+                    <ul class="nav nav-tabs mb-3" id="resultTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active fw-semibold" id="tab-rendered-btn" data-bs-toggle="tab" data-bs-target="#tab-rendered" type="button" role="tab">
+                                <i class="fas fa-eye text-primary me-1"></i> Xem trước Toán học (MathJax)
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link fw-semibold" id="tab-raw-btn" data-bs-toggle="tab" data-bs-target="#tab-raw" type="button" role="tab">
+                                <i class="fas fa-code text-secondary me-1"></i> Mã LaTeX / Markdown
+                            </button>
+                        </li>
+                    </ul>
+
+                    <div class="tab-content flex-grow-1" id="resultTabsContent">
+                        <div class="tab-pane fade show active p-3 bg-light rounded border overflow-auto" id="tab-rendered" role="tabpanel" style="max-height: 380px;">
+                            <div id="renderedMathContent"></div>
+                        </div>
+                        <div class="tab-pane fade p-3 bg-light rounded border" id="tab-raw" role="tabpanel">
+                            <div class="d-flex justify-content-end mb-2">
+                                <button type="button" class="btn btn-sm btn-outline-secondary" id="btnCopyRawLatex">
+                                    <i class="fas fa-copy me-1"></i> Sao chép toàn bộ LaTeX
+                                </button>
+                            </div>
+                            <pre id="rawLatexContent" class="font-monospace small text-dark p-2 bg-white rounded border overflow-auto" style="max-height: 320px; white-space: pre-wrap; word-break: break-all;"></pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- History Table -->
+    <div class="card shadow-sm border-0 mt-2">
+        <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
+            <h5 class="fw-bold mb-0 text-dark"><i class="fas fa-history text-secondary me-2"></i> Lịch Sử Chuyển Đổi Của Bạn</h5>
+            <span class="badge bg-primary">{{ conversions.count }} bản ghi</span>
+        </div>
+        <div class="card-body p-0">
+            {% if conversions %}
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>#</th>
+                            <th>Tên tệp</th>
+                            <th>Loại tệp</th>
+                            <th>Dung lượng</th>
+                            <th>Thời gian</th>
+                            <th>Trạng thái</th>
+                            <th class="text-end">Hành động</th>
+                        </tr>
+                    </thead>
+                    <tbody id="historyTableBody">
+                        {% for conv in conversions %}
+                        <tr id="conv-row-{{ conv.id }}">
+                            <td>{{ forloop.counter }}</td>
+                            <td>
+                                <div class="fw-semibold text-dark text-truncate" style="max-width: 250px;">
+                                    {% if conv.file_type == 'PDF' %}
+                                    <i class="fas fa-file-pdf text-danger me-1"></i>
+                                    {% else %}
+                                    <i class="fas fa-file-image text-primary me-1"></i>
+                                    {% endif %}
+                                    {{ conv.original_filename }}
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge bg-light text-dark border">{{ conv.file_type }}</span>
+                            </td>
+                            <td><small class="text-muted">{{ conv.file_size|filesizeformat }}</small></td>
+                            <td><small class="text-muted">{{ conv.created_at|date:"H:i d/m/Y" }}</small></td>
+                            <td>
+                                {% if conv.status == 'Completed' %}
+                                <span class="badge bg-success"><i class="fas fa-check-circle me-1"></i> Hoàn thành</span>
+                                {% elif conv.status == 'Processing' %}
+                                <span class="badge bg-warning text-dark"><i class="fas fa-spinner fa-spin me-1"></i> Đang xử lý</span>
+                                {% elif conv.status == 'Failed' %}
+                                <span class="badge bg-danger" title="{{ conv.error_message }}"><i class="fas fa-exclamation-triangle me-1"></i> Thất bại</span>
+                                {% else %}
+                                <span class="badge bg-secondary">Chờ xử lý</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-end text-nowrap">
+                                {% if conv.status == 'Completed' %}
+                                <button type="button" class="btn btn-sm btn-outline-primary btn-view-history-detail me-1" data-id="{{ conv.id }}" title="Xem nội dung LaTeX">
+                                    <i class="fas fa-eye me-1"></i> Xem LaTeX
+                                </button>
+                                <a href="{% url 'download_converted_docx' conv.id %}" class="btn btn-sm btn-success me-1" title="Tải file Word (.docx)">
+                                    <i class="fas fa-download me-1"></i> Tải Word
+                                </a>
+                                {% endif %}
+                                <button type="button" class="btn btn-sm btn-outline-danger btn-delete-history" data-id="{{ conv.id }}" title="Xóa bản ghi">
+                                    <i class="fas fa-trash-alt"></i>
+                                </button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="p-5 text-center text-muted">
+                <i class="fas fa-folder-open fs-2 mb-2 opacity-50"></i>
+                <p class="mb-0">Bạn chưa có lịch sử chuyển đổi tài liệu nào.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- MODAL CẤU HÌNH API KEY -->
+<div class="modal fade" id="apiKeyModal" tabindex="-1" aria-labelledby="apiKeyModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content shadow">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="apiKeyModalLabel"><i class="fas fa-key me-2"></i> Cấu hình Google Gemini API Key</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="small text-muted mb-3">Tính năng chuyển đổi ảnh/PDF chứa công thức toán sử dụng công nghệ nhận diện thị giác của <strong>Google Gemini Vision</strong>. Bạn có thể lấy API Key miễn phí tại <a href="https://aistudio.google.com/app/apikey" target="_blank" class="fw-bold text-decoration-none">Google AI Studio</a>.</p>
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Gemini API Key của bạn:</label>
+                    <input type="password" id="userApiKeyInput" class="form-control font-monospace" placeholder="AIzaSy...">
+                    <div class="form-text">API Key sẽ được lưu an toàn trong phiên làm việc hiện tại của bạn.</div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+                <button type="button" class="btn btn-primary fw-bold" id="btnSaveApiKey">
+                    <i class="fas fa-save me-1"></i> Lưu API Key
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL XEM CHI TIẾT NỘI DUNG LATEX LỊCH SỬ -->
+<div class="modal fade" id="historyDetailModal" tabindex="-1" aria-labelledby="historyDetailModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content shadow">
+            <div class="modal-header bg-dark text-white">
+                <h5 class="modal-title" id="historyDetailModalLabel"><i class="fas fa-file-code text-warning me-2"></i> <span id="modalHistoryTitle">Chi tiết nội dung tài liệu</span></h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <ul class="nav nav-tabs mb-3" id="historyModalTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active fw-semibold" id="tab-modal-render-btn" data-bs-toggle="tab" data-bs-target="#tab-modal-render" type="button" role="tab">
+                            <i class="fas fa-eye text-primary me-1"></i> Hiển thị Toán học (MathJax)
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link fw-semibold" id="tab-modal-raw-btn" data-bs-toggle="tab" data-bs-target="#tab-modal-raw" type="button" role="tab">
+                            <i class="fas fa-code text-secondary me-1"></i> Mã LaTeX / Markdown gốc
+                        </button>
+                    </li>
+                </ul>
+
+                <div class="tab-content" id="historyModalTabsContent">
+                    <div class="tab-pane fade show active p-3 bg-light rounded border" id="tab-modal-render" role="tabpanel" style="min-height: 250px;">
+                        <div id="modalRenderedContent"></div>
+                    </div>
+                    <div class="tab-pane fade p-3 bg-light rounded border" id="tab-modal-raw" role="tabpanel">
+                        <div class="d-flex justify-content-end mb-2">
+                            <button type="button" class="btn btn-sm btn-outline-secondary" id="btnCopyModalRaw">
+                                <i class="fas fa-copy me-1"></i> Sao chép LaTeX
+                            </button>
+                        </div>
+                        <pre id="modalRawContent" class="font-monospace small text-dark p-3 bg-white rounded border overflow-auto" style="max-height: 450px; white-space: pre-wrap; word-break: break-all;"></pre>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+                <a href="#" id="modalBtnDownloadDocx" class="btn btn-success fw-bold">
+                    <i class="fas fa-download me-1"></i> Tải File Word (.docx)
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.7.3/dist/sweetalert2.all.min.js"></script>
+<script>
+const Toast = Swal.mixin({
+    toast: true,
+    position: 'top-end',
+    showConfirmButton: false,
+    timer: 3000,
+    timerProgressBar: true,
+});
+
+// Khôi phục API Key từ localStorage nếu có
+const storedApiKey = localStorage.getItem('gemini_api_key') || '';
+if (storedApiKey) {
+    document.getElementById('userApiKeyInput').value = storedApiKey;
+}
+
+document.getElementById('btnSaveApiKey').addEventListener('click', function() {
+    const key = document.getElementById('userApiKeyInput').value.trim();
+    if (key) {
+        localStorage.setItem('gemini_api_key', key);
+        Toast.fire({ icon: 'success', title: 'Đã lưu API Key thành công!' });
+        bootstrap.Modal.getInstance(document.getElementById('apiKeyModal')).hide();
+    } else {
+        localStorage.removeItem('gemini_api_key');
+        Toast.fire({ icon: 'info', title: 'Đã xóa API Key cá nhân.' });
+        bootstrap.Modal.getInstance(document.getElementById('apiKeyModal')).hide();
+    }
+});
+
+// Drag & Drop
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+const fileSelectedInfo = document.getElementById('fileSelectedInfo');
+const selectedFileName = document.getElementById('selectedFileName');
+const selectedFileSize = document.getElementById('selectedFileSize');
+
+['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+    dropZone.addEventListener(eventName, preventDefaults, false);
+});
+
+function preventDefaults(e) {
+    e.preventDefault();
+    e.stopPropagation();
+}
+
+['dragenter', 'dragover'].forEach(eventName => {
+    dropZone.addEventListener(eventName, () => dropZone.classList.add('dragover'), false);
+});
+
+['dragleave', 'drop'].forEach(eventName => {
+    dropZone.addEventListener(eventName, () => dropZone.classList.remove('dragover'), false);
+});
+
+dropZone.addEventListener('drop', handleDrop, false);
+
+function handleDrop(e) {
+    const dt = e.dataTransfer;
+    const files = dt.files;
+    if (files.length) {
+        fileInput.files = files;
+        updateSelectedFileInfo(files[0]);
+    }
+}
+
+fileInput.addEventListener('change', function() {
+    if (this.files.length) {
+        updateSelectedFileInfo(this.files[0]);
+    }
+});
+
+function updateSelectedFileInfo(file) {
+    selectedFileName.textContent = file.name;
+    selectedFileSize.textContent = formatBytes(file.size);
+    fileSelectedInfo.style.display = 'flex';
+}
+
+function clearSelectedFile() {
+    fileInput.value = '';
+    fileSelectedInfo.style.display = 'none';
+}
+
+function formatBytes(bytes, decimals = 2) {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const dm = decimals < 0 ? 0 : decimals;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+}
+
+// Convert Document Form Submission
+document.getElementById('convertDocForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    if (!fileInput.files.length) {
+        Toast.fire({ icon: 'warning', title: 'Vui lòng chọn tệp ảnh hoặc PDF cần chuyển đổi!' });
+        return;
+    }
+
+    const formData = new FormData(this);
+    const key = localStorage.getItem('gemini_api_key') || '';
+    if (key) {
+        formData.append('api_key', key);
+    }
+
+    const btnSubmit = document.getElementById('btnSubmitConvert');
+    const processingCard = document.getElementById('processingCard');
+    
+    btnSubmit.disabled = true;
+    processingCard.style.display = 'block';
+
+    fetch("{% url 'api_convert_math_doc' %}", {
+        method: 'POST',
+        body: formData,
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(res => res.json())
+    .then(data => {
+        btnSubmit.disabled = false;
+        processingCard.style.display = 'none';
+
+        if (data.success) {
+            Toast.fire({ icon: 'success', title: data.message || 'Chuyển đổi thành công!' });
+
+            // Display results
+            document.getElementById('resultEmptyState').style.display = 'none';
+            document.getElementById('resultContentState').style.display = 'flex';
+            document.getElementById('resultBadge').className = 'badge bg-success';
+            document.getElementById('resultBadge').textContent = 'Hoàn thành';
+            document.getElementById('resultFileName').textContent = data.filename;
+            document.getElementById('btnDownloadDocx').href = data.docx_url;
+
+            // Render math content
+            const renderedDiv = document.getElementById('renderedMathContent');
+            renderedDiv.innerHTML = formatMarkdownToHtml(data.extracted_latex);
+            document.getElementById('rawLatexContent').textContent = data.extracted_latex;
+
+            if (window.MathJax) {
+                MathJax.typesetPromise([renderedDiv]).catch(err => console.log(err));
+            }
+
+            // Reload history table after 2s
+            setTimeout(() => {
+                window.location.reload();
+            }, 3000);
+        } else {
+            Swal.fire({
+                icon: 'error',
+                title: 'Không thể chuyển đổi',
+                text: data.error || 'Có lỗi xảy ra trong quá trình nhận diện.'
+            });
+        }
+    })
+    .catch(err => {
+        btnSubmit.disabled = false;
+        processingCard.style.display = 'none';
+        Swal.fire({
+            icon: 'error',
+            title: 'Lỗi kết nối',
+            text: 'Không thể kết nối đến máy chủ xử lý: ' + err.message
+        });
+    });
+});
+
+// Copy buttons
+document.getElementById('btnCopyRawLatex').addEventListener('click', function() {
+    const text = document.getElementById('rawLatexContent').textContent;
+    navigator.clipboard.writeText(text).then(() => {
+        Toast.fire({ icon: 'success', title: 'Đã sao chép toàn bộ mã LaTeX!' });
+    });
+});
+
+document.getElementById('btnCopyModalRaw').addEventListener('click', function() {
+    const text = document.getElementById('modalRawContent').textContent;
+    navigator.clipboard.writeText(text).then(() => {
+        Toast.fire({ icon: 'success', title: 'Đã sao chép toàn bộ mã LaTeX!' });
+    });
+});
+
+// Delete history
+document.querySelectorAll('.btn-delete-history').forEach(btn => {
+    btn.addEventListener('click', function() {
+        const convId = this.dataset.id;
+        const row = document.getElementById('conv-row-' + convId);
+
+        Swal.fire({
+            title: 'Xóa lịch sử chuyển đổi?',
+            text: 'Tệp Word và dữ liệu trích xuất của bản ghi này sẽ bị xóa vĩnh viễn.',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#dc2626',
+            cancelButtonColor: '#6b7280',
+            confirmButtonText: 'Đồng ý xóa',
+            cancelButtonText: 'Hủy'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                fetch(`/chuyen-doi-tai-lieu/xoa/${convId}/`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        if (row) row.remove();
+                        Toast.fire({ icon: 'success', title: 'Đã xóa bản ghi thành công.' });
+                    } else {
+                        Toast.fire({ icon: 'error', title: data.error || 'Lỗi khi xóa.' });
+                    }
+                })
+                .catch(err => Toast.fire({ icon: 'error', title: 'Lỗi kết nối.' }));
+            }
+        });
+    });
+});
+
+// View history detail modal
+document.querySelectorAll('.btn-view-history-detail').forEach(btn => {
+    btn.addEventListener('click', function() {
+        const convId = this.dataset.id;
+
+        fetch(`/chuyen-doi-tai-lieu/chi-tiet/${convId}/`, {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                document.getElementById('modalHistoryTitle').textContent = data.filename;
+                document.getElementById('modalRawContent').textContent = data.extracted_latex;
+                
+                const renderDiv = document.getElementById('modalRenderedContent');
+                renderDiv.innerHTML = formatMarkdownToHtml(data.extracted_latex);
+                
+                const btnDl = document.getElementById('modalBtnDownloadDocx');
+                if (data.has_docx) {
+                    btnDl.href = `/chuyen-doi-tai-lieu/tai-ve/${convId}/`;
+                    btnDl.style.display = 'inline-block';
+                } else {
+                    btnDl.style.display = 'none';
+                }
+
+                const modal = new bootstrap.Modal(document.getElementById('historyDetailModal'));
+                modal.show();
+
+                if (window.MathJax) {
+                    MathJax.typesetPromise([renderDiv]).catch(err => console.log(err));
+                }
+            } else {
+                Toast.fire({ icon: 'error', title: 'Không thể tải chi tiết.' });
+            }
+        });
+    });
+});
+
+function formatMarkdownToHtml(md) {
+    if (!md) return '<p class="text-muted">Không có nội dung</p>';
+    
+    let lines = md.split('\n');
+    let html = '';
+    let inTable = false;
+    let tableHtml = '';
+
+    function parseInlineFormatting(str) {
+        if (!str) return '';
+        // 1. Chuyển đổi **text** thành <strong>text</strong>
+        str = str.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+        // 2. Chuyển đổi `code` thành <code>code</code>
+        str = str.replace(/`([^`]+)`/g, '<code class="text-danger bg-light px-1 rounded">$1</code>');
+        return str;
+    }
+
+    for (let i = 0; i < lines.length; i++) {
+        let line = lines[i].trim();
+        
+        // Table line
+        if (line.startsWith('|') && line.endsWith('|')) {
+            if (!inTable) {
+                inTable = true;
+                tableHtml = '<div class="table-responsive my-3"><table class="table table-bordered table-sm">';
+            }
+            if (/^\|[\s\-:|]+\|$/.test(line)) {
+                continue; // Skip separator line
+            }
+            let cells = line.split('|').slice(1, -1);
+            tableHtml += '<tr>';
+            cells.forEach(c => {
+                tableHtml += `<td>${parseInlineFormatting(c.trim())}</td>`;
+            });
+            tableHtml += '</tr>';
+            continue;
+        } else {
+            if (inTable) {
+                tableHtml += '</table></div>';
+                html += tableHtml;
+                inTable = false;
+                tableHtml = '';
+            }
+        }
+
+        if (!line) {
+            html += '<br>';
+            continue;
+        }
+
+        if (line.startsWith('### ')) {
+            html += `<h5 class="fw-bold mt-3">${parseInlineFormatting(line.substring(4))}</h5>`;
+        } else if (line.startsWith('## ')) {
+            html += `<h4 class="fw-bold mt-3">${parseInlineFormatting(line.substring(3))}</h4>`;
+        } else if (line.startsWith('# ')) {
+            html += `<h3 class="fw-bold text-center mt-3">${parseInlineFormatting(line.substring(2))}</h3>`;
+        } else if (line.startsWith('- ') || line.startsWith('* ')) {
+            html += `<div class="ms-3">• ${parseInlineFormatting(line.substring(2))}</div>`;
+        } else {
+            html += `<p class="mb-1">${parseInlineFormatting(line)}</p>`;
+        }
+    }
+
+    if (inTable) {
+        tableHtml += '</table></div>';
+        html += tableHtml;
+    }
+
+    return html;
+}
+</script>
+{% endblock %}

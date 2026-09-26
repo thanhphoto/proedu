@@ -19,9 +19,13 @@
                     <a href="{% url 'coding_exam_export_json' exam.id %}" class="btn btn-outline-info btn-sm me-2">
                         <i class="fas fa-file-export"></i> Xuất JSON
                     </a>
+                    {% endif %}
+                    {% if user == exam.created_by %}
                     <a href="{% url 'coding_exam_edit' exam.id %}" class="btn btn-outline-secondary btn-sm me-2">
                         <i class="fas fa-edit"></i> Sửa kỳ thi
                     </a>
+                    {% endif %}
+                    {% if user == exam.created_by or user.is_superuser %}
                     {% if exam.exam_type == 'registered' %}
                     <a href="{% url 'coding_manage_registrations' exam.id %}" class="btn btn-outline-primary btn-sm me-2">
                         <i class="fas fa-users-cog"></i> Quản lý đăng ký
@@ -192,6 +196,9 @@
                             <a href="{% url 'coding_edit' q.id %}" class="btn btn-sm btn-outline-secondary mt-1">
                                 <i class="fas fa-edit"></i> Sửa
                             </a>
+                            <button type="button" class="btn btn-sm btn-outline-danger mt-1 btn-delete-question" data-id="{{ q.id }}" data-title="{{ q.title }}">
+                                <i class="fas fa-trash"></i> Xóa
+                            </button>
                             {% endif %}
                         </td>
                     </tr>
@@ -214,13 +221,12 @@ document.querySelectorAll('.toggle-attr').forEach(el => {
         const attr = this.dataset.attr;
         const isChecked = this.checked;
         
-        // Cần truyền csrf_token
-        const token = '{{ csrf_token }}';
+        const csrfToken = document.querySelector('input[name="csrfmiddlewaretoken"]').value;
         
         fetch(`/luyen-code/sua/${qId}/toggle/`, {
             method: 'POST',
             headers: {
-                'X-CSRFToken': token,
+                'X-CSRFToken': csrfToken,
                 'Content-Type': 'application/x-www-form-urlencoded'
             },
             body: `attr=${attr}`
@@ -239,6 +245,58 @@ document.querySelectorAll('.toggle-attr').forEach(el => {
     });
 });
 </script>
+<div style="display:none;">{% csrf_token %}</div>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.7.3/dist/sweetalert2.all.min.js"></script>
+<script>
+document.querySelectorAll('.btn-delete-question').forEach(btn => {
+    btn.addEventListener('click', function() {
+        const qId = this.dataset.id;
+        const qTitle = this.dataset.title;
+        const csrfToken = document.querySelector('input[name="csrfmiddlewaretoken"]').value;
+        
+        Swal.fire({
+            title: 'Xác nhận xóa?',
+            html: `Bạn có chắc muốn xóa bài <b>${qTitle}</b>?<br><small class="text-danger">Toàn bộ bài làm của thí sinh cho bài này cũng sẽ bị xóa vĩnh viễn!</small>`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#d33',
+            cancelButtonColor: '#3085d6',
+            confirmButtonText: 'Có, xóa ngay!',
+            cancelButtonText: 'Hủy'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                fetch(`/luyen-code/xoa/${qId}/`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': csrfToken,
+                        'Content-Type': 'application/json'
+                    }
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        Swal.fire({
+                            toast: true,
+                            position: 'top-end',
+                            icon: 'success',
+                            title: 'Đã xóa bài tập thành công',
+                            showConfirmButton: false,
+                            timer: 2000
+                        }).then(() => {
+                            window.location.reload();
+                        });
+                    } else {
+                        Swal.fire('Lỗi!', data.error || 'Có lỗi xảy ra', 'error');
+                    }
+                })
+                .catch(err => {
+                    Swal.fire('Lỗi kết nối!', 'Không thể thực hiện yêu cầu.', 'error');
+                });
+            }
+        });
+    });
+});
+</script>
 {% endif %}
 
 <!-- Modal Import JSON -->
@@ -246,11 +304,11 @@ document.querySelectorAll('.toggle-attr').forEach(el => {
   <div class="modal-dialog">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title" id="importJsonModalLabel">Nhập Dữ Liệu Kỳ Thi (JSON)</h5>
+        <h5 class="modal-title" id="importJsonModalLabel">Nhập Dữ Liệu (JSON)</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body">
-        <p class="text-muted small">Tải lên file JSON để cập nhật thông tin kỳ thi và thêm các câu hỏi mới. Dữ liệu cũ của kỳ thi vẫn được giữ nguyên.</p>
+        <p class="text-muted small">Tải lên file JSON để xử lý. Bạn có thể tải lên JSON cấu trúc nguyên 1 kỳ thi (để cập nhật cấu hình và thêm bài tập) HOẶC một mảng (danh sách) các bài tập (để thêm nhanh vào kỳ thi này). Dữ liệu cũ vẫn được giữ nguyên.</p>
         <form id="importJsonForm">
           <div class="mb-3">
             <label for="jsonFile" class="form-label">Chọn file JSON</label>

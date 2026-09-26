@@ -1,5 +1,5 @@
 from django.urls import path
-from . import views, grading_views, coding_views
+from . import views, grading_views, coding_views, math_views
 
 urlpatterns = [
     # Trang chủ & Học sinh
@@ -113,6 +113,7 @@ urlpatterns = [
     path('api/luyen-code/ky-thi/duyet/', coding_views.api_coding_approve_registration, name='api_coding_approve_registration'),
     path('luyen-code/them/', coding_views.coding_create, name='coding_create'),
     path('luyen-code/sua/<int:question_id>/', coding_views.coding_edit, name='coding_edit'),
+    path('luyen-code/xoa/<int:question_id>/', coding_views.coding_delete_question, name='coding_delete_question'),
     path('luyen-code/sua/<int:question_id>/toggle/', coding_views.coding_toggle_attr, name='coding_toggle_attr'),
     path('luyen-code/sua/<int:question_id>/auto-testcase/', coding_views.coding_auto_testcase, name='coding_auto_testcase'),
     path('luyen-code/testcase/<int:testcase_id>/cap-nhat-diem/', coding_views.coding_update_single_tc_points, name='coding_update_single_tc_points'),
@@ -122,4 +123,11 @@ urlpatterns = [
     path('luyen-code/<int:question_id>/binh-luan/', coding_views.add_coding_comment, name='add_coding_comment'),
     path('api/luyen-code/<int:question_id>/submit/', coding_views.submit_code_api, name='submit_code_api'),
     path('api/luyen-code/ket-qua/code/<int:submission_id>/', coding_views.api_get_submission_code, name='api_get_submission_code'),
+
+    # Chuyển đổi tài liệu Toán học (Ảnh/PDF -> Word LaTeX)
+    path('chuyen-doi-tai-lieu/', math_views.math_converter_view, name='math_converter'),
+    path('api/chuyen-doi-tai-lieu/convert/', math_views.api_convert_math_doc, name='api_convert_math_doc'),
+    path('chuyen-doi-tai-lieu/tai-ve/<int:conversion_id>/', math_views.download_converted_docx, name='download_converted_docx'),
+    path('chuyen-doi-tai-lieu/chi-tiet/<int:conversion_id>/', math_views.get_conversion_detail, name='get_conversion_detail'),
+    path('chuyen-doi-tai-lieu/xoa/<int:conversion_id>/', math_views.delete_conversion_history, name='delete_conversion_history'),
 ]

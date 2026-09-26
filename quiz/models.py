@@ -591,11 +591,14 @@ class CodingQuestion(models.Model):
     solution_code_cpp = models.TextField(blank=True, default="", verbose_name="Code đáp án chuẩn C++")
     solution_code_python = models.TextField(blank=True, default="", verbose_name="Code đáp án chuẩn Python")
     difficulty = models.CharField(max_length=50, choices=DIFFICULTY_CHOICES, default='Dễ', verbose_name="Mức độ khó")
-    max_score = models.IntegerField(default=10, verbose_name="Điểm tối đa (100% testcase)")
+    max_score = models.FloatField(default=10.0, verbose_name="Điểm tối đa (100% testcase)")
     is_public = models.BooleanField(default=True, verbose_name="Công khai ở Luyện Code")
     is_active = models.BooleanField(default=True, verbose_name="Hiển thị với người dùng")
     past_exam = models.CharField(max_length=255, blank=True, default="", verbose_name="Thuộc đề thi (đã thi trực tiếp)")
     topics = models.ManyToManyField(CodingTopic, blank=True, related_name='questions', verbose_name="Chủ đề")
+    input_format = models.JSONField(blank=True, default=dict, verbose_name="Định dạng dữ liệu đầu vào")
+    output_format = models.JSONField(blank=True, default=dict, verbose_name="Định dạng dữ liệu đầu ra")
+    subtasks = models.JSONField(blank=True, default=list, verbose_name="Danh sách Subtasks / Ràng buộc")
     created_at = models.DateTimeField(auto_now_add=True)
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='coding_questions', verbose_name="Người tạo")
 
@@ -676,3 +679,35 @@ class CodingExamAttempt(models.Model):
 
     def __str__(self):
         return f"{self.user.username} - {self.exam.title} - {self.total_score}đ"
+
+class MathDocConversion(models.Model):
+    STATUS_CHOICES = (
+        ('Pending', 'Đang chờ xử lý'),
+        ('Processing', 'Đang chuyển đổi'),
+        ('Completed', 'Hoàn thành'),
+        ('Failed', 'Thất bại'),
+    )
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='math_conversions', verbose_name="Người dùng")
+    original_filename = models.CharField(max_length=255, verbose_name="Tên tệp gốc")
+    file_type = models.CharField(max_length=20, default='Image', verbose_name="Loại tệp")
+    file_size = models.PositiveIntegerField(default=0, verbose_name="Kích thước tệp (bytes)")
+    
+    input_file = models.FileField(upload_to='math_conversions/inputs/', null=True, blank=True, verbose_name="Tệp đầu vào")
+    output_docx = models.FileField(upload_to='math_conversions/outputs/', null=True, blank=True, verbose_name="Tệp Word kết quả")
+    
+    extracted_latex = models.TextField(blank=True, default="", verbose_name="Nội dung văn bản & LaTeX trích xuất")
+    status = models.CharField(max_length=50, choices=STATUS_CHOICES, default='Pending', verbose_name="Trạng thái")
+    error_message = models.TextField(blank=True, default="", verbose_name="Thông báo lỗi")
+    
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Thời gian tạo")
+    completed_at = models.DateTimeField(null=True, blank=True, verbose_name="Thời gian hoàn tất")
+
+    class Meta:
+        verbose_name = "Lịch sử chuyển đổi tài liệu Toán"
+        verbose_name_plural = "Lịch sử chuyển đổi tài liệu Toán"
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.user.username} - {self.original_filename} ({self.status})"
+

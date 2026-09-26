@@ -101,29 +101,50 @@ def execute_code_locally(language, code, stdin, run_timeout_sec):
 class CodingQuestionForm(forms.ModelForm):
     class Meta:
         model = CodingQuestion
-        fields = ['title', 'description', 'time_limit', 'memory_limit', 'initial_code_cpp', 'initial_code_python', 'difficulty', 'max_score', 'topics', 'past_exam']
+        fields = [
+            'title', 'description', 'time_limit', 'memory_limit',
+            'initial_code_cpp', 'initial_code_python',
+            'solution_code_cpp', 'solution_code_python',
+            'difficulty', 'max_score', 'is_public', 'is_active',
+            'topics', 'past_exam'
+        ]
         widgets = {
-            'title': forms.TextInput(attrs={'class': 'form-control'}),
+            'title': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'VD: Số siêu nguyên tố'}),
             'past_exam': forms.Select(attrs={'class': 'form-select select2-exam', 'data-placeholder': 'VD: HSG Tỉnh 2023...'}),
-            'description': forms.Textarea(attrs={'class': 'form-control', 'rows': 5}),
+            'description': forms.Textarea(attrs={'class': 'form-control', 'rows': 5, 'placeholder': 'Nội dung đề bài (hỗ trợ MathJax LaTeX)...'}),
             'time_limit': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.1'}),
             'memory_limit': forms.NumberInput(attrs={'class': 'form-control'}),
-            'initial_code_cpp': forms.Textarea(attrs={'class': 'form-control text-monospace', 'rows': 5}),
-            'initial_code_python': forms.Textarea(attrs={'class': 'form-control text-monospace', 'rows': 5}),
+            'initial_code_cpp': forms.Textarea(attrs={'class': 'form-control font-monospace', 'rows': 5, 'placeholder': '// Code khởi đầu mẫu cho C++'}),
+            'initial_code_python': forms.Textarea(attrs={'class': 'form-control font-monospace', 'rows': 5, 'placeholder': '# Code khởi đầu mẫu cho Python'}),
+            'solution_code_cpp': forms.Textarea(attrs={'class': 'form-control font-monospace', 'rows': 5, 'placeholder': '// Code đáp án chuẩn C++'}),
+            'solution_code_python': forms.Textarea(attrs={'class': 'form-control font-monospace', 'rows': 5, 'placeholder': '# Code đáp án chuẩn Python'}),
             'difficulty': forms.Select(attrs={'class': 'form-select'}),
-            'max_score': forms.NumberInput(attrs={'class': 'form-control'}),
+            'max_score': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.1'}),
+            'is_public': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'is_active': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'topics': forms.SelectMultiple(attrs={'class': 'form-select', 'size': 4}),
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        existing_exams = CodingQuestion.objects.exclude(past_exam='').values_list('past_exam', flat=True).distinct()
+        # Sắp xếp và xoá ordering mặc định (created_at) để distinct() hoạt động đúng
+        existing_exams_raw = CodingQuestion.objects.exclude(past_exam='').order_by('past_exam').values_list('past_exam', flat=True).distinct()
+        
+        # Xử lý xoá khoảng trắng thừa và gom nhóm Python-side để loại trừ các bản ghi trùng lặp do dư khoảng trắng
+        existing_exams = []
+        for ex in existing_exams_raw:
+            ex_clean = ex.strip()
+            if ex_clean and ex_clean not in existing_exams:
+                existing_exams.append(ex_clean)
+                
         choices = [('', '--- Chọn hoặc gõ thêm mới ---')]
         for exam in existing_exams:
             choices.append((exam, exam))
         
-        if self.instance and self.instance.past_exam and self.instance.past_exam not in [c[0] for c in choices]:
-            choices.append((self.instance.past_exam, self.instance.past_exam))
+        if self.instance and self.instance.past_exam:
+            past_clean = self.instance.past_exam.strip()
+            if past_clean not in existing_exams:
+                choices.append((past_clean, past_clean))
             
         self.fields['past_exam'].widget.choices = choices
 
@@ -140,6 +161,12 @@ class CodingExamForm(forms.ModelForm):
             'exam_type': forms.Select(attrs={'class': 'form-select'}),
             'is_active': forms.CheckboxInput(attrs={'class': 'form-check-input'})
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        from django.utils import timezone
+        if not self.instance.pk and 'start_time' not in self.initial:
+            self.initial['start_time'] = timezone.now().strftime('%Y-%m-%dT%H:%M')
 
 from django.utils import timezone
 
@@ -736,7 +763,10 @@ def coding_export_json(request):
                     "is_hidden": tc.is_hidden,
                     "points": tc.points
                 } for tc in q.testcases.all()
-            ]
+            ],
+            "input_format": q.input_format or {},
+            "output_format": q.output_format or {},
+            "subtasks": q.subtasks or []
         }
         data.append(q_data)
         
@@ -770,7 +800,7 @@ def coding_import_json(request):
                     time_limit=item.get('time_limit', 1.0),
                     memory_limit=item.get('memory_limit', 128),
                     difficulty=item.get('difficulty', 'Dễ'),
-                    max_score=item.get('max_score', 10),
+                    max_score=item.get('max_score', 10.0),
                     is_public=item.get('is_public', True),
                     is_active=item.get('is_active', True),
                     past_exam=item.get('past_exam', ''),
@@ -778,6 +808,9 @@ def coding_import_json(request):
                     initial_code_python=item.get('initial_code_python', ''),
                     solution_code_cpp=item.get('solution_code_cpp', ''),
                     solution_code_python=item.get('solution_code_python', ''),
+                    input_format=item.get('input_format', {}),
+                    output_format=item.get('output_format', {}),
+                    subtasks=item.get('subtasks', []),
                     created_by=request.user
                 )
                 
@@ -802,6 +835,72 @@ def coding_import_json(request):
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)})
 
+def _save_extended_coding_fields(question, post_data):
+    import json
+    # Input format
+    input_file = post_data.get('input_file', '').strip()
+    input_content = post_data.get('input_content', '').strip()
+    input_json = post_data.get('input_format_json', '').strip()
+    if input_json:
+        try:
+            question.input_format = json.loads(input_json)
+        except Exception:
+            pass
+    elif input_file or input_content:
+        question.input_format = {
+            'file': input_file,
+            'content': [line.strip() for line in input_content.splitlines() if line.strip()]
+        }
+    else:
+        question.input_format = {}
+
+    # Output format
+    output_file = post_data.get('output_file', '').strip()
+    output_content = post_data.get('output_content', '').strip()
+    output_json = post_data.get('output_format_json', '').strip()
+    if output_json:
+        try:
+            question.output_format = json.loads(output_json)
+        except Exception:
+            pass
+    elif output_file or output_content:
+        question.output_format = {
+            'file': output_file,
+            'content': [line.strip() for line in output_content.splitlines() if line.strip()]
+        }
+    else:
+        question.output_format = {}
+
+    # Subtasks
+    subtasks_json = post_data.get('subtasks_json', '').strip()
+    if subtasks_json:
+        try:
+            question.subtasks = json.loads(subtasks_json)
+        except Exception:
+            question.subtasks = []
+    else:
+        question.subtasks = []
+
+    question.save()
+
+    # Testcases from JSON paste if provided
+    testcases_json = post_data.get('testcases_json', '').strip()
+    if testcases_json:
+        try:
+            tc_list = json.loads(testcases_json)
+            if isinstance(tc_list, list) and len(tc_list) > 0:
+                question.testcases.all().delete()
+                for tc in tc_list:
+                    TestCase.objects.create(
+                        question=question,
+                        input_data=tc.get('input_data', ''),
+                        expected_output=tc.get('expected_output', ''),
+                        is_hidden=bool(tc.get('is_hidden', False)),
+                        points=float(tc.get('points', 0.1))
+                    )
+        except Exception:
+            pass
+
 @login_required
 def coding_create(request):
     if not hasattr(request.user, 'profile') or not request.user.profile.is_coding_contributor():
@@ -821,6 +920,7 @@ def coding_create(request):
                 question.exam_id = exam.id
             question.save()
             form.save_m2m()
+            _save_extended_coding_fields(question, request.POST)
             if question.exam_id:
                 return redirect('coding_exam_detail', exam_id=question.exam_id)
             return redirect('coding_manage_list')
@@ -830,7 +930,12 @@ def coding_create(request):
     return render(request, 'quiz/coding/form.html', {
         'form': form, 
         'title': 'Thêm bài tập lập trình',
-        'exam_id': request.GET.get('exam_id')
+        'exam_id': request.GET.get('exam_id'),
+        'input_file': '',
+        'input_content_str': '',
+        'output_file': '',
+        'output_content_str': '',
+        'subtasks_json_data': '[]',
     })
 
 @login_required
@@ -850,17 +955,52 @@ def coding_edit(request, question_id):
         form = CodingQuestionForm(data, instance=question)
         if form.is_valid():
             form.save()
+            _save_extended_coding_fields(question, request.POST)
             if question.exam_id:
                 return redirect('coding_exam_detail', exam_id=question.exam_id)
             return redirect('coding_manage_list')
     else:
         form = CodingQuestionForm(instance=question)
+
+    import json
+    input_fmt = question.input_format if isinstance(question.input_format, dict) else {}
+    output_fmt = question.output_format if isinstance(question.output_format, dict) else {}
+    subtasks_list = question.subtasks if isinstance(question.subtasks, list) else []
+
+    input_content_str = "\n".join(input_fmt.get('content', [])) if isinstance(input_fmt.get('content'), list) else str(input_fmt.get('content', ''))
+    output_content_str = "\n".join(output_fmt.get('content', [])) if isinstance(output_fmt.get('content'), list) else str(output_fmt.get('content', ''))
         
     return render(request, 'quiz/coding/form.html', {
         'form': form, 
         'title': 'Sửa bài tập lập trình',
-        'exam_id': question.exam_id
+        'exam_id': question.exam_id,
+        'input_file': input_fmt.get('file', ''),
+        'input_content_str': input_content_str,
+        'output_file': output_fmt.get('file', ''),
+        'output_content_str': output_content_str,
+        'subtasks_json_data': json.dumps(subtasks_list, ensure_ascii=False),
     })
+
+@login_required
+@require_POST
+def coding_delete_question(request, question_id):
+    from django.http import JsonResponse
+    if not hasattr(request.user, 'profile') or not request.user.profile.is_coding_contributor():
+        return JsonResponse({'success': False, 'error': 'Bạn không có quyền thao tác.'})
+        
+    question = get_object_or_404(CodingQuestion, id=question_id)
+    
+    is_exam_creator = question.exam and question.exam.created_by == request.user
+    if question.created_by != request.user and not is_exam_creator and not request.user.profile.is_admin():
+        return JsonResponse({'success': False, 'error': 'Bạn không có quyền xóa bài tập này.'})
+        
+    try:
+        # Delete submissions first
+        CodeSubmission.objects.filter(question=question).delete()
+        question.delete()
+        return JsonResponse({'success': True})
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})
 
 # Map language choices to Piston language identifiers
 LANGUAGE_MAP = {
@@ -1318,7 +1458,10 @@ def coding_exam_export_json(request, exam_id):
                     "is_hidden": tc.is_hidden,
                     "points": tc.points
                 } for tc in q.testcases.all()
-            ]
+            ],
+            "input_format": q.input_format or {},
+            "output_format": q.output_format or {},
+            "subtasks": q.subtasks or []
         }
         exam_data["questions"].append(q_data)
         
@@ -1348,26 +1491,29 @@ def coding_exam_import_json(request, exam_id):
     try:
         data = json.loads(file.read().decode('utf-8'))
         
-        if not isinstance(data, dict):
-            return JsonResponse({'success': False, 'error': 'Định dạng JSON không hợp lệ (phải là một object kỳ thi).'})
-            
         with transaction.atomic():
-            # Update exam info
-            if 'title' in data: exam.title = data['title']
-            if 'description' in data: exam.description = data['description']
-            if 'duration' in data: exam.duration = data['duration']
-            if 'exam_type' in data: exam.exam_type = data['exam_type']
-            if 'is_active' in data: exam.is_active = data['is_active']
-            
-            if 'start_time' in data:
-                exam.start_time = parse_datetime(data['start_time']) if data['start_time'] else None
-            if 'end_time' in data:
-                exam.end_time = parse_datetime(data['end_time']) if data['end_time'] else None
+            if isinstance(data, list):
+                # Danh sách các câu hỏi
+                questions_data = data
+            elif isinstance(data, dict):
+                # Update exam info
+                if 'title' in data: exam.title = data['title']
+                if 'description' in data: exam.description = data['description']
+                if 'duration' in data: exam.duration = data['duration']
+                if 'exam_type' in data: exam.exam_type = data['exam_type']
+                if 'is_active' in data: exam.is_active = data['is_active']
                 
-            exam.save()
+                if 'start_time' in data:
+                    exam.start_time = parse_datetime(data['start_time']) if data['start_time'] else None
+                if 'end_time' in data:
+                    exam.end_time = parse_datetime(data['end_time']) if data['end_time'] else None
+                    
+                exam.save()
+                questions_data = data.get('questions', [])
+            else:
+                return JsonResponse({'success': False, 'error': 'Định dạng JSON không hợp lệ (phải là object kỳ thi hoặc mảng các bài toán).'})
             
             # Append questions
-            questions_data = data.get('questions', [])
             for item in questions_data:
                 question = CodingQuestion.objects.create(
                     exam=exam,
@@ -1376,13 +1522,16 @@ def coding_exam_import_json(request, exam_id):
                     time_limit=item.get('time_limit', 1.0),
                     memory_limit=item.get('memory_limit', 128),
                     difficulty=item.get('difficulty', 'Dễ'),
-                    max_score=item.get('max_score', 10),
+                    max_score=item.get('max_score', 10.0),
                     is_public=item.get('is_public', False),
                     is_active=item.get('is_active', True),
                     initial_code_cpp=item.get('initial_code_cpp', ''),
                     initial_code_python=item.get('initial_code_python', ''),
                     solution_code_cpp=item.get('solution_code_cpp', ''),
                     solution_code_python=item.get('solution_code_python', ''),
+                    input_format=item.get('input_format', {}),
+                    output_format=item.get('output_format', {}),
+                    subtasks=item.get('subtasks', []),
                     created_by=request.user
                 )
                 
@@ -1403,6 +1552,6 @@ def coding_exam_import_json(request, exam_id):
                         points=tc.get('points', 0.1)
                     )
                     
-        return JsonResponse({'success': True, 'message': 'Đã nhập dữ liệu thành công.'})
+        return JsonResponse({'success': True, 'message': f'Đã nhập thành công ({len(questions_data)} bài toán).'})
     except Exception as e:
         return JsonResponse({'success': False, 'error': f'Đã có lỗi xảy ra: {str(e)}'})
