@@ -1,0 +1,33 @@
+# ========================================================
+# PROEDU - Danh sách gói phụ thuộc triển khai (requirements.txt)
+# ========================================================
+
+# --- Core Framework & Web Server ---
+Django>=5.1.0,<7.0.0
+asgiref>=3.8.0
+sqlparse>=0.5.0
+gunicorn>=21.2.0
+
+# --- Xử lý hình ảnh & Thị giác máy tính (Chấm OMR, Avatar, Ảnh) ---
+pillow>=10.0.0
+numpy>=1.26.0
+# Lưu ý cho VPS: Sử dụng opencv-python-headless trên server/VPS để không cần cài thêm thư viện đồ hoạ X11/GUI
+opencv-python-headless>=4.8.0
+
+# --- Xử lý văn bản & Tài liệu (Word, Excel, PDF) ---
+python-docx>=1.1.0
+openpyxl>=3.1.2
+et_xmlfile>=1.1.0
+lxml>=5.0.0
+pypdf>=4.0.0
+reportlab>=4.0.0
+
+# --- Mạng & API (AI Converter, Piston Judge, Webhook) ---
+requests>=2.31.0
+urllib3>=2.0.0
+certifi>=2024.0.0
+charset-normalizer>=3.3.0
+idna>=3.6
+
+# --- Tiện ích & Hỗ trợ Type Typing ---
+typing_extensions>=4.8.0
