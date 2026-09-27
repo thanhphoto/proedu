@@ -640,6 +640,13 @@ class CodingQuestion(models.Model):
                 qs = qs.exclude(id=self.id)
         return candidate
 
+    @property
+    def sample_testcases(self):
+        samples = self.testcases.filter(is_sample=True).order_by('id')
+        if samples.exists():
+            return samples
+        return self.testcases.filter(is_hidden=False).order_by('id')[:2]
+
     def save(self, *args, **kwargs):
         if not self.code or not str(self.code).strip():
             self.code = self.generate_code()
@@ -652,6 +659,7 @@ class TestCase(models.Model):
     input_data = models.TextField(verbose_name="Dữ liệu đầu vào", blank=True, default="")
     expected_output = models.TextField(verbose_name="Kết quả đầu ra mong đợi", blank=True, default="")
     is_hidden = models.BooleanField(default=False, verbose_name="Testcase ẩn")
+    is_sample = models.BooleanField(default=False, verbose_name="Hiển thị công khai trên đề bài")
     points = models.FloatField(default=0.1, verbose_name="Điểm số")
 
     class Meta:
@@ -660,6 +668,26 @@ class TestCase(models.Model):
 
     def __str__(self):
         return f"Testcase for {self.question.title}"
+
+    @property
+    def testcase_type(self):
+        if self.is_sample:
+            return 'sample'
+        elif self.is_hidden:
+            return 'hidden'
+        return 'public'
+
+    def set_type(self, tc_type):
+        if tc_type == 'sample':
+            self.is_sample = True
+            self.is_hidden = False
+        elif tc_type == 'hidden':
+            self.is_sample = False
+            self.is_hidden = True
+        else:
+            self.is_sample = False
+            self.is_hidden = False
+        self.save()
 
 class CodeSubmission(models.Model):
     STATUS_CHOICES = (
@@ -999,6 +1027,130 @@ class SystemSetting(models.Model):
     def get_settings(cls):
         setting, _ = cls.objects.get_or_create(id=1)
         return setting
+
+
+# =====================================================================
+# LỚP HỌC LUYỆN CODE RIÊNG (GÓI GIÁO VIÊN & KHẢO THÍ)
+# =====================================================================
+
+def generate_classroom_code():
+    import random
+    clean_chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+    while True:
+        code = ''.join(random.choice(clean_chars) for _ in range(6))
+        if not CodingClassroom.objects.filter(code=code).exists():
+            return code
+
+class CodingClassroom(models.Model):
+    name = models.CharField(max_length=200, verbose_name="Tên lớp học")
+    code = models.CharField(
+        max_length=20, 
+        unique=True, 
+        db_index=True, 
+        blank=True, 
+        verbose_name="Mã lớp tham gia (VD: lop-hoc/{code})"
+    )
+    description = models.TextField(blank=True, verbose_name="Mô tả / Lời dặn của giáo viên")
+    teacher = models.ForeignKey(
+        User, 
+        on_delete=models.CASCADE, 
+        related_name='teaching_coding_classrooms', 
+        verbose_name="Giáo viên phụ trách"
+    )
+    is_active = models.BooleanField(default=True, verbose_name="Đang hoạt động")
+    allow_join = models.BooleanField(default=True, verbose_name="Cho phép học sinh xin vào qua link")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Ngày tạo")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="Ngày cập nhật")
+
+    class Meta:
+        verbose_name = "Lớp học Luyện Code"
+        verbose_name_plural = "Lớp học Luyện Code"
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.name} ({self.code})"
+
+    def save(self, *args, **kwargs):
+        if not self.code or not str(self.code).strip():
+            self.code = generate_classroom_code()
+        else:
+            self.code = str(self.code).strip().upper()
+        super().save(*args, **kwargs)
+
+    @property
+    def approved_students_count(self):
+        return self.members.filter(status='approved').count()
+
+    @property
+    def pending_students_count(self):
+        return self.members.filter(status='pending').count()
+
+    @property
+    def total_assignments_count(self):
+        return self.assignments.count()
+
+    @property
+    def total_topics_count(self):
+        return self.custom_topics.count()
+
+class CodingClassroomMember(models.Model):
+    STATUS_CHOICES = (
+        ('pending', 'Chờ giáo viên duyệt'),
+        ('approved', 'Chính thức'),
+        ('rejected', 'Từ chối'),
+    )
+    classroom = models.ForeignKey(CodingClassroom, on_delete=models.CASCADE, related_name='members', verbose_name="Lớp học")
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='coding_classroom_memberships', verbose_name="Học sinh")
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending', verbose_name="Trạng thái")
+    role = models.CharField(max_length=20, choices=[('student', 'Học sinh'), ('assistant', 'Trợ giảng')], default='student', verbose_name="Vai trò")
+    joined_at = models.DateTimeField(auto_now_add=True, verbose_name="Thời gian yêu cầu")
+    approved_at = models.DateTimeField(null=True, blank=True, verbose_name="Thời gian duyệt")
+
+    class Meta:
+        verbose_name = "Thành viên Lớp học Luyện Code"
+        verbose_name_plural = "Thành viên Lớp học Luyện Code"
+        unique_together = ('classroom', 'user')
+        ordering = ['-joined_at']
+
+    def __str__(self):
+        return f"{self.user.username} - {self.classroom.name} ({self.get_status_display()})"
+
+class CodingClassroomTopic(models.Model):
+    classroom = models.ForeignKey(CodingClassroom, on_delete=models.CASCADE, related_name='custom_topics', verbose_name="Lớp học")
+    name = models.CharField(max_length=200, verbose_name="Tên nhóm kiến thức (VD: Vòng lặp For/While, Mảng 1D...)")
+    description = models.TextField(blank=True, verbose_name="Mô tả / Yêu cầu cần đạt")
+    order = models.PositiveIntegerField(default=0, verbose_name="Thứ tự hiển thị")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Ngày tạo")
+
+    class Meta:
+        verbose_name = "Nhóm kiến thức lớp học"
+        verbose_name_plural = "Nhóm kiến thức lớp học"
+        ordering = ['order', 'id']
+
+    def __str__(self):
+        return f"{self.name} - {self.classroom.name}"
+
+    @property
+    def questions_count(self):
+        return self.assignments.count()
+
+class CodingClassroomAssignment(models.Model):
+    classroom = models.ForeignKey(CodingClassroom, on_delete=models.CASCADE, related_name='assignments', verbose_name="Lớp học")
+    topic = models.ForeignKey(CodingClassroomTopic, on_delete=models.SET_NULL, null=True, blank=True, related_name='assignments', verbose_name="Nhóm kiến thức")
+    question = models.ForeignKey(CodingQuestion, on_delete=models.CASCADE, related_name='classroom_assignments', verbose_name="Bài toán lập trình")
+    order = models.PositiveIntegerField(default=0, verbose_name="Thứ tự bài")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Ngày thêm vào lớp")
+
+    class Meta:
+        verbose_name = "Bài tập trong lớp"
+        verbose_name_plural = "Bài tập trong lớp"
+        unique_together = ('classroom', 'question')
+        ordering = ['order', 'id']
+
+    def __str__(self):
+        topic_name = self.topic.name if self.topic else "Chưa phân nhóm"
+        return f"[{self.classroom.name}] {self.question.title} ({topic_name})"
+
 
 
 

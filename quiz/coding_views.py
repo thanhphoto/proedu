@@ -4,7 +4,7 @@ from django.shortcuts import render, get_object_or_404, redirect
 from django.http import JsonResponse
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_POST
-from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
 from django.urls import reverse
 from django import forms
 from django.core.exceptions import PermissionDenied
@@ -327,32 +327,43 @@ def api_get_submission_code(request, submission_id):
     submission = get_object_or_404(CodeSubmission, id=submission_id)
     
     # Check if this submission belongs to an exam attempt
-    exams = submission.question.codingexam_set.all()
+    exam = submission.question.exam
     can_view = False
     if request.user.is_superuser or request.user == submission.student:
         can_view = True
-    else:
-        for exam in exams:
-            if exam.created_by == request.user:
-                can_view = True
-                break
+    elif exam and exam.created_by == request.user:
+        can_view = True
             
     # For students viewing other's code in exam, exam must be ended.
-    if not can_view:
+    if not can_view and exam and exam.end_time:
         now = timezone.now()
-        for exam in exams:
-            if exam.end_time and now > exam.end_time:
-                has_attempted = CodingExamAttempt.objects.filter(exam=exam, user=request.user).exists()
-                if has_attempted:
-                    can_view = True
-                    break
+        if now > exam.end_time:
+            has_attempted = CodingExamAttempt.objects.filter(exam=exam, user=request.user).exists()
+            if has_attempted:
+                can_view = True
                     
+    # Check if teacher of a classroom containing this question and student
     if not can_view:
-        return JsonResponse({'error': 'Bạn không có quyền xem code này hoặc kỳ thi chưa kết thúc.'}, status=403)
+        from .models import CodingClassroom
+        is_classroom_teacher = CodingClassroom.objects.filter(
+            teacher=request.user,
+            assignments__question=submission.question,
+            members__user=submission.student,
+            members__status='approved'
+        ).exists()
+        if is_classroom_teacher:
+            can_view = True
+
+    if not can_view:
+        return JsonResponse({'error': 'Bạn không có quyền xem code này.'}, status=403)
         
     return JsonResponse({
         'code': submission.code,
-        'language': submission.language
+        'language': submission.language,
+        'status': submission.status,
+        'score': submission.score,
+        'details': submission.details,
+        'created_at': submission.created_at.strftime('%d/%m/%Y %H:%M')
     })
 
 @login_required
@@ -833,11 +844,16 @@ def _save_extended_coding_fields(question, post_data):
             if isinstance(tc_list, list) and len(tc_list) > 0:
                 question.testcases.all().delete()
                 for tc in tc_list:
+                    is_sample = bool(tc.get('is_sample', False)) or tc.get('type') == 'sample'
+                    is_hidden = bool(tc.get('is_hidden', False)) or tc.get('type') == 'hidden'
+                    if is_sample:
+                        is_hidden = False
                     TestCase.objects.create(
                         question=question,
                         input_data=tc.get('input_data', ''),
                         expected_output=tc.get('expected_output', ''),
-                        is_hidden=bool(tc.get('is_hidden', False)),
+                        is_hidden=is_hidden,
+                        is_sample=is_sample,
                         points=float(tc.get('points', 0.1))
                     )
         except Exception:
@@ -889,7 +905,7 @@ def coding_edit(request, question_id):
     
     # Only admin, creator, or exam creator can edit
     is_exam_creator = question.exam and question.exam.created_by == request.user
-    if question.created_by != request.user and not is_exam_creator:
+    if not request.user.is_superuser and question.created_by != request.user and not is_exam_creator:
         raise PermissionDenied("Bạn chỉ có thể sửa bài do chính mình tạo.")
         
     if request.method == 'POST':
@@ -1040,6 +1056,7 @@ def get_coding_question_by_code_or_id(identifier):
         raise Http404(f"Không tìm thấy bài toán với mã hoặc ID: '{identifier}'")
     return question
 
+@ensure_csrf_cookie
 def coding_detail_view(request, question_code):
     question = get_coding_question_by_code_or_id(question_code)
     latest_submission = None
@@ -1134,7 +1151,6 @@ def add_coding_comment(request, question_code):
         return redirect(f"{reverse('coding_detail', kwargs={'question_code': target_code})}?exam_id={exam_id}")
     return redirect('coding_detail', question_code=target_code)
 
-@login_required
 @require_POST
 def submit_code_api(request, question_code):
     question = get_coding_question_by_code_or_id(question_code)
@@ -1151,10 +1167,12 @@ def submit_code_api(request, question_code):
         if not exam_id and data.get('exam_id'):
             exam_id = str(data.get('exam_id'))
     except Exception:
-        return JsonResponse({'error': 'Invalid request body'}, status=400)
+        return JsonResponse({'error': 'Dữ liệu gửi lên không hợp lệ.'}, status=400)
 
     # Chỉ kiểm tra thời gian và attempt nếu nộp bài trong ngữ cảnh kỳ thi
     if exam_id and str(exam_id).isdigit():
+        if not request.user.is_authenticated:
+            return JsonResponse({'error': 'Bạn cần đăng nhập để nộp bài trong kỳ thi.'}, status=401)
         try:
             exam = CodingExam.objects.get(id=int(exam_id))
             if question.exam_id == exam.id:
@@ -1174,14 +1192,14 @@ def submit_code_api(request, question_code):
             pass
 
     if not code:
-        return JsonResponse({'error': 'Code is required'}, status=400)
+        return JsonResponse({'error': 'Mã nguồn không được để trống.'}, status=400)
         
     if language not in LANGUAGE_MAP:
-        return JsonResponse({'error': 'Unsupported language'}, status=400)
+        return JsonResponse({'error': 'Ngôn ngữ lập trình không được hỗ trợ.'}, status=400)
 
     testcases = question.testcases.all()
     if not testcases:
-        return JsonResponse({'error': 'No testcases found for this question'}, status=400)
+        return JsonResponse({'error': 'Bài tập này hiện chưa có bộ testcase nào để chấm điểm.'}, status=400)
 
     total_score = 0
     passed_count = 0
@@ -1191,7 +1209,7 @@ def submit_code_api(request, question_code):
 
     for tc in testcases:
         try:
-            # Chạy nội bộ thay vì gọi Piston API
+            # Chạy nội bộ qua module Sandbox
             res_data = execute_code_locally(language, code, tc.input_data, question.time_limit)
             
             status = res_data['status']
@@ -1236,34 +1254,37 @@ def submit_code_api(request, question_code):
             })
             break # Stop executing if system error
 
-    # Save submission
-    submission = CodeSubmission.objects.create(
-        student=request.user,
-        question=question,
-        language=language,
-        code=code,
-        status=overall_status,
-        score=total_score,
-        details=results
-    )
+    # Save submission if user is logged in
+    submission = None
+    if request.user.is_authenticated:
+        submission = CodeSubmission.objects.create(
+            student=request.user,
+            question=question,
+            language=language,
+            code=code,
+            status=overall_status,
+            score=total_score,
+            details=results
+        )
 
-    # Chỉ cập nhật điểm vào CodingExamAttempt nếu đang làm bài trong kỳ thi đó
-    if attempt and exam:
-        from django.db.models import Max
-        exam_scores = CodeSubmission.objects.filter(
-            student=request.user, 
-            question__exam=exam
-        ).values('question').annotate(max_score=Max('score'))
-        attempt.total_score = sum(item['max_score'] for item in exam_scores)
-        attempt.save()
+        # Chỉ cập nhật điểm vào CodingExamAttempt nếu đang làm bài trong kỳ thi đó
+        if attempt and exam:
+            from django.db.models import Max
+            exam_scores = CodeSubmission.objects.filter(
+                student=request.user, 
+                question__exam=exam
+            ).values('question').annotate(max_score=Max('score'))
+            attempt.total_score = sum(item['max_score'] for item in exam_scores)
+            attempt.save()
 
     return JsonResponse({
-        'submission_id': submission.id,
+        'submission_id': submission.id if submission else None,
         'status': overall_status,
         'score': total_score,
         'passed_count': passed_count,
         'total_testcases': len(testcases),
-        'results': results
+        'results': results,
+        'is_guest': not request.user.is_authenticated
     })
 
 @login_required
@@ -1326,6 +1347,66 @@ def coding_update_single_tc_points(request, testcase_id):
         return JsonResponse({'success': True})
     except ValueError:
         return JsonResponse({'error': 'Điểm không hợp lệ'}, status=400)
+
+@login_required
+@require_POST
+def coding_update_testcase_type(request, testcase_id):
+    if not hasattr(request.user, 'profile') or not request.user.profile.is_coding_contributor():
+        raise PermissionDenied("Bạn không có quyền quản lý bài tập lập trình.")
+        
+    tc = get_object_or_404(TestCase, id=testcase_id)
+    question = tc.question
+    
+    is_exam_creator = question.exam and question.exam.created_by == request.user
+    if question.created_by != request.user and not is_exam_creator:
+        raise PermissionDenied("Bạn chỉ có thể sửa bài do chính mình tạo.")
+        
+    new_type = request.POST.get('type', '').strip()
+    if new_type not in ['sample', 'public', 'hidden']:
+        return JsonResponse({'error': 'Loại testcase không hợp lệ'}, status=400)
+        
+    tc.set_type(new_type)
+    return JsonResponse({
+        'success': True, 
+        'type': new_type,
+        'is_sample': tc.is_sample,
+        'is_hidden': tc.is_hidden,
+        'message': 'Đã cập nhật loại testcase thành công!'
+    })
+
+@login_required
+@require_POST
+def coding_bulk_update_testcase_type(request, question_id):
+    if not hasattr(request.user, 'profile') or not request.user.profile.is_coding_contributor():
+        raise PermissionDenied("Bạn không có quyền quản lý bài tập lập trình.")
+        
+    question = get_object_or_404(CodingQuestion, id=question_id)
+    is_exam_creator = question.exam and question.exam.created_by == request.user
+    if question.created_by != request.user and not is_exam_creator:
+        raise PermissionDenied("Bạn chỉ có thể sửa bài do chính mình tạo.")
+        
+    new_type = request.POST.get('type', '').strip()
+    if new_type not in ['sample', 'public', 'hidden']:
+        return JsonResponse({'error': 'Loại testcase không hợp lệ'}, status=400)
+
+    tc_ids_raw = request.POST.get('tc_ids', '')
+    if tc_ids_raw:
+        try:
+            tc_ids = [int(i.strip()) for i in tc_ids_raw.split(',') if i.strip()]
+            target_tcs = question.testcases.filter(id__in=tc_ids)
+        except ValueError:
+            target_tcs = question.testcases.all()
+    else:
+        target_tcs = question.testcases.all()
+
+    if new_type == 'sample':
+        target_tcs.update(is_sample=True, is_hidden=False)
+    elif new_type == 'hidden':
+        target_tcs.update(is_sample=False, is_hidden=True)
+    else: # public
+        target_tcs.update(is_sample=False, is_hidden=False)
+
+    return JsonResponse({'success': True, 'count': target_tcs.count(), 'message': f'Đã cập nhật {target_tcs.count()} testcase thành công!'})
 
 @login_required
 def coding_toggle_attr(request, question_id):

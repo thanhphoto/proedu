@@ -195,15 +195,20 @@
                                     
                                     <!-- Nút Khoá / Mở khoá -->
                                     {% if u.is_active %}
-                                        <button class="btn btn-sm btn-outline-danger rounded-pill px-3" onclick="toggleStatus('{{ u.id }}', '{{ u.username }}', true)">
+                                        <button class="btn btn-sm btn-outline-danger rounded-pill px-3" onclick="toggleStatus('{{ u.id }}', '{{ u.username|escapejs }}', true)">
                                             🔒 Khoá
                                         </button>
                                     {% else %}
-                                        <button class="btn btn-sm btn-outline-success rounded-pill px-3" onclick="toggleStatus('{{ u.id }}', '{{ u.username }}', false)">
+                                        <button class="btn btn-sm btn-outline-success rounded-pill px-3" onclick="toggleStatus('{{ u.id }}', '{{ u.username|escapejs }}', false)">
                                             🔓 Mở khoá
                                         </button>
                                     {% endif %}
                                 {% endif %}
+
+                                <!-- Nút Đổi mật khẩu -->
+                                <button class="btn btn-sm btn-outline-warning text-dark rounded-pill px-3 fw-medium" onclick="resetPassword('{{ u.id }}', '{{ u.username|escapejs }}')" title="Đặt lại mật khẩu cho tài khoản này">
+                                    🔑 Đổi mật khẩu
+                                </button>
                             </div>
                         </td>
                     </tr>
@@ -330,6 +335,146 @@ function toggleStatus(userId, username, isCurrentlyActive) {
             });
         }
     });
+}
+
+// Đổi / Reset mật khẩu người dùng
+function resetPassword(userId, username) {
+    Swal.fire({
+        title: '🔑 Đổi Mật Khẩu',
+        html: `
+            <div class="text-start">
+                <p class="text-muted small mb-3">
+                    Nhập mật khẩu mới để cấp lại cho tài khoản <strong class="text-primary">${username}</strong>:
+                </p>
+                <div class="mb-3">
+                    <label class="form-label small fw-bold text-dark mb-1">Mật khẩu mới:</label>
+                    <div class="input-group">
+                        <input type="password" id="swal-new-password" class="form-control rounded-start-3" placeholder="Nhập mật khẩu mới (tối thiểu 6 ký tự)" autocomplete="new-password">
+                        <button class="btn btn-outline-secondary rounded-end-3" type="button" id="btn-toggle-swal-pwd" onclick="toggleSwalPwdVisibility()" title="Ẩn/Hiện mật khẩu">
+                            <i class="fas fa-eye" id="icon-swal-pwd"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="d-flex justify-content-between align-items-center pt-1">
+                    <button type="button" class="btn btn-sm btn-light border rounded-pill px-3 text-primary fw-semibold" onclick="generateRandomSwalPassword()">
+                        🎲 Tạo ngẫu nhiên
+                    </button>
+                    <small class="text-muted">Tối thiểu 6 ký tự</small>
+                </div>
+            </div>
+        `,
+        showCancelButton: true,
+        confirmButtonText: '<i class="fas fa-save me-1"></i> Lưu mật khẩu',
+        cancelButtonText: 'Huỷ bỏ',
+        confirmButtonColor: '#4f46e5',
+        focusConfirm: false,
+        didOpen: () => {
+            const input = document.getElementById('swal-new-password');
+            if (input) {
+                input.focus();
+                input.addEventListener('keyup', function(e) {
+                    if (e.key === 'Enter') {
+                        Swal.clickConfirm();
+                    }
+                });
+            }
+        },
+        preConfirm: () => {
+            const password = document.getElementById('swal-new-password').value.trim();
+            if (!password) {
+                Swal.showValidationMessage('Vui lòng nhập mật khẩu mới!');
+                return false;
+            }
+            if (password.length < 6) {
+                Swal.showValidationMessage('Mật khẩu mới phải có ít nhất 6 ký tự!');
+                return false;
+            }
+            return password;
+        }
+    }).then((result) => {
+        if (result.isConfirmed) {
+            const newPassword = result.value;
+            const formData = new FormData();
+            formData.append('new_password', newPassword);
+            formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+
+            Swal.fire({
+                title: 'Đang xử lý...',
+                text: 'Hệ thống đang cập nhật mật khẩu mới...',
+                allowOutsideClick: false,
+                didOpen: () => {
+                    Swal.showLoading();
+                }
+            });
+
+            fetch(`/api/reset-mat-khau/${userId}/`, {
+                method: 'POST',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: formData
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    Swal.fire({
+                        title: 'Đổi mật khẩu thành công!',
+                        html: `
+                            <p class="text-muted small mb-2">Tài khoản: <strong>${username}</strong></p>
+                            <div class="p-3 bg-light border rounded-3 my-3 text-center">
+                                <small class="text-muted d-block mb-1">Mật khẩu mới đã được cập nhật:</small>
+                                <span class="fs-5 fw-bold text-primary font-monospace user-select-all" id="new-pwd-text">${newPassword}</span>
+                            </div>
+                            <button type="button" class="btn btn-sm btn-outline-primary rounded-pill px-3" onclick="navigator.clipboard.writeText('${newPassword}'); this.innerHTML='<i class=\\'fas fa-check me-1\\'></i> Đã sao chép!';">
+                                <i class="fas fa-copy me-1"></i> Sao chép mật khẩu
+                            </button>
+                        `,
+                        icon: 'success',
+                        confirmButtonText: 'Đóng',
+                        confirmButtonColor: '#10b981'
+                    });
+                } else {
+                    Swal.fire('Lỗi', data.message || 'Không thể đổi mật khẩu.', 'error');
+                }
+            })
+            .catch(err => {
+                Swal.fire('Lỗi kết nối', 'Không thể kết nối đến máy chủ.', 'error');
+            });
+        }
+    });
+}
+
+function toggleSwalPwdVisibility() {
+    const input = document.getElementById('swal-new-password');
+    const icon = document.getElementById('icon-swal-pwd');
+    if (!input || !icon) return;
+    if (input.type === 'password') {
+        input.type = 'text';
+        icon.classList.remove('fa-eye');
+        icon.classList.add('fa-eye-slash');
+    } else {
+        input.type = 'password';
+        icon.classList.remove('fa-eye-slash');
+        icon.classList.add('fa-eye');
+    }
+}
+
+function generateRandomSwalPassword() {
+    const chars = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789';
+    let pwd = '';
+    for (let i = 0; i < 8; i++) {
+        pwd += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    const input = document.getElementById('swal-new-password');
+    const icon = document.getElementById('icon-swal-pwd');
+    if (input) {
+        input.value = pwd;
+        input.type = 'text';
+        if (icon) {
+            icon.classList.remove('fa-eye');
+            icon.classList.add('fa-eye-slash');
+        }
+    }
 }
 </script>
 {% endblock %}

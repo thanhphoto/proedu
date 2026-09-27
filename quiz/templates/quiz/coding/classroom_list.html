@@ -1,0 +1,247 @@
+{% extends 'quiz/base.html' %}
+{% load static %}
+
+{% block title %}Lớp Học Luyện Code - ProEdu{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <!-- Header -->
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3">
+        <div>
+            <h2 class="fw-bold text-dark mb-1">
+                <i class="fas fa-chalkboard-teacher text-primary me-2"></i>Lớp Học Luyện Code
+            </h2>
+            <p class="text-muted mb-0">Quản lý lớp học chuyên đề, giao bài tập lập trình và theo dõi tiến độ học sinh</p>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="{% url 'coding_list' %}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left me-1"></i> Ngân Hàng Bài Tập
+            </a>
+            {% if can_manage %}
+            <a href="{% url 'coding_classroom_create' %}" class="btn btn-primary px-3 shadow-sm fw-bold">
+                <i class="fas fa-plus-circle me-1"></i> Tạo Lớp Học Mới
+            </a>
+            {% else %}
+            <button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#upgradeModal">
+                <i class="fas fa-crown text-warning me-1"></i> Tạo Lớp Học Mới (Gói GV)
+            </button>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Quick Join Box for Students -->
+    <div class="card border-0 shadow-sm rounded-4 mb-4 bg-primary text-white" style="background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);">
+        <div class="card-body p-4">
+            <div class="row align-items-center">
+                <div class="col-lg-7 mb-3 mb-lg-0">
+                    <span class="badge bg-warning text-dark mb-2 px-3 py-1 rounded-pill fw-bold">
+                        <i class="fas fa-key me-1"></i> Dành Cho Học Sinh
+                    </span>
+                    <h4 class="fw-bold mb-1">Tham Gia Lớp Học Bằng Mã Mời</h4>
+                    <p class="mb-0 text-white-50">Nhập mã lớp do giáo viên cung cấp để tham gia hoặc gửi yêu cầu vào lớp học.</p>
+                </div>
+                <div class="col-lg-5">
+                    <form method="get" action="" id="quickJoinForm" class="d-flex gap-2" onsubmit="event.preventDefault(); joinClassByCode();">
+                        <input type="text" id="joinCodeInput" class="form-control form-control-lg font-monospace text-uppercase fw-bold rounded-3 shadow-sm" placeholder="VD: TIN10A, CL7X9K..." maxlength="20" required>
+                        <button type="submit" class="btn btn-warning btn-lg fw-bold px-4 text-dark rounded-3 shadow-sm text-nowrap">
+                            <i class="fas fa-sign-in-alt me-1"></i> Vào Lớp
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% if can_manage %}
+    <!-- Section 1: Lớp tôi giảng dạy -->
+    <div class="mb-5">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h4 class="fw-bold text-dark mb-0">
+                <i class="fas fa-user-tie text-success me-2"></i>Lớp Học Tôi Giảng Dạy
+                <span class="badge bg-success-subtle text-success fs-6 ms-2 rounded-pill">{{ teaching_classrooms|length }} lớp</span>
+            </h4>
+            <a href="{% url 'coding_classroom_create' %}" class="btn btn-sm btn-outline-primary">
+                <i class="fas fa-plus me-1"></i> Thêm lớp mới
+            </a>
+        </div>
+
+        {% if teaching_classrooms %}
+        <div class="row g-3">
+            {% for c in teaching_classrooms %}
+            <div class="col-md-6 col-lg-4">
+                <div class="card h-100 border-0 shadow-sm rounded-3 hover-shadow transition">
+                    <div class="card-body p-4 d-flex flex-column">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1 font-monospace">
+                                Mã: {{ c.code }}
+                            </span>
+                            {% if c.num_pending > 0 %}
+                            <span class="badge bg-danger rounded-pill px-2 py-1">
+                                <i class="fas fa-user-clock me-1"></i>{{ c.num_pending }} chờ duyệt
+                            </span>
+                            {% else %}
+                            <span class="badge {% if c.is_active %}bg-success-subtle text-success{% else %}bg-secondary-subtle text-secondary{% endif %}">
+                                {% if c.is_active %}Đang mở{% else %}Đã đóng{% endif %}
+                            </span>
+                            {% endif %}
+                        </div>
+
+                        <h5 class="fw-bold mb-2">
+                            <a href="{% url 'coding_classroom_manage' c.id %}" class="text-decoration-none text-dark hover-primary">
+                                {{ c.name }}
+                            </a>
+                        </h5>
+                        <p class="text-muted small flex-grow-1 mb-3">
+                            {{ c.description|default:"Chưa có lời dặn cho lớp."|truncatechars:90 }}
+                        </p>
+
+                        <!-- Thống kê nhanh -->
+                        <div class="row g-2 mb-3 bg-light rounded-3 p-2 text-center small">
+                            <div class="col-4 border-end">
+                                <div class="text-muted" style="font-size: 0.75rem;">Học sinh</div>
+                                <div class="fw-bold text-dark fs-6">{{ c.num_students }}</div>
+                            </div>
+                            <div class="col-4 border-end">
+                                <div class="text-muted" style="font-size: 0.75rem;">Bài tập</div>
+                                <div class="fw-bold text-primary fs-6">{{ c.num_assignments }}</div>
+                            </div>
+                            <div class="col-4">
+                                <div class="text-muted" style="font-size: 0.75rem;">Chuyên đề</div>
+                                <div class="fw-bold text-info fs-6">{{ c.num_topics }}</div>
+                            </div>
+                        </div>
+
+                        <div class="d-flex gap-2 mt-auto">
+                            <a href="{% url 'coding_classroom_manage' c.id %}" class="btn btn-primary btn-sm flex-grow-1 fw-bold">
+                                <i class="fas fa-cog me-1"></i> Quản Lý Lớp
+                            </a>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="copyClassLink('{{ c.code }}')" title="Sao chép link mời học sinh">
+                                <i class="fas fa-link"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="card border-0 shadow-sm rounded-4 text-center py-5">
+            <div class="card-body">
+                <i class="fas fa-folder-open text-muted fa-3x mb-3"></i>
+                <h5 class="fw-bold">Bạn chưa tạo lớp học nào</h5>
+                <p class="text-muted mb-3">Tạo lớp học ngay để phân chia bài tập theo chuyên đề và gửi link cho học sinh tham gia!</p>
+                <a href="{% url 'coding_classroom_create' %}" class="btn btn-primary px-4 fw-bold">
+                    <i class="fas fa-plus me-1"></i> Tạo Lớp Học Đầu Tiên
+                </a>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- Section 2: Lớp học tôi đang theo học -->
+    <div>
+        <h4 class="fw-bold text-dark mb-3">
+            <i class="fas fa-graduation-cap text-info me-2"></i>Lớp Học Tôi Đang Tham Gia
+            <span class="badge bg-info-subtle text-info fs-6 ms-2 rounded-pill">{{ enrolled_memberships|length }} lớp</span>
+        </h4>
+
+        {% if enrolled_memberships %}
+        <div class="row g-3">
+            {% for m in enrolled_memberships %}
+            <div class="col-md-6 col-lg-4">
+                <div class="card h-100 border-0 shadow-sm rounded-3">
+                    <div class="card-body p-4 d-flex flex-column">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <span class="badge bg-light text-muted border px-2 py-1 font-monospace">
+                                Mã: {{ m.classroom.code }}
+                            </span>
+                            {% if m.status == 'approved' %}
+                            <span class="badge bg-success"><i class="fas fa-check-circle me-1"></i>Chính thức</span>
+                            {% elif m.status == 'pending' %}
+                            <span class="badge bg-warning text-dark"><i class="fas fa-clock me-1"></i>Chờ duyệt</span>
+                            {% else %}
+                            <span class="badge bg-danger"><i class="fas fa-times-circle me-1"></i>Bị từ chối</span>
+                            {% endif %}
+                        </div>
+
+                        <h5 class="fw-bold mb-1">
+                            <a href="{% url 'coding_classroom_join_or_view' m.classroom.code %}" class="text-decoration-none text-dark hover-primary">
+                                {{ m.classroom.name }}
+                            </a>
+                        </h5>
+                        <p class="small text-muted mb-3">
+                            <i class="fas fa-chalkboard-teacher me-1"></i>GV: {{ m.classroom.teacher.get_full_name|default:m.classroom.teacher.username }}
+                        </p>
+
+                        <div class="d-flex justify-content-between align-items-center mt-auto pt-2 border-top">
+                            <span class="small text-muted">
+                                <i class="fas fa-calendar-alt me-1"></i>{{ m.joined_at|date:"d/m/Y" }}
+                            </span>
+                            <a href="{% url 'coding_classroom_join_or_view' m.classroom.code %}" class="btn btn-sm {% if m.status == 'approved' %}btn-primary{% else %}btn-outline-secondary{% endif %} fw-bold px-3">
+                                {% if m.status == 'approved' %}Vào Lớp Học &rarr;{% else %}Xem trạng thái{% endif %}
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="card border-0 shadow-sm rounded-4 text-center py-4 bg-light">
+            <div class="card-body">
+                <i class="fas fa-book-reader text-muted fa-2x mb-2"></i>
+                <p class="text-muted mb-2">Bạn chưa tham gia lớp học nào.</p>
+                <small class="text-muted">Nhập mã lớp do giáo viên cung cấp vào ô phía trên để tham gia.</small>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Modal Nâng Cấp Gói -->
+<div class="modal fade" id="upgradeModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rounded-4 border-0 shadow">
+            <div class="modal-header border-0 pb-0">
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body text-center px-4 pt-0 pb-4">
+                <div class="mb-3">
+                    <span class="d-inline-flex align-items-center justify-content-center bg-warning-subtle text-warning rounded-circle" style="width: 70px; height: 70px; font-size: 2rem;">
+                        <i class="fas fa-crown"></i>
+                    </span>
+                </div>
+                <h4 class="fw-bold mb-2">Gói Giáo Viên & Khảo Thí</h4>
+                <p class="text-muted mb-4">
+                    Tính năng <strong>Tự tạo lớp học Luyện Code riêng</strong>, thêm học sinh, phân chia bài tập theo chuyên đề và theo dõi kết quả làm bài của học sinh thuộc <strong>Gói Giáo Viên & Khảo Thí</strong>.
+                </p>
+                <div class="d-grid gap-2">
+                    <a href="{% url 'pricing' %}" class="btn btn-warning btn-lg fw-bold text-dark shadow-sm">
+                        <i class="fas fa-gem me-1"></i> Khám Phá & Nâng Cấp Ngay
+                    </a>
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Để sau</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function joinClassByCode() {
+    const input = document.getElementById('joinCodeInput');
+    const code = input.value.trim().toUpperCase();
+    if (!code) return;
+    window.location.href = `/lop-hoc/${encodeURIComponent(code)}/`;
+}
+
+function copyClassLink(code) {
+    const fullUrl = `${window.location.origin}/lop-hoc/${code}/`;
+    navigator.clipboard.writeText(fullUrl).then(() => {
+        alert(`Đã sao chép link tham gia lớp học:\n${fullUrl}`);
+    }).catch(() => {
+        prompt("Sao chép link tham gia lớp học:", fullUrl);
+    });
+}
+</script>
+{% endblock %}

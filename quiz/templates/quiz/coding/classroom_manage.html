@@ -1,0 +1,1223 @@
+{% extends 'quiz/base.html' %}
+{% load static %}
+
+{% block title %}Quản Lý Lớp Học: {{ classroom.name }} - ProEdu{% endblock %}
+
+{% block extra_css %}
+<style>
+    .nav-tabs .nav-link {
+        font-weight: 600;
+        color: #495057;
+        padding: 0.75rem 1.25rem;
+        border: none;
+        border-bottom: 3px solid transparent;
+    }
+    .nav-tabs .nav-link.active {
+        color: #0d6efd;
+        background: transparent;
+        border-bottom: 3px solid #0d6efd;
+    }
+    .hover-shadow:hover {
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.08) !important;
+        transform: translateY(-2px);
+    }
+    .transition {
+        transition: all 0.2s ease-in-out;
+    }
+    .code-viewer {
+        background-color: #1e1e1e;
+        color: #d4d4d4;
+        font-family: 'Courier New', Courier, monospace;
+        border-radius: 6px;
+        padding: 1rem;
+        max-height: 400px;
+        overflow-y: auto;
+        white-space: pre;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-lg-5 py-4">
+    <!-- Header Banner -->
+    <div class="card border-0 shadow-sm rounded-4 mb-4 bg-white">
+        <div class="card-body p-4">
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+                <div>
+                    <div class="d-flex align-items-center gap-2 mb-1 flex-wrap">
+                        <span class="badge bg-primary px-3 py-1 rounded-pill">
+                            <i class="fas fa-chalkboard-teacher me-1"></i> Quản Lý Lớp Học Luyện Code
+                        </span>
+                        <span class="badge bg-light text-primary border font-monospace fs-6">
+                            Mã: {{ classroom.code }}
+                        </span>
+                        <button type="button" class="btn btn-sm btn-outline-primary py-0 px-2 rounded-pill" onclick="copyClassLink('{{ classroom.code }}')">
+                            <i class="fas fa-copy me-1"></i> Copy link: <code>lop-hoc/{{ classroom.code }}/</code>
+                        </button>
+                    </div>
+                    <h2 class="fw-bold text-dark mb-1">{{ classroom.name }}</h2>
+                    <p class="text-muted mb-0 small">
+                        Giáo viên: <strong>{{ classroom.teacher.get_full_name|default:classroom.teacher.username }}</strong>
+                        <span class="mx-2">•</span>
+                        Ngày tạo: {{ classroom.created_at|date:"d/m/Y" }}
+                        {% if classroom.description %}
+                        <span class="mx-2">•</span>
+                        <span class="text-secondary">{{ classroom.description|truncatechars:100 }}</span>
+                        {% endif %}
+                    </p>
+                </div>
+                <div class="d-flex gap-2">
+                    <a href="{% url 'coding_classroom_list' %}" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left me-1"></i> Danh Sách Lớp
+                    </a>
+                    <a href="{% url 'coding_classroom_edit' classroom.id %}" class="btn btn-outline-primary">
+                        <i class="fas fa-cog me-1"></i> Cài Đặt Lớp
+                    </a>
+                    <a href="{% url 'coding_classroom_join_or_view' classroom.code %}" class="btn btn-success" target="_blank" title="Xem dưới góc nhìn học sinh">
+                        <i class="fas fa-external-link-alt me-1"></i> Xem Giao Diện Học Sinh
+                    </a>
+                </div>
+            </div>
+
+            <!-- Quick Metrics -->
+            <div class="row g-3 mt-3 pt-3 border-top text-center">
+                <div class="col-6 col-md-3">
+                    <div class="p-3 bg-light rounded-3">
+                        <div class="text-muted small">Học sinh chính thức</div>
+                        <div class="fs-4 fw-bold text-success">{{ approved_members|length }}</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="p-3 bg-light rounded-3">
+                        <div class="text-muted small">Yêu cầu chờ duyệt</div>
+                        <div class="fs-4 fw-bold {% if pending_members %}text-danger{% else %}text-muted{% endif %}">
+                            {{ pending_members|length }}
+                        </div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="p-3 bg-light rounded-3">
+                        <div class="text-muted small">Bài tập trong lớp</div>
+                        <div class="fs-4 fw-bold text-primary">{{ total_questions_count }}</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="p-3 bg-light rounded-3">
+                        <div class="text-muted small">Chuyên đề kiến thức</div>
+                        <div class="fs-4 fw-bold text-info">{{ topics|length }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Navigation Tabs -->
+    <ul class="nav nav-tabs mb-4 border-bottom" id="classTabs" role="tablist">
+        <li class="nav-item">
+            <button class="nav-link active" id="topics-tab" data-bs-toggle="tab" data-bs-target="#topics-pane" type="button" role="tab">
+                <i class="fas fa-layer-group me-1 text-primary"></i> 1. Chuyên Đề & Bài Tập ({{ total_questions_count }})
+            </button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link" id="students-tab" data-bs-toggle="tab" data-bs-target="#students-pane" type="button" role="tab">
+                <i class="fas fa-users me-1 text-success"></i> 2. Học Sinh & Tiến Độ ({{ approved_members|length }})
+                {% if pending_members %}
+                <span class="badge bg-danger rounded-pill ms-1">{{ pending_members|length }} chờ</span>
+                {% endif %}
+            </button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link" id="stats-tab" data-bs-toggle="tab" data-bs-target="#stats-pane" type="button" role="tab">
+                <i class="fas fa-chart-bar me-1 text-info"></i> 3. Thống Kê Theo Bài Tập ({{ question_stats|length }})
+            </button>
+        </li>
+    </ul>
+
+    <!-- Tab Contents -->
+    <div class="tab-content" id="classTabsContent">
+        <!-- ============================================================== -->
+        <!-- TAB 1: QUẢN LÝ CHUYÊN ĐỀ & BÀI TẬP                             -->
+        <!-- ============================================================== -->
+        <div class="tab-pane fade show active" id="topics-pane" role="tabpanel">
+            <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
+                <div>
+                    <h5 class="fw-bold mb-0">Các Chuyên Đề Kiến Thức Theo Ý Tưởng Riêng</h5>
+                    <p class="text-muted small mb-0">Phân loại bài tập theo các nhóm chuyên đề giảng dạy riêng của thầy/cô</p>
+                </div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#addTopicModal">
+                        <i class="fas fa-folder-plus me-1"></i> Thêm Chuyên Đề
+                    </button>
+                    <button class="btn btn-primary fw-bold" onclick="openAddQuestionModal()">
+                        <i class="fas fa-plus-circle me-1"></i> Thêm Bài Tập Vào Lớp
+                    </button>
+                </div>
+            </div>
+
+            <!-- Danh sách từng chuyên đề -->
+            {% for group in topic_groups %}
+            <div class="card border-0 shadow-sm rounded-3 mb-4 overflow-hidden">
+                <div class="card-header bg-light py-3 px-4 d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="fw-bold text-dark mb-0 d-flex align-items-center gap-2">
+                            <span class="badge bg-primary rounded-circle" style="width: 22px; height: 22px; display: inline-flex; align-items: center; justify-content: center; font-size: 0.75rem;">
+                                {{ forloop.counter }}
+                            </span>
+                            {{ group.topic.name }}
+                        </h6>
+                        {% if group.topic.description %}
+                        <small class="text-muted d-block mt-1">{{ group.topic.description }}</small>
+                        {% endif %}
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="badge bg-white text-secondary border px-2 py-1 rounded-pill small">
+                            {{ group.assignments|length }} bài tập
+                        </span>
+                        <button class="btn btn-sm btn-outline-secondary py-1 px-2" onclick="editTopic({{ group.topic.id }}, '{{ group.topic.name|escapejs }}', '{{ group.topic.description|escapejs }}', {{ group.topic.order }})" title="Sửa tên nhóm">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger py-1 px-2" onclick="deleteTopic({{ group.topic.id }}, '{{ group.topic.name|escapejs }}')" title="Xóa nhóm">
+                            <i class="fas fa-trash-alt"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="card-body p-0">
+                    {% if group.assignments %}
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="table-light small text-muted">
+                                <tr>
+                                    <th class="ps-4" width="5%">#</th>
+                                    <th width="35%">Tên bài toán</th>
+                                    <th width="15%">Độ khó</th>
+                                    <th width="15%">Điểm tối đa</th>
+                                    <th width="20%">Chuyển sang Chuyên đề khác</th>
+                                    <th width="10%" class="text-end pe-4">Xóa bài</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for a in group.assignments %}
+                                <tr>
+                                    <td class="ps-4 font-monospace text-muted">{{ forloop.counter }}</td>
+                                    <td>
+                                        <div class="fw-bold">
+                                            <a href="{% url 'coding_detail' a.question.code|default:a.question.id %}" target="_blank" class="text-decoration-none text-dark hover-primary">
+                                                {{ a.question.title }}
+                                            </a>
+                                        </div>
+                                        <div class="font-monospace text-muted small">{{ a.question.code }}</div>
+                                    </td>
+                                    <td>
+                                        <span class="badge {% if a.question.difficulty == 'Dễ' %}bg-success-subtle text-success border border-success-subtle{% elif a.question.difficulty == 'Trung bình' %}bg-warning-subtle text-warning-emphasis border border-warning-subtle{% elif a.question.difficulty == 'Khó' %}bg-danger-subtle text-danger border border-danger-subtle{% else %}bg-dark-subtle text-dark border{% endif %}">
+                                            {{ a.question.difficulty }}
+                                        </span>
+                                    </td>
+                                    <td><span class="fw-bold">{{ a.question.max_score }}</span> điểm</td>
+                                    <td>
+                                        <select class="form-select form-select-sm" onchange="moveQuestionTopic({{ a.id }}, this.value)">
+                                            <option value="{{ group.topic.id }}" selected>{{ group.topic.name }} (Hiện tại)</option>
+                                            {% for other_t in topics %}
+                                            {% if other_t.id != group.topic.id %}
+                                            <option value="{{ other_t.id }}">{{ other_t.name }}</option>
+                                            {% endif %}
+                                            {% endfor %}
+                                            <option value="">-- Chưa phân nhóm --</option>
+                                        </select>
+                                    </td>
+                                    <td class="text-end pe-4">
+                                        <button class="btn btn-sm btn-outline-danger" onclick="removeQuestion({{ a.id }}, '{{ a.question.title|escapejs }}')">
+                                            <i class="fas fa-trash-alt"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-4 text-muted small">
+                        <i class="fas fa-plus-circle mb-1 text-primary d-block fa-lg"></i>
+                        Chưa có bài tập nào trong chuyên đề này. Nhấn nút <strong>"Thêm Bài Tập Vào Lớp"</strong> phía trên để chọn bài.
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% empty %}
+                {% if not uncategorized_assignments %}
+                <div class="card border-0 shadow-sm rounded-4 text-center py-5">
+                    <div class="card-body">
+                        <i class="fas fa-layer-group text-muted fa-3x mb-3"></i>
+                        <h5 class="fw-bold">Lớp học chưa có Chuyên đề nào</h5>
+                        <p class="text-muted mb-3">Tạo các chuyên đề (VD: Nhập xuất, Rẽ nhánh, Vòng lặp...) để phân chia bài tập theo lộ trình giảng dạy của thầy/cô!</p>
+                        <button class="btn btn-primary px-4 fw-bold" data-bs-toggle="modal" data-bs-target="#addTopicModal">
+                            <i class="fas fa-plus-circle me-1"></i> Thêm Chuyên Đề Đầu Tiên
+                        </button>
+                    </div>
+                </div>
+                {% endif %}
+            {% endfor %}
+
+            <!-- Bài tập chưa phân nhóm -->
+            {% if uncategorized_assignments %}
+            <div class="card border-0 shadow-sm rounded-3 mb-4 overflow-hidden">
+                <div class="card-header bg-secondary-subtle py-3 px-4 d-flex justify-content-between align-items-center">
+                    <h6 class="fw-bold text-dark mb-0"><i class="fas fa-folder text-muted me-2"></i>Bài Tập Chưa Phân Nhóm ({{ uncategorized_assignments|length }})</h6>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="table-light small text-muted">
+                                <tr>
+                                    <th class="ps-4" width="5%">#</th>
+                                    <th width="35%">Tên bài toán</th>
+                                    <th width="15%">Độ khó</th>
+                                    <th width="15%">Điểm tối đa</th>
+                                    <th width="20%">Gán vào Chuyên đề</th>
+                                    <th width="10%" class="text-end pe-4">Xóa bài</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for a in uncategorized_assignments %}
+                                <tr>
+                                    <td class="ps-4 font-monospace text-muted">{{ forloop.counter }}</td>
+                                    <td>
+                                        <div class="fw-bold">
+                                            <a href="{% url 'coding_detail' a.question.code|default:a.question.id %}" target="_blank" class="text-decoration-none text-dark hover-primary">
+                                                {{ a.question.title }}
+                                            </a>
+                                        </div>
+                                        <div class="font-monospace text-muted small">{{ a.question.code }}</div>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-light text-dark border">{{ a.question.difficulty }}</span>
+                                    </td>
+                                    <td><span class="fw-bold">{{ a.question.max_score }}</span> điểm</td>
+                                    <td>
+                                        <select class="form-select form-select-sm" onchange="moveQuestionTopic({{ a.id }}, this.value)">
+                                            <option value="" selected>-- Chọn Chuyên đề để gán --</option>
+                                            {% for t in topics %}
+                                            <option value="{{ t.id }}">{{ t.name }}</option>
+                                            {% endfor %}
+                                        </select>
+                                    </td>
+                                    <td class="text-end pe-4">
+                                        <button class="btn btn-sm btn-outline-danger" onclick="removeQuestion({{ a.id }}, '{{ a.question.title|escapejs }}')">
+                                            <i class="fas fa-trash-alt"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- ============================================================== -->
+        <!-- TAB 2: QUẢN LÝ HỌC SINH & TIẾN ĐỘ                              -->
+        <!-- ============================================================== -->
+        <div class="tab-pane fade" id="students-pane" role="tabpanel">
+            <!-- Phần 1: Yêu cầu chờ duyệt -->
+            {% if pending_members %}
+            <div class="card border-warning shadow-sm rounded-3 mb-4">
+                <div class="card-header bg-warning-subtle text-warning-emphasis py-3 px-4 d-flex justify-content-between align-items-center">
+                    <h6 class="fw-bold mb-0">
+                        <i class="fas fa-user-clock me-2"></i>Yêu Cầu Tham Gia Chờ Duyệt ({{ pending_members|length }})
+                    </h6>
+                    <button class="btn btn-sm btn-success fw-bold px-3" onclick="approveMember(null, 'approve_all')">
+                        <i class="fas fa-check-double me-1"></i> Duyệt Tất Cả
+                    </button>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="table-light small">
+                                <tr>
+                                    <th class="ps-4">Học sinh</th>
+                                    <th>Tên đăng nhập</th>
+                                    <th>Email</th>
+                                    <th>Thời gian yêu cầu</th>
+                                    <th class="text-end pe-4">Hành động</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for m in pending_members %}
+                                <tr>
+                                    <td class="ps-4">
+                                        <div class="d-flex align-items-center gap-2">
+                                            <img src="{{ m.user.profile.avatar_url|default:'/static/quiz/avatars/avatar-1.svg' }}" class="rounded-circle border" width="36" height="36" alt="Avatar">
+                                            <span class="fw-bold text-dark">{{ m.user.get_full_name|default:m.user.username }}</span>
+                                        </div>
+                                    </td>
+                                    <td><span class="badge bg-light text-dark border font-monospace">{{ m.user.username }}</span></td>
+                                    <td>{{ m.user.email|default:"(Chưa có email)" }}</td>
+                                    <td class="small text-muted">{{ m.joined_at|date:"d/m/Y H:i" }}</td>
+                                    <td class="text-end pe-4">
+                                        <button class="btn btn-sm btn-success fw-bold me-1" onclick="approveMember({{ m.id }}, 'approve')">
+                                            <i class="fas fa-check me-1"></i> Chấp nhận
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-danger" onclick="approveMember({{ m.id }}, 'reject')">
+                                            <i class="fas fa-times me-1"></i> Từ chối
+                                        </button>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Phần 2: Thêm học sinh trực tiếp không cần xác nhận -->
+            <div class="card border-0 shadow-sm rounded-3 mb-4 bg-light">
+                <div class="card-body p-4">
+                    <div class="row align-items-center">
+                        <div class="col-lg-5 mb-3 mb-lg-0">
+                            <h6 class="fw-bold text-dark mb-1">
+                                <i class="fas fa-user-plus text-primary me-2"></i>Thêm Học Sinh Trực Tiếp (Không Cần Xác Nhận)
+                            </h6>
+                            <p class="text-muted small mb-0">Thầy/cô nhập Username hoặc Email của học sinh để đưa thẳng vào lớp học mà không cần chờ học sinh bấm link.</p>
+                        </div>
+                        <div class="col-lg-7">
+                            <form id="addStudentForm" onsubmit="event.preventDefault(); addStudentDirectly();" class="d-flex gap-2">
+                                <input type="text" id="studentIdentifierInput" class="form-control" placeholder="Nhập username hoặc email (nhiều bạn cách nhau bởi dấu phẩy)..." required>
+                                <button type="submit" class="btn btn-primary fw-bold text-nowrap px-4" id="btnAddStudent">
+                                    <i class="fas fa-plus me-1"></i> Thêm Vào Lớp
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Phần 3: Bảng danh sách học sinh chính thức & Tiến độ làm bài -->
+            <div class="card border-0 shadow-sm rounded-3 overflow-hidden">
+                <div class="card-header bg-white py-3 px-4 d-flex justify-content-between align-items-center">
+                    <h6 class="fw-bold text-dark mb-0">
+                        <i class="fas fa-user-graduate text-success me-2"></i>Danh Sách Học Sinh Chính Thức ({{ approved_members|length }})
+                    </h6>
+                    <span class="text-muted small">Bấm vào học sinh để xem chi tiết bài làm & mã nguồn</span>
+                </div>
+                <div class="card-body p-0">
+                    {% if student_stats %}
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="table-light small text-muted">
+                                <tr>
+                                    <th class="ps-4" width="5%">#</th>
+                                    <th width="30%">Học sinh</th>
+                                    <th width="20%">Tiến độ giải đúng</th>
+                                    <th width="15%">Số bài Accepted</th>
+                                    <th width="15%">Tổng điểm</th>
+                                    <th width="15%" class="text-end pe-4">Thao tác</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for s in student_stats %}
+                                <tr>
+                                    <td class="ps-4 font-monospace text-muted">{{ forloop.counter }}</td>
+                                    <td>
+                                        <div class="d-flex align-items-center gap-2">
+                                            <img src="{{ s.user.profile.avatar_url|default:'/static/quiz/avatars/avatar-1.svg' }}" class="rounded-circle border" width="40" height="40" alt="Avatar">
+                                            <div>
+                                                <div class="fw-bold text-dark">{{ s.user.get_full_name|default:s.user.username }}</div>
+                                                <small class="font-monospace text-muted">@{{ s.user.username }}</small>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="d-flex justify-content-between small mb-1 fw-bold">
+                                            <span>{{ s.accepted_count }}/{{ total_questions_count }} bài</span>
+                                            <span class="text-success">{{ s.percent }}%</span>
+                                        </div>
+                                        <div class="progress" style="height: 8px;">
+                                            <div class="progress-bar bg-success" role="progressbar" style="width: {{ s.percent }}%;"></div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-success-subtle text-success fs-6 px-3 py-1 rounded-pill">
+                                            {{ s.accepted_count }} / {{ total_questions_count }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <span class="fw-bold text-primary fs-6">{{ s.total_score }}</span>
+                                        <small class="text-muted">/ {{ total_class_max_score }}</small>
+                                    </td>
+                                    <td class="text-end pe-4 text-nowrap">
+                                        <button class="btn btn-sm btn-outline-primary fw-bold me-1" onclick="viewStudentDetail({{ s.user.id }})">
+                                            <i class="fas fa-file-code me-1"></i> Xem bài làm
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-danger" onclick="removeMember({{ s.member.id }}, '{{ s.user.username|escapejs }}')" title="Xóa khỏi lớp">
+                                            <i class="fas fa-user-minus"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-5 text-muted">
+                        <i class="fas fa-user-friends fa-3x mb-3 text-muted"></i>
+                        <h6 class="fw-bold">Chưa có học sinh nào trong lớp</h6>
+                        <p class="small text-muted mb-3">Thầy/cô gửi link <code>lop-hoc/{{ classroom.code }}/</code> cho học sinh hoặc nhập Username phía trên để thêm trực tiếp!</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- ============================================================== -->
+        <!-- TAB 3: THỐNG KÊ THEO BÀI TẬP                                   -->
+        <!-- ============================================================== -->
+        <div class="tab-pane fade" id="stats-pane" role="tabpanel">
+            <div class="card border-0 shadow-sm rounded-3 overflow-hidden">
+                <div class="card-header bg-white py-3 px-4 d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="fw-bold text-dark mb-0">
+                            <i class="fas fa-tasks text-primary me-2"></i>Thống Kê Số Học Sinh Làm Bài Cho Mỗi Bài Tập
+                        </h6>
+                        <small class="text-muted">Theo dõi bài nào có bao nhiêu học sinh đã làm, tỉ lệ giải đúng và điểm trung bình</small>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    {% if question_stats %}
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="table-light small text-muted">
+                                <tr>
+                                    <th class="ps-4" width="5%">#</th>
+                                    <th width="30%">Tên bài toán</th>
+                                    <th width="15%">Chuyên đề</th>
+                                    <th width="15%">Học sinh đã làm</th>
+                                    <th width="15%">Học sinh Accepted</th>
+                                    <th width="10%">Điểm TB</th>
+                                    <th width="10%" class="text-end pe-4">Chi tiết</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for qs in question_stats %}
+                                <tr>
+                                    <td class="ps-4 font-monospace text-muted">{{ forloop.counter }}</td>
+                                    <td>
+                                        <div class="fw-bold">
+                                            <a href="{% url 'coding_detail' qs.question.code|default:qs.question.id %}" target="_blank" class="text-decoration-none text-dark hover-primary">
+                                                {{ qs.question.title }}
+                                            </a>
+                                        </div>
+                                        <div class="font-monospace text-muted small">{{ qs.question.code }}</div>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-light text-dark border">{{ qs.topic.name|default:"Chưa phân nhóm" }}</span>
+                                    </td>
+                                    <td>
+                                        <div class="d-flex justify-content-between small fw-bold mb-1">
+                                            <span>{{ qs.attempted_num }}/{{ qs.total_students }} HS</span>
+                                            <span class="text-primary">{{ qs.attempt_rate }}%</span>
+                                        </div>
+                                        <div class="progress" style="height: 6px;">
+                                            <div class="progress-bar bg-primary" role="progressbar" style="width: {{ qs.attempt_rate }}%;"></div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-success-subtle text-success fs-6 px-3 py-1 rounded-pill">
+                                            {{ qs.accepted_num }} / {{ qs.total_students }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <span class="fw-bold text-dark">{{ qs.avg_score }}</span>
+                                        <small class="text-muted">/ {{ qs.question.max_score }}</small>
+                                    </td>
+                                    <td class="text-end pe-4">
+                                        <button class="btn btn-sm btn-outline-info fw-bold text-nowrap" onclick="viewQuestionStudentDetail({{ qs.question.id }})">
+                                            <i class="fas fa-users me-1"></i> Danh sách HS
+                                        </button>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-5 text-muted">
+                        <i class="fas fa-chart-pie fa-3x mb-3 text-muted"></i>
+                        <h6 class="fw-bold">Chưa có bài tập nào trong lớp</h6>
+                        <p class="small text-muted">Thêm bài tập ở Tab 1 để bắt đầu theo dõi thống kê làm bài của học sinh.</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ============================================================== -->
+<!-- MODALS                                                         -->
+<!-- ============================================================== -->
+
+<!-- 1. Modal Thêm Chuyên Đề Mới -->
+<div class="modal fade" id="addTopicModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content rounded-4 border-0 shadow">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="fw-bold mb-0"><i class="fas fa-folder-plus text-primary me-2"></i>Thêm Chuyên Đề Mới</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <form id="createTopicForm" onsubmit="event.preventDefault(); submitCreateTopic();">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Tên Chuyên Đề <span class="text-danger">*</span></label>
+                        <input type="text" id="topicNameInput" class="form-control" placeholder="VD: Chuyên đề: Cấu trúc rẽ nhánh, Vòng lặp For..." required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Mô Tả / Yêu Cầu Cần Đạt</label>
+                        <textarea id="topicDescInput" class="form-control" rows="3" placeholder="Ghi chú mục tiêu hoặc kiến thức trọng tâm của chuyên đề này..."></textarea>
+                    </div>
+                    <div class="d-flex justify-content-end gap-2">
+                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Hủy</button>
+                        <button type="submit" class="btn btn-primary fw-bold" id="btnSubmitTopic">Tạo Chuyên Đề</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 2. Modal Thêm Bài Tập Vào Lớp (Tìm kiếm từ ngân hàng / bài của tôi) -->
+<div class="modal fade" id="addQuestionModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content rounded-4 border-0 shadow">
+            <div class="modal-header border-0 pb-2">
+                <div>
+                    <h5 class="fw-bold mb-0"><i class="fas fa-search-plus text-primary me-2"></i>Chọn Bài Tập Vào Lớp Học</h5>
+                    <small class="text-muted">Tìm kiếm từ ngân hàng bài tập hệ thống hoặc các bài do chính thầy/cô đã tạo</small>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <!-- Bộ lọc -->
+                <div class="card border-0 bg-light rounded-3 p-3 mb-3">
+                    <div class="row g-2">
+                        <div class="col-md-4">
+                            <label class="form-label small fw-bold mb-1">Từ khóa tìm kiếm</label>
+                            <input type="text" id="qSearchInput" class="form-control form-control-sm" placeholder="Nhập tên bài, mã bài..." onkeyup="if(event.key==='Enter') searchQuestions();">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small fw-bold mb-1">Nguồn bài tập</label>
+                            <select id="qSourceSelect" class="form-select form-select-sm" onchange="searchQuestions()">
+                                <option value="all">Tất cả bài tập</option>
+                                <option value="mine">Bài tập tôi đã tạo</option>
+                                <option value="public">Ngân hàng công khai</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label small fw-bold mb-1">Độ khó</label>
+                            <select id="qDifficultySelect" class="form-select form-select-sm" onchange="searchQuestions()">
+                                <option value="">Tất cả</option>
+                                <option value="Dễ">Dễ</option>
+                                <option value="Trung bình">Trung bình</option>
+                                <option value="Khó">Khó</option>
+                                <option value="Rất khó">Rất khó</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3 d-flex align-items-end">
+                            <button type="button" class="btn btn-sm btn-primary w-100 fw-bold" onclick="searchQuestions()">
+                                <i class="fas fa-search me-1"></i> Tìm kiếm
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Chọn chuyên đề gán vào -->
+                <div class="d-flex align-items-center justify-content-between mb-3 bg-white p-2 border rounded-3">
+                    <div class="d-flex align-items-center gap-2">
+                        <label class="form-label fw-bold mb-0 text-nowrap">Gán vào Chuyên đề:</label>
+                        <select id="targetTopicSelect" class="form-select form-select-sm" style="min-width: 250px;">
+                            <option value="">-- Chưa phân nhóm --</option>
+                            {% for t in topics %}
+                            <option value="{{ t.id }}">{{ t.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <span id="selectedCountBadge" class="badge bg-primary px-3 py-2 rounded-pill">Đã chọn: 0 bài</span>
+                    </div>
+                </div>
+
+                <!-- Bảng kết quả tìm kiếm -->
+                <div class="table-responsive border rounded-3" style="max-height: 380px;">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light sticky-top">
+                            <tr>
+                                <th width="5%" class="text-center">
+                                    <input type="checkbox" id="checkAllQuestions" onchange="toggleSelectAll(this)">
+                                </th>
+                                <th width="45%">Tên bài toán</th>
+                                <th width="15%">Độ khó</th>
+                                <th width="15%">Điểm tối đa</th>
+                                <th width="20%">Nguồn</th>
+                            </tr>
+                        </thead>
+                        <tbody id="questionSearchResultsBody">
+                            <tr>
+                                <td colspan="5" class="text-center py-4 text-muted">
+                                    <div class="spinner-border spinner-border-sm text-primary me-2"></div> Đang tải danh sách bài tập...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <a href="{% url 'coding_create' %}" target="_blank" class="btn btn-outline-secondary btn-sm me-auto">
+                    <i class="fas fa-plus me-1"></i> Tự Soạn Bài Mới
+                </a>
+                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Đóng</button>
+                <button type="button" class="btn btn-primary fw-bold px-4" id="btnAddSelectedQuestions" onclick="submitAddQuestions()">
+                    <i class="fas fa-check me-1"></i> Thêm Các Bài Đã Chọn Vào Lớp
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 3. Modal Xem Bài Làm Của 1 Học Sinh (Student Detail Modal) -->
+<div class="modal fade" id="studentDetailModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content rounded-4 border-0 shadow">
+            <div class="modal-header border-0 pb-0">
+                <div>
+                    <h5 class="fw-bold mb-0">
+                        <i class="fas fa-user-graduate text-success me-2"></i>
+                        Chi Tiết Bài Làm Của Học Sinh: <span id="studentModalName" class="text-primary">--</span>
+                    </h5>
+                    <small class="text-muted">Theo dõi kết quả làm bài của học sinh đối với từng bài tập trong lớp học</small>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="table-responsive border rounded-3">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light small text-muted">
+                            <tr>
+                                <th class="ps-4" width="5%">#</th>
+                                <th width="35%">Tên bài toán</th>
+                                <th width="20%">Chuyên đề</th>
+                                <th width="15%">Trạng thái</th>
+                                <th width="10%">Điểm số</th>
+                                <th width="15%" class="text-end pe-4">Xem code nộp</th>
+                            </tr>
+                        </thead>
+                        <tbody id="studentDetailTableBody">
+                            <!-- Rows rendered via AJAX -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer border-0">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 4. Modal Xem Thống Kê Học Sinh Của 1 Bài Tập (Question Student Detail Modal) -->
+<div class="modal fade" id="questionDetailModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content rounded-4 border-0 shadow">
+            <div class="modal-header border-0 pb-0">
+                <div>
+                    <h5 class="fw-bold mb-0">
+                        <i class="fas fa-tasks text-primary me-2"></i>
+                        Danh Sách Học Sinh Làm Bài: <span id="questionModalTitle" class="text-primary">--</span>
+                    </h5>
+                    <small id="questionModalStats" class="text-muted">--</small>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="table-responsive border rounded-3">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light small text-muted">
+                            <tr>
+                                <th class="ps-4" width="5%">#</th>
+                                <th width="40%">Học sinh</th>
+                                <th width="25%">Trạng thái</th>
+                                <th width="15%">Điểm đạt được</th>
+                                <th width="15%" class="text-end pe-4">Code nộp</th>
+                            </tr>
+                        </thead>
+                        <tbody id="questionDetailTableBody">
+                            <!-- Rows rendered via AJAX -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer border-0">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 5. Modal Xem Code Nộp Của Học Sinh (Code Viewer Modal) -->
+<div class="modal fade" id="codeViewerModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content rounded-4 border-0 shadow">
+            <div class="modal-header bg-dark text-white border-0 py-3">
+                <h6 class="modal-title fw-bold mb-0" id="codeModalTitle">
+                    <i class="fas fa-code me-2 text-warning"></i>Mã Nguồn Đã Nộp
+                </h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-3 bg-light">
+                <div class="d-flex justify-content-between align-items-center mb-2 px-1">
+                    <div id="codeModalMeta" class="small text-muted">--</div>
+                    <button class="btn btn-sm btn-outline-secondary" onclick="copyViewerCode()"><i class="fas fa-copy me-1"></i> Sao chép</button>
+                </div>
+                <pre id="codeViewerBox" class="code-viewer mb-0"></pre>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const CLASSROOM_ID = {{ classroom.id }};
+const CSRF_TOKEN = "{{ csrf_token }}";
+
+function copyClassLink(code) {
+    const fullUrl = `${window.location.origin}/lop-hoc/${code}/`;
+    navigator.clipboard.writeText(fullUrl).then(() => {
+        alert(`Đã sao chép link tham gia lớp học:\n${fullUrl}`);
+    }).catch(() => {
+        prompt("Sao chép link tham gia lớp học:", fullUrl);
+    });
+}
+
+// -------------------------------------------------------------
+// XỬ LÝ DUYỆT HỌC SINH
+// -------------------------------------------------------------
+function approveMember(memberId, action) {
+    const confirmMsg = action === 'approve_all' 
+        ? "Bạn có chắc chắn muốn duyệt tất cả học sinh đang chờ?"
+        : (action === 'approve' ? "Chấp nhận học sinh này vào lớp?" : "Từ chối yêu cầu của học sinh này?");
+        
+    if (!confirm(confirmMsg)) return;
+
+    fetch(`/api/luyen-code/lop-hoc/${CLASSROOM_ID}/hoc-sinh/duyet/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN },
+        body: JSON.stringify({ member_id: memberId, action: action })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.error) alert("Lỗi: " + data.error);
+        else window.location.reload();
+    })
+    .catch(err => alert("Lỗi kết nối: " + err));
+}
+
+// -------------------------------------------------------------
+// THÊM HỌC SINH TRỰC TIẾP (KHÔNG CẦN XÁC NHẬN)
+// -------------------------------------------------------------
+function addStudentDirectly() {
+    const input = document.getElementById('studentIdentifierInput');
+    const val = input.value.trim();
+    if (!val) return;
+
+    const btn = document.getElementById('btnAddStudent');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang thêm...';
+
+    fetch(`/api/luyen-code/lop-hoc/${CLASSROOM_ID}/hoc-sinh/them/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN },
+        body: JSON.stringify({ identifier: val })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.error) {
+            alert("Lỗi: " + data.error);
+        } else {
+            alert(data.message);
+            window.location.reload();
+        }
+    })
+    .catch(err => alert("Lỗi kết nối: " + err))
+    .finally(() => {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-plus me-1"></i> Thêm Vào Lớp';
+    });
+}
+
+function removeMember(memberId, username) {
+    if (!confirm(`Bạn có chắc muốn xóa học sinh @${username} khỏi lớp học?`)) return;
+
+    fetch(`/api/luyen-code/lop-hoc/${CLASSROOM_ID}/hoc-sinh/${memberId}/xoa/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN }
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.error) alert("Lỗi: " + data.error);
+        else window.location.reload();
+    })
+    .catch(err => alert("Lỗi kết nối: " + err));
+}
+
+// -------------------------------------------------------------
+// XỬ LÝ CHUYÊN ĐỀ (TOPIC)
+// -------------------------------------------------------------
+function submitCreateTopic() {
+    const name = document.getElementById('topicNameInput').value.trim();
+    const desc = document.getElementById('topicDescInput').value.trim();
+    if (!name) return;
+
+    fetch(`/api/luyen-code/lop-hoc/${CLASSROOM_ID}/nhom-kien-thuc/tao/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN },
+        body: JSON.stringify({ name: name, description: desc })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.error) alert("Lỗi: " + data.error);
+        else window.location.reload();
+    })
+    .catch(err => alert("Lỗi: " + err));
+}
+
+function editTopic(topicId, currentName, currentDesc, currentOrder) {
+    const newName = prompt("Nhập tên mới cho chuyên đề:", currentName);
+    if (!newName || !newName.trim()) return;
+
+    fetch(`/api/luyen-code/lop-hoc/${CLASSROOM_ID}/nhom-kien-thuc/${topicId}/sua/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN },
+        body: JSON.stringify({ name: newName.trim(), description: currentDesc, order: currentOrder })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.error) alert("Lỗi: " + data.error);
+        else window.location.reload();
+    })
+    .catch(err => alert("Lỗi: " + err));
+}
+
+function deleteTopic(topicId, topicName) {
+    if (!confirm(`Xóa chuyên đề '${topicName}'? Các bài tập trong chuyên đề này sẽ chuyển về mục Chưa phân nhóm.`)) return;
+
+    fetch(`/api/luyen-code/lop-hoc/${CLASSROOM_ID}/nhom-kien-thuc/${topicId}/xoa/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN }
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.error) alert("Lỗi: " + data.error);
+        else window.location.reload();
+    })
+    .catch(err => alert("Lỗi: " + err));
+}
+
+// -------------------------------------------------------------
+// BÀI TẬP: THÊM, XÓA, CHUYỂN CHUYÊN ĐỀ
+// -------------------------------------------------------------
+let selectedQuestionIds = new Set();
+
+function openAddQuestionModal() {
+    selectedQuestionIds.clear();
+    updateSelectedCount();
+    searchQuestions();
+    const modal = new bootstrap.Modal(document.getElementById('addQuestionModal'));
+    modal.show();
+}
+
+function searchQuestions() {
+    const q = document.getElementById('qSearchInput').value.trim();
+    const source = document.getElementById('qSourceSelect').value;
+    const difficulty = document.getElementById('qDifficultySelect').value;
+    const tbody = document.getElementById('questionSearchResultsBody');
+
+    tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-muted"><div class="spinner-border spinner-border-sm text-primary me-2"></div> Đang tìm bài tập...</td></tr>';
+
+    fetch(`/api/luyen-code/lop-hoc/${CLASSROOM_ID}/bai-tap/tim-kiem/?q=${encodeURIComponent(q)}&source=${source}&difficulty=${encodeURIComponent(difficulty)}`)
+    .then(r => r.json())
+    .then(data => {
+        tbody.innerHTML = '';
+        if (!data.questions || data.questions.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-muted">Không tìm thấy bài tập nào phù hợp.</td></tr>';
+            return;
+        }
+
+        data.questions.forEach(item => {
+            const isChecked = selectedQuestionIds.has(item.id);
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td class="text-center">
+                    <input type="checkbox" class="q-checkbox" value="${item.id}" ${isChecked ? 'checked' : ''} onchange="toggleQuestionSelect(${item.id}, this.checked)">
+                </td>
+                <td>
+                    <div class="fw-bold">${item.title}</div>
+                    <small class="text-muted font-monospace">${item.code}</small>
+                </td>
+                <td><span class="badge bg-light text-dark border">${item.difficulty}</span></td>
+                <td><span class="fw-bold">${item.max_score}</span> đ</td>
+                <td>
+                    ${item.is_mine ? '<span class="badge bg-success-subtle text-success">Bài của tôi</span>' : '<span class="badge bg-light text-muted border">Ngân hàng</span>'}
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+    })
+    .catch(err => {
+        tbody.innerHTML = `<tr><td colspan="5" class="text-center py-4 text-danger">Lỗi tải danh sách: ${err}</td></tr>`;
+    });
+}
+
+function toggleQuestionSelect(id, checked) {
+    if (checked) selectedQuestionIds.add(id);
+    else selectedQuestionIds.delete(id);
+    updateSelectedCount();
+}
+
+function toggleSelectAll(masterCb) {
+    const cbs = document.querySelectorAll('.q-checkbox');
+    cbs.forEach(cb => {
+        cb.checked = masterCb.checked;
+        const id = parseInt(cb.value);
+        if (masterCb.checked) selectedQuestionIds.add(id);
+        else selectedQuestionIds.delete(id);
+    });
+    updateSelectedCount();
+}
+
+function updateSelectedCount() {
+    const badge = document.getElementById('selectedCountBadge');
+    if (badge) badge.innerText = `Đã chọn: ${selectedQuestionIds.size} bài`;
+}
+
+function submitAddQuestions() {
+    if (selectedQuestionIds.size === 0) {
+        alert("Vui lòng tích chọn ít nhất 1 bài tập!");
+        return;
+    }
+    const topicId = document.getElementById('targetTopicSelect').value || null;
+    const btn = document.getElementById('btnAddSelectedQuestions');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang thêm...';
+
+    fetch(`/api/luyen-code/lop-hoc/${CLASSROOM_ID}/bai-tap/them/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN },
+        body: JSON.stringify({ question_ids: Array.from(selectedQuestionIds), topic_id: topicId })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.error) {
+            alert("Lỗi: " + data.error);
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-check me-1"></i> Thêm Các Bài Đã Chọn Vào Lớp';
+        } else {
+            alert(data.message);
+            window.location.reload();
+        }
+    })
+    .catch(err => {
+        alert("Lỗi: " + err);
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-check me-1"></i> Thêm Các Bài Đã Chọn Vào Lớp';
+    });
+}
+
+function removeQuestion(assignmentId, title) {
+    if (!confirm(`Bạn có chắc muốn xóa bài '${title}' khỏi lớp học?`)) return;
+
+    fetch(`/api/luyen-code/lop-hoc/${CLASSROOM_ID}/bai-tap/${assignmentId}/xoa/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN }
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.error) alert("Lỗi: " + data.error);
+        else window.location.reload();
+    })
+    .catch(err => alert("Lỗi: " + err));
+}
+
+function moveQuestionTopic(assignmentId, targetTopicId) {
+    fetch(`/api/luyen-code/lop-hoc/${CLASSROOM_ID}/bai-tap/${assignmentId}/chuyen-nhom/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN },
+        body: JSON.stringify({ topic_id: targetTopicId || null })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.error) alert("Lỗi: " + data.error);
+        else window.location.reload();
+    })
+    .catch(err => alert("Lỗi: " + err));
+}
+
+// -------------------------------------------------------------
+// XEM BÀI LÀM CỦA HỌC SINH
+// -------------------------------------------------------------
+function viewStudentDetail(userId) {
+    const tbody = document.getElementById('studentDetailTableBody');
+    tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4"><div class="spinner-border spinner-border-sm text-primary me-2"></div> Đang tải kết quả bài làm...</td></tr>';
+
+    const modal = new bootstrap.Modal(document.getElementById('studentDetailModal'));
+    modal.show();
+
+    fetch(`/api/luyen-code/lop-hoc/${CLASSROOM_ID}/hoc-sinh/${userId}/bai-lam/`)
+    .then(r => r.json())
+    .then(data => {
+        if (data.error) {
+            tbody.innerHTML = `<tr><td colspan="6" class="text-center text-danger py-4">${data.error}</td></tr>`;
+            return;
+        }
+
+        document.getElementById('studentModalName').innerText = `${data.student.full_name} (@${data.student.username})`;
+        tbody.innerHTML = '';
+
+        if (!data.submissions || data.submissions.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-muted">Lớp học chưa có bài tập nào.</td></tr>';
+            return;
+        }
+
+        data.submissions.forEach((sub, idx) => {
+            let statusBadge = '<span class="badge bg-secondary-subtle text-secondary">Chưa làm</span>';
+            let viewCodeBtn = '<span class="text-muted small">-</span>';
+
+            if (sub.status === 'Accepted') {
+                statusBadge = '<span class="badge bg-success"><i class="fas fa-check-circle me-1"></i>Accepted</span>';
+            } else if (sub.status !== 'Chưa làm') {
+                statusBadge = `<span class="badge bg-warning text-dark">${sub.status}</span>`;
+            }
+
+            if (sub.submission_id) {
+                viewCodeBtn = `<button class="btn btn-sm btn-outline-primary" onclick="viewCode(${sub.submission_id}, '${sub.question_title.replace(/'/g, "\\'")}')"><i class="fas fa-code me-1"></i> Xem Code</button>`;
+            }
+
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td class="ps-4 font-monospace text-muted">${idx + 1}</td>
+                <td>
+                    <div class="fw-bold">${sub.question_title}</div>
+                    <small class="text-muted font-monospace">${sub.question_code}</small>
+                </td>
+                <td><span class="badge bg-light text-dark border">${sub.topic_name}</span></td>
+                <td>${statusBadge}</td>
+                <td><span class="fw-bold text-primary">${sub.score}</span> / ${sub.max_score}</td>
+                <td class="text-end pe-4">${viewCodeBtn}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+    })
+    .catch(err => {
+        tbody.innerHTML = `<tr><td colspan="6" class="text-center text-danger py-4">Lỗi: ${err}</td></tr>`;
+    });
+}
+
+// -------------------------------------------------------------
+// XEM DANH SÁCH HỌC SINH ĐÃ LÀM 1 BÀI TẬP
+// -------------------------------------------------------------
+function viewQuestionStudentDetail(questionId) {
+    const tbody = document.getElementById('questionDetailTableBody');
+    tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4"><div class="spinner-border spinner-border-sm text-primary me-2"></div> Đang tải danh sách học sinh...</td></tr>';
+
+    const modal = new bootstrap.Modal(document.getElementById('questionDetailModal'));
+    modal.show();
+
+    fetch(`/api/luyen-code/lop-hoc/${CLASSROOM_ID}/bai-tap/${questionId}/hoc-sinh/`)
+    .then(r => r.json())
+    .then(data => {
+        if (data.error) {
+            tbody.innerHTML = `<tr><td colspan="5" class="text-center text-danger py-4">${data.error}</td></tr>`;
+            return;
+        }
+
+        document.getElementById('questionModalTitle').innerText = data.question.title;
+        document.getElementById('questionModalStats').innerText = `Chuyên đề: ${data.question.topic_name} • Đã làm: ${data.stats.attempted_count}/${data.stats.total_students} HS • Accepted: ${data.stats.accepted_count}/${data.stats.total_students} HS`;
+
+        tbody.innerHTML = '';
+        if (!data.students || data.students.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-muted">Lớp chưa có học sinh chính thức nào.</td></tr>';
+            return;
+        }
+
+        data.students.forEach((st, idx) => {
+            let statusBadge = '<span class="badge bg-secondary-subtle text-secondary">Chưa làm</span>';
+            let viewCodeBtn = '<span class="text-muted small">-</span>';
+
+            if (st.status === 'Accepted') {
+                statusBadge = '<span class="badge bg-success"><i class="fas fa-check-circle me-1"></i>Accepted</span>';
+            } else if (st.status !== 'Chưa làm') {
+                statusBadge = `<span class="badge bg-warning text-dark">${st.status}</span>`;
+            }
+
+            if (st.submission_id) {
+                viewCodeBtn = `<button class="btn btn-sm btn-outline-primary" onclick="viewCode(${st.submission_id}, '${data.question.title.replace(/'/g, "\\'")}')"><i class="fas fa-code me-1"></i> Xem Code</button>`;
+            }
+
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td class="ps-4 font-monospace text-muted">${idx + 1}</td>
+                <td>
+                    <div class="d-flex align-items-center gap-2">
+                        <img src="${st.avatar_url}" class="rounded-circle border" width="32" height="32" alt="Avatar">
+                        <div>
+                            <div class="fw-bold">${st.full_name}</div>
+                            <small class="font-monospace text-muted">@${st.username}</small>
+                        </div>
+                    </div>
+                </td>
+                <td>${statusBadge}</td>
+                <td><span class="fw-bold text-primary">${st.score}</span> / ${data.question.max_score}</td>
+                <td class="text-end pe-4">${viewCodeBtn}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+    })
+    .catch(err => {
+        tbody.innerHTML = `<tr><td colspan="5" class="text-center text-danger py-4">Lỗi: ${err}</td></tr>`;
+    });
+}
+
+// -------------------------------------------------------------
+// XEM MÃ NGUỒN ĐÃ NỘP (CODE VIEWER)
+// -------------------------------------------------------------
+function viewCode(submissionId, problemTitle) {
+    const box = document.getElementById('codeViewerBox');
+    box.innerText = "Đang tải mã nguồn...";
+
+    const modal = new bootstrap.Modal(document.getElementById('codeViewerModal'));
+    modal.show();
+
+    fetch(`/api/luyen-code/ket-qua/code/${submissionId}/`)
+    .then(r => r.json())
+    .then(data => {
+        if (data.error) {
+            box.innerText = "Lỗi: " + data.error;
+        } else {
+            document.getElementById('codeModalTitle').innerText = `Bài Làm: ${problemTitle}`;
+            document.getElementById('codeModalMeta').innerText = `Ngôn ngữ: ${data.language ? data.language.toUpperCase() : 'PYTHON'} • Trạng thái: ${data.status || 'N/A'} • Điểm: ${data.score || 0} • Nộp lúc: ${data.created_at || ''}`;
+            box.innerText = data.code || '(Mã nguồn trống)';
+        }
+    })
+    .catch(err => {
+        box.innerText = "Lỗi kết nối máy chủ: " + err;
+    });
+}
+
+function copyViewerCode() {
+    const code = document.getElementById('codeViewerBox').innerText;
+    navigator.clipboard.writeText(code).then(() => alert("Đã sao chép mã nguồn vào bộ nhớ tạm!"));
+}
+</script>
+{% endblock %}

@@ -16,6 +16,15 @@
                 inlineMath: [['$', '$'], ['\\(', '\\)']],
                 displayMath: [['$$', '$$'], ['\\[', '\\]']],
                 processEscapes: true
+            },
+            options: {
+                skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code']
+            },
+            startup: {
+                ready: function() {
+                    MathJax.startup.defaultReady();
+                    document.dispatchEvent(new CustomEvent('mathjax-ready'));
+                }
             }
         };
     </script>
@@ -240,6 +249,7 @@
                                 <ul class="dropdown-menu p-2">
                                     <li class="dropdown-header text-uppercase small fw-bold text-info">Online Judge</li>
                                     <li><a class="dropdown-item py-2 rounded-2 fw-bold text-info" href="{% url 'coding_list' %}">💻 Làm bài luyện code</a></li>
+                                    <li><a class="dropdown-item py-2 rounded-2" href="{% url 'coding_classroom_list' %}">🏫 Lớp học Luyện Code</a></li>
                                     {% if is_manager or is_admin or user.profile.is_coding_contributor %}
                                     <li><a class="dropdown-item py-2 rounded-2" href="{% url 'coding_manage_list' %}">📝 Quản lý bài tập code</a></li>
                                     <li><a class="dropdown-item py-2 rounded-2" href="{% url 'coding_exam_list' %}">🏆 Quản lý kỳ thi lập trình</a></li>

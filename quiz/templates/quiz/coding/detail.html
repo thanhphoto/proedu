@@ -69,13 +69,18 @@
                         {% endif %}
                         <span>{{ question.title }}</span>
                     </h5>
-                    {% if is_exam_mode and exam %}
-                    <a href="{% url 'coding_exam_detail' exam.id %}" class="btn btn-sm btn-outline-secondary"><i class="fas fa-arrow-left"></i> Danh sách bài thi</a>
-                    {% else %}
-                    <a href="{% url 'coding_list' %}" class="btn btn-sm btn-outline-secondary"><i class="fas fa-arrow-left"></i> Trở lại</a>
-                    {% endif %}
+                    <div class="d-flex align-items-center gap-2">
+                        <button type="button" class="btn btn-sm btn-outline-primary" id="btnReloadStatement" title="Tải lại nội dung đề bài và render lại công thức Toán">
+                            <i class="fas fa-sync-alt me-1"></i> Tải lại đề bài
+                        </button>
+                        {% if is_exam_mode and exam %}
+                        <a href="{% url 'coding_exam_detail' exam.id %}" class="btn btn-sm btn-outline-secondary"><i class="fas fa-arrow-left"></i> Danh sách bài thi</a>
+                        {% else %}
+                        <a href="{% url 'coding_list' %}" class="btn btn-sm btn-outline-secondary"><i class="fas fa-arrow-left"></i> Trở lại</a>
+                        {% endif %}
+                    </div>
                 </div>
-                <div class="card-body problem-description">
+                <div class="card-body problem-description" id="problemStatementBody">
                     <div class="mb-3 d-flex flex-wrap gap-2 align-items-center">
                         <span class="badge bg-primary">Thời gian: {{ question.time_limit }}s</span>
                         <span class="badge bg-info">Bộ nhớ: {{ question.memory_limit }}MB</span>
@@ -169,12 +174,11 @@
                     {% endif %}
 
                     <!-- Testcases mẫu -->
-                    {% with sample_tests=question.testcases.all %}
+                    {% with sample_tests=question.sample_testcases %}
                     {% if sample_tests %}
                     <div class="mb-3">
                         <h6 class="fw-bold text-dark mb-2"><i class="fas fa-flask text-info"></i> Ví dụ mẫu (Sample Testcases)</h6>
                         {% for tc in sample_tests %}
-                        {% if not tc.is_hidden and forloop.counter <= 3 %}
                         <div class="card mb-2 bg-light border">
                             <div class="card-header py-1 px-2 bg-white small fw-bold text-muted">Ví dụ {{ forloop.counter }}</div>
                             <div class="card-body p-2">
@@ -190,7 +194,6 @@
                                 </div>
                             </div>
                         </div>
-                        {% endif %}
                         {% endfor %}
                     </div>
                     {% endif %}
@@ -214,6 +217,8 @@
                         <button id="btnSubmit" class="btn btn-primary btn-lg">
                         {% if latest_submission %}
                         <i class="fas fa-play"></i> Nộp lại bài
+                        {% elif not user.is_authenticated %}
+                        <i class="fas fa-play"></i> Chạy thử Code
                         {% else %}
                         <i class="fas fa-play"></i> Chạy Code & Nộp Bài
                         {% endif %}
@@ -238,6 +243,9 @@
                         <p class="mt-2 mb-0 text-muted">Đang chấm điểm qua hệ thống an toàn...</p>
                     </div>
                     <div id="resultsContainer" style="display: none;">
+                        <div id="guestNotice" class="alert alert-warning py-2 mb-3" style="display: none;">
+                            <i class="fas fa-info-circle"></i> Bạn đang chạy thử dưới chế độ <strong>Khách (chưa đăng nhập)</strong>. <a href="{% url 'login' %}?next={{ request.get_full_path|urlencode }}" class="fw-bold text-decoration-underline">Đăng nhập</a> để hệ thống lưu lịch sử làm bài, tính điểm và ghi nhận thành tích!
+                        </div>
                         <h6 class="mb-3">Điểm số: <span id="scoreDisplay" class="text-primary fw-bold">0</span> <small class="text-muted">(Đúng <span id="passedDisplay">0</span>/<span id="totalDisplay">0</span> testcases)</small></h6>
                         
                         <div class="table-responsive mt-3">
@@ -439,7 +447,14 @@
                 exam_id: "{% if is_exam_mode and exam %}{{ exam.id }}{% endif %}"
             })
         })
-        .then(response => response.json())
+        .then(async response => {
+            const data = await response.json().catch(() => null);
+            if (!response.ok) {
+                const errMsg = (data && data.error) ? data.error : `Lỗi máy chủ (${response.status})`;
+                throw new Error(errMsg);
+            }
+            return data;
+        })
         .then(data => {
             if (data.error) {
                 alert("Lỗi: " + data.error);
@@ -449,11 +464,11 @@
         })
         .catch(err => {
             console.error(err);
-            alert("Lỗi kết nối tới máy chủ chấm bài.");
+            alert("Lỗi: " + (err.message || "Lỗi kết nối tới máy chủ chấm bài."));
         })
         .finally(() => {
             btnSubmit.disabled = false;
-            btnSubmit.innerHTML = HAS_SUBMISSION ? '<i class="fas fa-play"></i> Nộp lại bài' : '<i class="fas fa-play"></i> Chạy Code & Nộp Bài';
+            btnSubmit.innerHTML = HAS_SUBMISSION ? '<i class="fas fa-play"></i> Nộp lại bài' : ({% if user.is_authenticated %} '<i class="fas fa-play"></i> Chạy Code & Nộp Bài' {% else %} '<i class="fas fa-play"></i> Chạy thử Code' {% endif %});
             document.getElementById('loadingIndicator').style.display = 'none';
         });
     }
@@ -464,6 +479,11 @@
         document.getElementById('resultsContainer').style.display = 'block';
         
         // Trạng thái tổng
+        const guestNotice = document.getElementById('guestNotice');
+        if (guestNotice) {
+            guestNotice.style.display = data.is_guest ? 'block' : 'none';
+        }
+        
         const overallBadge = document.getElementById('overallStatus');
         overallBadge.innerText = data.status;
         overallBadge.className = 'badge ' + getBadgeClassForStatus(data.status);
@@ -518,18 +538,87 @@
             default: return 'bg-dark';
         }
     }
-</script>
 
-<!-- MathJax -->
-<script>
-    MathJax = {
-      tex: {
-        inlineMath: [['$', '$'], ['\\(', '\\)']],
-        displayMath: [['$$', '$$'], ['\\[', '\\]']]
-      }
-    };
+    // Tự động render MathJax cho đề bài
+    function typesetProblemMath() {
+        const target = document.getElementById('problemStatementBody');
+        if (window.MathJax && window.MathJax.typesetPromise && target) {
+            window.MathJax.typesetPromise([target]).catch(function(err) {
+                console.warn('Lỗi render MathJax ban đầu:', err);
+            });
+        }
+    }
+
+    // Tải lại đề bài và render lại công thức Toán
+    async function reloadProblemStatement() {
+        const btn = document.getElementById('btnReloadStatement');
+        const icon = btn ? btn.querySelector('i') : null;
+        if (icon) icon.classList.add('fa-spin');
+        if (btn) btn.disabled = true;
+
+        try {
+            const response = await fetch(window.location.href, {
+                cache: 'no-cache',
+                headers: { 'Cache-Control': 'no-cache' }
+            });
+            if (response.ok) {
+                const html = await response.text();
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+                const newBody = doc.getElementById('problemStatementBody');
+                const currentBody = document.getElementById('problemStatementBody');
+                if (newBody && currentBody) {
+                    currentBody.innerHTML = newBody.innerHTML;
+                }
+            }
+        } catch (err) {
+            console.warn('Không thể fetch lại đề bài qua mạng, render lại công thức hiện tại:', err);
+        } finally {
+            const target = document.getElementById('problemStatementBody');
+            if (window.MathJax && window.MathJax.typesetPromise && target) {
+                try {
+                    if (window.MathJax.typesetClear) {
+                        window.MathJax.typesetClear([target]);
+                    }
+                    await window.MathJax.typesetPromise([target]);
+                } catch (err) {
+                    console.error('Lỗi khi render lại MathJax:', err);
+                }
+            }
+            if (icon) icon.classList.remove('fa-spin');
+            if (btn) btn.disabled = false;
+
+            if (typeof Swal !== 'undefined') {
+                Swal.fire({
+                    toast: true,
+                    position: 'top-end',
+                    icon: 'success',
+                    title: 'Đã tải lại đề bài và làm mới công thức toán!',
+                    showConfirmButton: false,
+                    timer: 2000,
+                    timerProgressBar: true
+                });
+            }
+        }
+    }
+
+    const reloadBtn = document.getElementById('btnReloadStatement');
+    if (reloadBtn) {
+        reloadBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            reloadProblemStatement();
+        });
+    }
+
+    // Kích hoạt render công thức toán học
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', typesetProblemMath);
+    } else {
+        typesetProblemMath();
+    }
+    document.addEventListener('mathjax-ready', typesetProblemMath);
+    window.addEventListener('load', typesetProblemMath);
 </script>
-<script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
 {% if is_exam_mode and exam %}
 <!-- Exam Info Modal -->
 <div class="modal fade" id="examInfoModal" tabindex="-1">

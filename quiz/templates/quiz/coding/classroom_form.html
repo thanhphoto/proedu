@@ -1,0 +1,125 @@
+{% extends 'quiz/base.html' %}
+{% load static %}
+
+{% block title %}{% if is_create %}Tạo Lớp Học Luyện Code Mới{% else %}Chỉnh Sửa Lớp Học - {{ classroom.name }}{% endif %} - ProEdu{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <!-- Breadcrumb -->
+            <nav aria-label="breadcrumb" class="mb-3">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{% url 'coding_classroom_list' %}" class="text-decoration-none">Lớp Học Luyện Code</a></li>
+                    <li class="breadcrumb-item active">{% if is_create %}Tạo Lớp Mới{% else %}Chỉnh Sửa Lớp{% endif %}</li>
+                </ol>
+            </nav>
+
+            <div class="card border-0 shadow-sm rounded-4">
+                <div class="card-header bg-white border-0 pt-4 px-4 pb-0">
+                    <h4 class="fw-bold text-dark mb-1">
+                        <i class="fas fa-chalkboard-teacher text-primary me-2"></i>
+                        {% if is_create %}Khởi Tạo Lớp Học Luyện Code Mới{% else %}Cập Nhật Lớp Học: {{ classroom.name }}{% endif %}
+                    </h4>
+                    <p class="text-muted small">Cấu hình thông tin lớp học và các chuyên đề kiến thức để giao bài cho học sinh</p>
+                </div>
+
+                <div class="card-body p-4">
+                    {% if messages %}
+                        {% for message in messages %}
+                            <div class="alert alert-{{ message.tags }} alert-dismissible fade show rounded-3 shadow-sm mb-4" role="alert">
+                                {{ message }}
+                                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+
+                    <form method="post">
+                        {% csrf_token %}
+
+                        <!-- Tên lớp học -->
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Tên Lớp Học <span class="text-danger">*</span></label>
+                            <input type="text" name="name" class="form-control form-control-lg" placeholder="VD: Lớp Chuyên Tin 10 - THPT Chuyên, Lập Trình Python Cơ Bản K2..." value="{{ classroom.name|default:'' }}" required autofocus>
+                        </div>
+
+                        <!-- Mã tham gia -->
+                        {% if is_create %}
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Mã Tham Gia (Code) <small class="text-muted fw-normal">(Tùy chọn, để trống sẽ tự sinh mã 6 ký tự ngẫu nhiên)</small></label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light font-monospace">lop-hoc/</span>
+                                <input type="text" name="code" class="form-control font-monospace text-uppercase fw-bold" placeholder="VD: TIN10A, PYK2..." value="{{ classroom.code|default:'' }}" maxlength="20">
+                            </div>
+                            <div class="form-text">Học sinh có thể truy cập link <code>lop-hoc/{MÃ_LỚP}</code> hoặc nhập mã để vào lớp (Tối đa 20 ký tự).</div>
+                        </div>
+                        {% else %}
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Mã Tham Gia (Code)</label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light font-monospace">lop-hoc/</span>
+                                <input type="text" class="form-control font-monospace text-uppercase fw-bold bg-light text-muted" value="{{ classroom.code }}" readonly disabled>
+                                <span class="input-group-text bg-light text-muted">
+                                    <i class="fas fa-lock text-secondary me-1"></i> Cố định
+                                </span>
+                            </div>
+                            <div class="form-text text-muted">
+                                <i class="fas fa-info-circle me-1"></i> Mã lớp cố định, không thể thay đổi sau khi tạo để bảo toàn đường link mời học sinh.
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        <!-- Mô tả / Lời dặn -->
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Mô Tả / Lời Dặn Của Giáo Viên</label>
+                            <textarea name="description" class="form-control" rows="3" placeholder="Nhập mục tiêu học tập, yêu cầu hoặc lời dặn của thầy/cô dành cho lớp...">{{ classroom.description|default:'' }}</textarea>
+                        </div>
+
+                        {% if is_create %}
+                        <!-- Nhóm kiến thức mẫu -->
+                        <div class="mb-4 p-3 bg-light rounded-3 border">
+                            <label class="form-label fw-bold text-primary mb-1">
+                                <i class="fas fa-layer-group me-1"></i> Khởi tạo các Nhóm Kiến Thức ban đầu
+                            </label>
+                            <p class="text-muted small mb-2">Mỗi dòng là một nhóm kiến thức theo ý tưởng riêng của thầy/cô (có thể chỉnh sửa hoặc thêm mới sau):</p>
+                            <textarea name="initial_topics" class="form-control font-monospace small" rows="3">Chuyên đề 1: Nhập xuất & Cấu trúc rẽ nhánh (If/Else)
+Chuyên đề 2: Cấu trúc lặp (For / While)
+Chuyên đề 3: Mảng & Danh sách dữ liệu</textarea>
+                        </div>
+                        {% endif %}
+
+                        <!-- Cài đặt tham gia -->
+                        <div class="mb-4">
+                            <div class="form-check form-switch mb-2">
+                                <input class="form-check-input" type="checkbox" name="allow_join" id="allowJoinCheck" {% if is_create or classroom.allow_join %}checked{% endif %}>
+                                <label class="form-check-label fw-bold" for="allowJoinCheck">
+                                    Cho phép học sinh xin vào lớp qua đường link <code>lop-hoc/{code}</code>
+                                </label>
+                                <div class="form-text">Học sinh gửi yêu cầu qua link sẽ ở trạng thái chờ duyệt và chỉ vào lớp sau khi thầy/cô xác nhận.</div>
+                            </div>
+
+                            {% if not is_create %}
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" name="is_active" id="isActiveCheck" {% if classroom.is_active %}checked{% endif %}>
+                                <label class="form-check-label fw-bold" for="isActiveCheck">
+                                    Lớp học đang hoạt động
+                                </label>
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        <div class="d-flex justify-content-between align-items-center pt-3 border-top">
+                            <a href="{% url 'coding_classroom_list' %}" class="btn btn-light px-4">
+                                <i class="fas fa-times me-1"></i> Hủy
+                            </a>
+                            <button type="submit" class="btn btn-primary px-4 fw-bold">
+                                <i class="fas fa-save me-1"></i> {% if is_create %}Khởi Tạo Lớp Học{% else %}Lưu Thay Đổi{% endif %}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

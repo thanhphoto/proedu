@@ -278,8 +278,18 @@
                 <div class="card-body p-0">
                     {% if form.instance.testcases.all %}
                     <div class="p-3 bg-light border-bottom d-flex align-items-center justify-content-between flex-wrap gap-2">
-                        <div>
-                            <button class="btn btn-sm btn-danger" id="btnDeleteSelectedTc"><i class="fas fa-trash-alt me-1"></i> Xóa các mục đã chọn</button>
+                        <div class="d-flex align-items-center gap-2">
+                            <button class="btn btn-sm btn-danger" id="btnDeleteSelectedTc"><i class="fas fa-trash-alt me-1"></i> Xóa đã chọn</button>
+                            <div class="dropdown">
+                                <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" id="bulkTypeDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                                    <i class="fas fa-tags me-1"></i> Đặt loại đã chọn
+                                </button>
+                                <ul class="dropdown-menu shadow-sm" aria-labelledby="bulkTypeDropdown">
+                                    <li><a class="dropdown-item bulk-set-type" href="#" data-type="sample"><i class="fas fa-star text-warning me-2"></i>⭐ Công khai trên đề bài</a></li>
+                                    <li><a class="dropdown-item bulk-set-type" href="#" data-type="public"><i class="fas fa-eye text-primary me-2"></i>👁️ Công khai khi nộp bài</a></li>
+                                    <li><a class="dropdown-item bulk-set-type" href="#" data-type="hidden"><i class="fas fa-lock text-secondary me-2"></i>🔒 Testcase ẩn (Bí mật)</a></li>
+                                </ul>
+                            </div>
                         </div>
                         <div class="d-flex align-items-center">
                             <label class="fw-bold me-2 mb-0 small">Sửa điểm hàng loạt:</label>
@@ -288,15 +298,16 @@
                         </div>
                     </div>
                     <div class="table-responsive">
-                        <table class="table table-hover mb-0">
+                        <table class="table table-hover mb-0 align-middle">
                             <thead class="table-light">
                                 <tr>
-                                    <th width="5%"><input type="checkbox" id="selectAllTc" class="form-check-input"></th>
-                                    <th width="5%">#</th>
-                                    <th width="35%">Dữ liệu đầu vào (Input)</th>
-                                    <th width="30%">Kết quả mong đợi (Expected Output)</th>
-                                    <th width="10%">Điểm</th>
-                                    <th width="15%" class="text-end">Thao tác</th>
+                                    <th width="4%"><input type="checkbox" id="selectAllTc" class="form-check-input"></th>
+                                    <th width="4%">#</th>
+                                    <th width="28%">Dữ liệu đầu vào (Input)</th>
+                                    <th width="24%">Kết quả mong đợi (Expected Output)</th>
+                                    <th width="22%">Loại Testcase</th>
+                                    <th width="8%">Điểm</th>
+                                    <th width="10%" class="text-end">Thao tác</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -304,13 +315,20 @@
                                 <tr id="tc-row-{{ tc.id }}">
                                     <td><input type="checkbox" class="tc-checkbox form-check-input" value="{{ tc.id }}"></td>
                                     <td>{{ forloop.counter }}</td>
-                                    <td><pre class="mb-0 small text-truncate" style="max-width: 260px; font-family: monospace;">{{ tc.input_data }}</pre></td>
-                                    <td><pre class="mb-0 small text-truncate" style="max-width: 220px; font-family: monospace;">{{ tc.expected_output }}</pre></td>
+                                    <td><pre class="mb-0 small text-truncate" style="max-width: 200px; font-family: monospace;">{{ tc.input_data }}</pre></td>
+                                    <td><pre class="mb-0 small text-truncate" style="max-width: 180px; font-family: monospace;">{{ tc.expected_output }}</pre></td>
                                     <td>
-                                        <input type="number" class="form-control form-control-sm tc-point-input" data-id="{{ tc.id }}" value="{{ tc.points }}" step="0.1" min="0" style="width: 80px;">
+                                        <select class="form-select form-select-sm tc-type-select fw-semibold" data-id="{{ tc.id }}" style="font-size: 0.82rem;">
+                                            <option value="sample" {% if tc.is_sample %}selected{% endif %} class="text-warning fw-bold">⭐ Công khai trên đề bài</option>
+                                            <option value="public" {% if not tc.is_sample and not tc.is_hidden %}selected{% endif %} class="text-primary">👁️ Công khai khi nộp</option>
+                                            <option value="hidden" {% if tc.is_hidden %}selected{% endif %} class="text-muted">🔒 Testcase ẩn</option>
+                                        </select>
+                                    </td>
+                                    <td>
+                                        <input type="number" class="form-control form-control-sm tc-point-input" data-id="{{ tc.id }}" value="{{ tc.points }}" step="0.1" min="0" style="width: 70px;">
                                     </td>
                                     <td class="text-end text-nowrap">
-                                        <button type="button" class="btn btn-sm btn-outline-primary btn-view-tc me-1" data-id="{{ tc.id }}" data-index="{{ forloop.counter }}" data-points="{{ tc.points }}" data-hidden="{{ tc.is_hidden|yesno:'1,0' }}" title="Xem chi tiết testcase">
+                                        <button type="button" class="btn btn-sm btn-outline-primary btn-view-tc me-1" data-id="{{ tc.id }}" data-index="{{ forloop.counter }}" data-points="{{ tc.points }}" data-type="{{ tc.testcase_type }}" title="Xem chi tiết testcase">
                                             <i class="fas fa-eye me-1"></i> Xem
                                         </button>
                                         <button type="button" class="btn btn-sm btn-outline-danger btn-delete-tc" data-id="{{ tc.id }}" title="Xóa testcase">
@@ -417,13 +435,6 @@
 {% block extra_js %}
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.7.3/dist/sweetalert2.all.min.js"></script>
 <script>
-    MathJax = {
-      tex: {
-        inlineMath: [['$', '$'], ['\\(', '\\)']],
-        displayMath: [['$$', '$$'], ['\\[', '\\]']]
-      }
-    };
-    
     const Toast = Swal.mixin({
         toast: true,
         position: 'top-end',
@@ -432,7 +443,6 @@
         timerProgressBar: true,
     });
 </script>
-<script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 <script>
@@ -704,17 +714,21 @@ $(document).ready(function() {
         const tcId = $(this).data('id');
         const index = $(this).data('index');
         const points = $(this).data('points');
-        const isHidden = $(this).data('hidden') == '1';
+        const tcType = $(this).data('type') || 'public';
         
         const inputData = $(`#tc-raw-input-${tcId}`).val() || '';
         const outputData = $(`#tc-raw-output-${tcId}`).val() || '';
 
         $('#modalTcTitle').text(`Chi tiết Testcase #${index}`);
         $('#modalTcPoints').text(`Điểm: ${points}`);
-        if (isHidden) {
-            $('#modalTcHidden').removeClass('bg-secondary').addClass('bg-dark').text('Testcase ẩn');
+        
+        const badgeEl = $('#modalTcHidden');
+        if (tcType === 'sample') {
+            badgeEl.attr('class', 'badge bg-warning text-dark fs-6').html('<i class="fas fa-star me-1"></i>Công khai trên đề bài (Ví dụ mẫu)');
+        } else if (tcType === 'hidden') {
+            badgeEl.attr('class', 'badge bg-dark text-white fs-6').html('<i class="fas fa-lock me-1"></i>Testcase ẩn (Bí mật)');
         } else {
-            $('#modalTcHidden').removeClass('bg-dark').addClass('bg-secondary').text('Testcase công khai');
+            badgeEl.attr('class', 'badge bg-info text-dark fs-6').html('<i class="fas fa-eye me-1"></i>Công khai khi nộp bài');
         }
 
         $('#modalTcInput').text(inputData);
@@ -879,6 +893,89 @@ document.querySelectorAll('.tc-point-input').forEach(input => {
         .catch(err => {
             console.error(err);
             Toast.fire({ icon: 'error', title: 'Lỗi kết nối.' });
+        });
+    });
+});
+
+// Cập nhật loại testcase đơn lẻ
+document.querySelectorAll('.tc-type-select').forEach(select => {
+    select.addEventListener('change', function() {
+        const tcId = this.dataset.id;
+        const newType = this.value;
+        const selectEl = this;
+        
+        const formData = new FormData();
+        formData.append('type', newType);
+        
+        fetch(`/luyen-code/testcase/${tcId}/cap-nhat-loai/`, {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                selectEl.style.backgroundColor = '#d4edda';
+                setTimeout(() => { selectEl.style.backgroundColor = ''; }, 1000);
+                const viewBtn = document.querySelector(`.btn-view-tc[data-id="${tcId}"]`);
+                if (viewBtn) {
+                    viewBtn.dataset.type = newType;
+                }
+                Toast.fire({ icon: 'success', title: data.message || 'Đã cập nhật loại testcase!' });
+            } else {
+                Toast.fire({ icon: 'error', title: 'Lỗi: ' + (data.error || 'Unknown error') });
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            Toast.fire({ icon: 'error', title: 'Lỗi kết nối khi cập nhật loại testcase.' });
+        });
+    });
+});
+
+// Cập nhật loại testcase hàng loạt
+document.querySelectorAll('.bulk-set-type').forEach(item => {
+    item.addEventListener('click', function(e) {
+        e.preventDefault();
+        const targetType = this.dataset.type;
+        const selected = Array.from(document.querySelectorAll('.tc-checkbox:checked')).map(cb => cb.value);
+        if (selected.length === 0) {
+            Toast.fire({ icon: 'warning', title: 'Vui lòng chọn ít nhất 1 testcase để cập nhật.' });
+            return;
+        }
+        
+        const formData = new FormData();
+        formData.append('type', targetType);
+        formData.append('tc_ids', selected.join(','));
+        
+        fetch(`{% url 'coding_bulk_update_testcase_type' form.instance.pk %}`, {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                selected.forEach(id => {
+                    const selectEl = document.querySelector(`.tc-type-select[data-id="${id}"]`);
+                    if (selectEl) selectEl.value = targetType;
+                    const viewBtn = document.querySelector(`.btn-view-tc[data-id="${id}"]`);
+                    if (viewBtn) viewBtn.dataset.type = targetType;
+                });
+                Toast.fire({ icon: 'success', title: data.message || 'Đã cập nhật loại hàng loạt thành công!' });
+            } else {
+                Toast.fire({ icon: 'error', title: 'Lỗi: ' + (data.error || 'Unknown error') });
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            Toast.fire({ icon: 'error', title: 'Lỗi kết nối khi cập nhật loại testcase hàng loạt.' });
         });
     });
 });

@@ -1,0 +1,397 @@
+{% extends 'quiz/base.html' %}
+{% load static %}
+
+{% block title %}Lớp Học: {{ classroom.name }} (Mã: {{ classroom.code }}) - ProEdu{% endblock %}
+
+{% block extra_css %}
+<style>
+    .hero-banner {
+        background: linear-gradient(135deg, #0d3b66 0%, #1e3c72 50%, #2a5298 100%);
+        border-radius: 1.25rem;
+    }
+    .topic-card {
+        border-radius: 1rem;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .topic-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 0.5rem 1rem rgba(0,0,0,0.06) !important;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <!-- Hero Header Banner -->
+    <div class="card border-0 shadow-sm hero-banner text-white mb-4 overflow-hidden">
+        <div class="card-body p-4 p-md-5">
+            <div class="row align-items-center">
+                <div class="col-lg-8">
+                    <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
+                        <span class="badge bg-warning text-dark px-3 py-1 rounded-pill fw-bold">
+                            <i class="fas fa-chalkboard-teacher me-1"></i> LỚP HỌC LUYỆN CODE
+                        </span>
+                        <span class="badge bg-light text-primary font-monospace fs-6">
+                            Mã lớp: {{ classroom.code }}
+                        </span>
+                        {% if classroom.is_active %}
+                        <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1">
+                            <i class="fas fa-circle text-success me-1" style="font-size: 0.5rem;"></i>Đang mở
+                        </span>
+                        {% endif %}
+                    </div>
+
+                    <h2 class="display-6 fw-bold mb-2">{{ classroom.name }}</h2>
+
+                    <div class="d-flex align-items-center gap-2 text-white-50 mb-3 flex-wrap">
+                        <span><i class="fas fa-user-tie me-1"></i> Giáo viên phụ trách: <strong class="text-white">{{ classroom.teacher.get_full_name|default:classroom.teacher.username }}</strong></span>
+                        <span class="mx-1">•</span>
+                        <span><i class="fas fa-calendar-alt me-1"></i> Khởi tạo: {{ classroom.created_at|date:"d/m/Y" }}</span>
+                        <span class="mx-1">•</span>
+                        <span><i class="fas fa-users me-1"></i> {{ approved_students_count }} học sinh chính thức</span>
+                    </div>
+
+                    {% if classroom.description %}
+                    <div class="p-3 bg-white bg-opacity-10 rounded-3 text-white small" style="backdrop-filter: blur(4px);">
+                        <div class="fw-bold text-warning mb-1"><i class="fas fa-comment-dots me-1"></i> Lời dặn từ giáo viên:</div>
+                        <div class="mb-0">{{ classroom.description|linebreaksbr }}</div>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <div class="col-lg-4 text-center text-lg-end mt-4 mt-lg-0">
+                    <div class="d-inline-block bg-white p-3 rounded-4 shadow-sm text-dark text-center" style="min-width: 220px;">
+                        <small class="text-muted text-uppercase fw-bold" style="font-size: 0.75rem;">Mã mời tham gia</small>
+                        <div class="font-monospace fw-bold fs-2 text-primary my-1 letter-spacing-1">{{ classroom.code }}</div>
+                        <button class="btn btn-sm btn-outline-primary w-100 rounded-pill" onclick="copyClassLink('{{ classroom.code }}')">
+                            <i class="fas fa-copy me-1"></i> Sao chép link mời
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- HÀNH ĐỘNG DÀNH CHO HỌC SINH (ACTION BANNER) -->
+    <div class="mb-4">
+        {% if not user.is_authenticated %}
+        <!-- 1. Chưa đăng nhập -->
+        <div class="card border-0 shadow-sm rounded-4 border-start border-4 border-primary bg-light">
+            <div class="card-body p-4">
+                <div class="row align-items-center">
+                    <div class="col-lg-8 mb-3 mb-lg-0">
+                        <div class="d-flex align-items-center gap-3">
+                            <span class="d-none d-sm-inline-flex align-items-center justify-content-center bg-primary text-white rounded-circle p-3" style="width: 50px; height: 50px;">
+                                <i class="fas fa-sign-in-alt fa-lg"></i>
+                            </span>
+                            <div>
+                                <h5 class="fw-bold text-dark mb-1">Bạn đang truy cập dưới quyền Khách</h5>
+                                <p class="text-muted mb-0 small">Đăng nhập tài khoản học sinh hoặc đăng ký mới để gửi yêu cầu tham gia lớp học và bắt đầu luyện bài tập.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-4 text-lg-end">
+                        <div class="d-flex gap-2 justify-content-lg-end">
+                            <a href="{% url 'login' %}?next={{ request.get_full_path|urlencode }}" class="btn btn-primary fw-bold px-4 rounded-pill shadow-sm">
+                                <i class="fas fa-sign-in-alt me-1"></i> Đăng Nhập
+                            </a>
+                            <a href="{% url 'register' %}?next={{ request.get_full_path|urlencode }}" class="btn btn-outline-primary fw-bold px-3 rounded-pill">
+                                Đăng Ký
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {% elif member %}
+            {% if member.status == 'pending' %}
+            <!-- 2. Đã gửi yêu cầu, đang chờ duyệt -->
+            <div class="card border-0 shadow-sm rounded-4 border-start border-4 border-warning bg-warning-subtle">
+                <div class="card-body p-4">
+                    <div class="d-flex align-items-center gap-3">
+                        <span class="d-inline-flex align-items-center justify-content-center bg-warning text-dark rounded-circle p-3" style="width: 54px; height: 54px;">
+                            <i class="fas fa-user-clock fa-2x"></i>
+                        </span>
+                        <div class="flex-grow-1">
+                            <div class="d-flex align-items-center gap-2 mb-1 flex-wrap">
+                                <h5 class="fw-bold text-dark mb-0">Yêu Cầu Tham Gia Đang Chờ Giáo Viên Xác Nhận</h5>
+                                <span class="badge bg-warning text-dark px-2 py-1"><i class="fas fa-clock me-1"></i>Chờ duyệt</span>
+                            </div>
+                            <p class="text-muted mb-0 small">
+                                Bạn đã gửi yêu cầu vào lúc <strong>{{ member.joined_at|date:"d/m/Y H:i" }}</strong>. Thầy/Cô phụ trách sẽ sớm xác nhận để mở khóa toàn bộ bài tập và tích lũy điểm số cho bạn!
+                            </p>
+                        </div>
+                        <div>
+                            <button class="btn btn-outline-secondary btn-sm rounded-pill text-nowrap" onclick="window.location.reload();">
+                                <i class="fas fa-sync-alt me-1"></i> Kiểm tra lại
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {% elif member.status == 'rejected' %}
+            <!-- 3. Bị từ chối -->
+            <div class="card border-0 shadow-sm rounded-4 border-start border-4 border-danger bg-danger-subtle">
+                <div class="card-body p-4 d-flex align-items-center justify-content-between flex-wrap gap-3">
+                    <div class="d-flex align-items-center gap-3">
+                        <span class="d-inline-flex align-items-center justify-content-center bg-danger text-white rounded-circle p-3" style="width: 54px; height: 54px;">
+                            <i class="fas fa-times-circle fa-2x"></i>
+                        </span>
+                        <div>
+                            <h5 class="fw-bold text-danger mb-1">Yêu Cầu Tham Gia Chưa Được Chấp Nhận</h5>
+                            <p class="text-muted mb-0 small">Giáo viên chưa duyệt yêu cầu của bạn. Bạn có thể gửi lại yêu cầu tham gia nếu có sự nhầm lẫn.</p>
+                        </div>
+                    </div>
+                    <form method="post">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="join">
+                        <button type="submit" class="btn btn-danger fw-bold rounded-pill px-4">
+                            <i class="fas fa-redo me-1"></i> Gửi Lại Yêu Cầu
+                        </button>
+                    </form>
+                </div>
+            </div>
+            {% endif %}
+
+        {% else %}
+            <!-- 4. Đã đăng nhập nhưng CHƯA gửi yêu cầu -->
+            {% if not classroom.is_active or not classroom.allow_join %}
+            <div class="card border-0 shadow-sm rounded-4 bg-light">
+                <div class="card-body p-4 text-center">
+                    <i class="fas fa-lock fa-2x text-muted mb-2"></i>
+                    <h5 class="fw-bold mb-1">Lớp Học Tạm Thời Đóng Đăng Ký Tự Do</h5>
+                    <p class="text-muted small mb-0">Lớp học này hiện không mở đăng ký tham gia qua link. Vui lòng liên hệ trực tiếp với Thầy/Cô để được thêm vào danh sách lớp.</p>
+                </div>
+            </div>
+            {% else %}
+            <div class="card border-0 shadow rounded-4 bg-white border-top border-4 border-success">
+                <div class="card-body p-4 p-md-4">
+                    <div class="row align-items-center">
+                        <div class="col-lg-8 mb-3 mb-lg-0">
+                            <span class="badge bg-success-subtle text-success px-3 py-1 rounded-pill mb-2 fw-bold">
+                                <i class="fas fa-user-check me-1"></i> Tài khoản: {{ request.user.get_full_name|default:request.user.username }}
+                            </span>
+                            <h4 class="fw-bold text-dark mb-1">Sẵn Sàng Tham Gia Lớp Học Này?</h4>
+                            <p class="text-muted mb-0 small">Bấm nút tham gia bên cạnh để gửi yêu cầu tới giáo viên phụ trách. Sau khi thầy/cô xác nhận, bạn sẽ chính thức được cấp quyền làm bài và xếp hạng!</p>
+                        </div>
+                        <div class="col-lg-4 text-lg-end">
+                            <form method="post">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="join">
+                                <button type="submit" class="btn btn-success btn-lg px-4 py-3 fw-bold rounded-pill shadow w-100 w-lg-auto">
+                                    <i class="fas fa-paper-plane me-2"></i> Gửi Yêu Cầu Tham Gia
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        {% endif %}
+    </div>
+
+    <!-- THÔNG SỐ LỚP HỌC -->
+    <div class="row g-3 mb-4 text-center">
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm rounded-3 p-3 bg-white">
+                <div class="text-muted small mb-1"><i class="fas fa-user-tie text-primary me-1"></i> Giáo viên phụ trách</div>
+                <div class="fw-bold text-dark fs-5">{{ classroom.teacher.get_full_name|default:classroom.teacher.username }}</div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm rounded-3 p-3 bg-white">
+                <div class="text-muted small mb-1"><i class="fas fa-layer-group text-info me-1"></i> Chuyên đề kiến thức</div>
+                <div class="fw-bold text-info fs-5">{{ topics_count }} chuyên đề</div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm rounded-3 p-3 bg-white">
+                <div class="text-muted small mb-1"><i class="fas fa-tasks text-success me-1"></i> Tổng số bài tập</div>
+                <div class="fw-bold text-success fs-5">{{ assignments_count }} bài tập</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- XEM TRƯỚC NỘI DUNG CHUYÊN ĐỀ & BÀI TẬP (CURRICULUM PREVIEW) -->
+    <div class="mb-5">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <div>
+                <h4 class="fw-bold text-dark mb-0">
+                    <i class="fas fa-book-open text-primary me-2"></i>Nội Dung Các Chuyên Đề Trong Lớp
+                </h4>
+                <small class="text-muted">Danh sách các bài tập do giáo viên lựa chọn và sắp xếp theo chuyên đề</small>
+            </div>
+            <span class="badge bg-light text-muted border px-3 py-2 rounded-pill small">
+                Xem trước (Preview)
+            </span>
+        </div>
+
+        {% if topic_groups %}
+            {% for group in topic_groups %}
+            <div class="card border-0 shadow-sm rounded-3 mb-3 topic-card overflow-hidden">
+                <div class="card-header bg-light border-0 py-3 px-4 d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="fw-bold text-dark mb-0 d-flex align-items-center gap-2">
+                            <span class="badge bg-primary rounded-circle" style="width: 22px; height: 22px; display: inline-flex; align-items: center; justify-content: center; font-size: 0.75rem;">
+                                {{ forloop.counter }}
+                            </span>
+                            {{ group.topic.name }}
+                        </h6>
+                        {% if group.topic.description %}
+                        <small class="text-muted d-block mt-1">{{ group.topic.description }}</small>
+                        {% endif %}
+                    </div>
+                    <span class="badge bg-white text-secondary border px-3 py-1 rounded-pill small">
+                        {{ group.assignments|length }} bài
+                    </span>
+                </div>
+
+                <div class="card-body p-0">
+                    {% if group.assignments %}
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="table-light small text-muted">
+                                <tr>
+                                    <th class="ps-4" width="8%">#</th>
+                                    <th width="45%">Tên bài toán</th>
+                                    <th width="15%">Độ khó</th>
+                                    <th width="15%">Điểm tối đa</th>
+                                    <th width="17%" class="text-end pe-4">Trạng thái</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for a in group.assignments %}
+                                <tr>
+                                    <td class="ps-4 font-monospace text-muted">{{ forloop.counter }}</td>
+                                    <td>
+                                        <div class="fw-bold text-dark">{{ a.question.title }}</div>
+                                        <small class="text-muted font-monospace">{{ a.question.code }}</small>
+                                    </td>
+                                    <td>
+                                        <span class="badge {% if a.question.difficulty == 'Dễ' %}bg-success-subtle text-success border border-success-subtle{% elif a.question.difficulty == 'Trung bình' %}bg-warning-subtle text-warning-emphasis border border-warning-subtle{% elif a.question.difficulty == 'Khó' %}bg-danger-subtle text-danger border border-danger-subtle{% else %}bg-dark-subtle text-dark border{% endif %}">
+                                            {{ a.question.difficulty }}
+                                        </span>
+                                    </td>
+                                    <td><span class="fw-bold">{{ a.question.max_score }}</span> điểm</td>
+                                    <td class="text-end pe-4">
+                                        <span class="badge bg-light text-muted border px-2 py-1 small">
+                                            <i class="fas fa-lock me-1"></i> Cần vào lớp
+                                        </span>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-3 text-muted small">
+                        Chuyên đề này đang được cập nhật bài tập.
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        {% endif %}
+
+        {% if uncategorized_assignments %}
+        <div class="card border-0 shadow-sm rounded-3 mb-3 topic-card overflow-hidden">
+            <div class="card-header bg-secondary-subtle border-0 py-3 px-4">
+                <h6 class="fw-bold text-dark mb-0"><i class="fas fa-folder me-2 text-muted"></i>Bài Tập Bổ Trợ ({{ uncategorized_assignments|length }} bài)</h6>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light small text-muted">
+                            <tr>
+                                <th class="ps-4" width="8%">#</th>
+                                <th width="45%">Tên bài toán</th>
+                                <th width="15%">Độ khó</th>
+                                <th width="15%">Điểm tối đa</th>
+                                <th width="17%" class="text-end pe-4">Trạng thái</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for a in uncategorized_assignments %}
+                            <tr>
+                                <td class="ps-4 font-monospace text-muted">{{ forloop.counter }}</td>
+                                <td>
+                                    <div class="fw-bold text-dark">{{ a.question.title }}</div>
+                                    <small class="text-muted font-monospace">{{ a.question.code }}</small>
+                                </td>
+                                <td>
+                                    <span class="badge bg-light text-dark border">{{ a.question.difficulty }}</span>
+                                </td>
+                                <td><span class="fw-bold">{{ a.question.max_score }}</span> điểm</td>
+                                <td class="text-end pe-4">
+                                    <span class="badge bg-light text-muted border px-2 py-1 small">
+                                        <i class="fas fa-lock me-1"></i> Cần vào lớp
+                                    </span>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if not topic_groups and not uncategorized_assignments %}
+        <div class="card border-0 shadow-sm rounded-4 text-center py-5">
+            <div class="card-body">
+                <i class="fas fa-folder-open text-muted fa-3x mb-3"></i>
+                <h5 class="fw-bold">Chưa có bài tập nào trong lớp</h5>
+                <p class="text-muted small mb-0">Giáo viên phụ trách hiện đang soạn thảo chuyên đề và bài tập cho lớp học.</p>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- QUYỀN LỢI KHI THAM GIA LỚP -->
+    <div class="card border-0 shadow-sm rounded-4 bg-light p-4">
+        <h5 class="fw-bold text-dark mb-3"><i class="fas fa-star text-warning me-2"></i>Quyền Lợi Của Học Sinh Trong Lớp</h5>
+        <div class="row g-3">
+            <div class="col-md-4">
+                <div class="d-flex align-items-start gap-3">
+                    <span class="text-primary fs-3"><i class="fas fa-laptop-code"></i></span>
+                    <div>
+                        <h6 class="fw-bold mb-1">Luyện tập theo chuyên đề</h6>
+                        <p class="text-muted small mb-0">Làm các bài tập lập trình chọn lọc, bám sát lộ trình chuyên đề do thầy/cô thiết kế.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="d-flex align-items-start gap-3">
+                    <span class="text-success fs-3"><i class="fas fa-history"></i></span>
+                    <div>
+                        <h6 class="fw-bold mb-1">Tự động nhận bài đã làm</h6>
+                        <p class="text-muted small mb-0">Nếu bạn đã từng giải các bài tập này trên hệ thống, kết quả điểm số cao nhất sẽ được tự động ghi nhận ngay vào lớp.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="d-flex align-items-start gap-3">
+                    <span class="text-info fs-3"><i class="fas fa-user-check"></i></span>
+                    <div>
+                        <h6 class="fw-bold mb-1">Giáo viên theo dõi & chữa bài</h6>
+                        <p class="text-muted small mb-0">Thầy/cô có thể xem mã nguồn bạn đã nộp, phân tích lỗi testcase và hướng dẫn sửa bài kịp thời.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function copyClassLink(code) {
+    const fullUrl = `${window.location.origin}/lop-hoc/${code}/`;
+    navigator.clipboard.writeText(fullUrl).then(() => {
+        alert(`Đã sao chép link tham gia lớp học:\n${fullUrl}`);
+    }).catch(() => {
+        prompt("Sao chép link tham gia lớp học:", fullUrl);
+    });
+}
+</script>
+{% endblock %}

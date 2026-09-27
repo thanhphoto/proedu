@@ -1,5 +1,5 @@
 from django.urls import path
-from . import views, grading_views, coding_views, math_views, subscription_views, admin_dashboard_views
+from . import views, grading_views, coding_views, math_views, subscription_views, admin_dashboard_views, coding_classroom_views
 
 urlpatterns = [
     # Trang chủ & Học sinh
@@ -34,6 +34,7 @@ urlpatterns = [
     path('quan-ly-nguoi-dung/', views.user_management_view, name='user_management'),
     path('api/doi-vai-tro/<int:user_id>/', views.update_user_role, name='update_user_role'),
     path('api/khoa-tai-khoan/<int:user_id>/', views.toggle_user_status, name='toggle_user_status'),
+    path('api/reset-mat-khau/<int:user_id>/', views.admin_reset_user_password, name='admin_reset_user_password'),
 
     # Quản lý Ngân hàng đề & Câu hỏi (Quản lý / Admin)
     path('ngan-hang-de/', views.manage_question_bank, name='manage_question_bank'),
@@ -132,6 +133,30 @@ urlpatterns = [
     path('luyen-code/testcase/<int:testcase_id>/cap-nhat-diem/', coding_views.coding_update_single_tc_points, name='coding_update_single_tc_points'),
     path('luyen-code/<int:question_id>/testcase/cap-nhat-diem/', coding_views.coding_update_testcase_points, name='coding_update_testcase_points'),
     path('luyen-code/testcase/<int:testcase_id>/xoa/', coding_views.coding_delete_testcase, name='coding_delete_testcase'),
+    path('luyen-code/testcase/<int:testcase_id>/cap-nhat-loai/', coding_views.coding_update_testcase_type, name='coding_update_testcase_type'),
+    path('luyen-code/<int:question_id>/testcase/cap-nhat-loai-hang-loat/', coding_views.coding_bulk_update_testcase_type, name='coding_bulk_update_testcase_type'),
+    # LỚP HỌC LUYỆN CODE (GÓI GIÁO VIÊN & KHẢO THÍ)
+    path('lop-hoc/<str:code>/', coding_classroom_views.coding_classroom_join_or_view, name='coding_classroom_join_or_view'),
+    path('luyen-code/lop-hoc/', coding_classroom_views.coding_classroom_list, name='coding_classroom_list'),
+    path('luyen-code/lop-hoc/them/', coding_classroom_views.coding_classroom_create, name='coding_classroom_create'),
+    path('luyen-code/lop-hoc/<int:classroom_id>/sua/', coding_classroom_views.coding_classroom_edit, name='coding_classroom_edit'),
+    path('luyen-code/lop-hoc/<int:classroom_id>/xoa/', coding_classroom_views.coding_classroom_delete, name='coding_classroom_delete'),
+    path('luyen-code/lop-hoc/<int:classroom_id>/quan-ly/', coding_classroom_views.coding_classroom_manage, name='coding_classroom_manage'),
+    
+    # APIs Lớp học Luyện Code
+    path('api/luyen-code/lop-hoc/<int:classroom_id>/hoc-sinh/duyet/', coding_classroom_views.api_coding_classroom_approve_member, name='api_coding_classroom_approve_member'),
+    path('api/luyen-code/lop-hoc/<int:classroom_id>/hoc-sinh/them/', coding_classroom_views.api_coding_classroom_add_student, name='api_coding_classroom_add_student'),
+    path('api/luyen-code/lop-hoc/<int:classroom_id>/hoc-sinh/<int:member_id>/xoa/', coding_classroom_views.api_coding_classroom_remove_member, name='api_coding_classroom_remove_member'),
+    path('api/luyen-code/lop-hoc/<int:classroom_id>/nhom-kien-thuc/tao/', coding_classroom_views.api_coding_classroom_topic_create, name='api_coding_classroom_topic_create'),
+    path('api/luyen-code/lop-hoc/<int:classroom_id>/nhom-kien-thuc/<int:topic_id>/sua/', coding_classroom_views.api_coding_classroom_topic_edit, name='api_coding_classroom_topic_edit'),
+    path('api/luyen-code/lop-hoc/<int:classroom_id>/nhom-kien-thuc/<int:topic_id>/xoa/', coding_classroom_views.api_coding_classroom_topic_delete, name='api_coding_classroom_topic_delete'),
+    path('api/luyen-code/lop-hoc/<int:classroom_id>/bai-tap/tim-kiem/', coding_classroom_views.api_coding_classroom_search_questions, name='api_coding_classroom_search_questions'),
+    path('api/luyen-code/lop-hoc/<int:classroom_id>/bai-tap/them/', coding_classroom_views.api_coding_classroom_add_questions, name='api_coding_classroom_add_questions'),
+    path('api/luyen-code/lop-hoc/<int:classroom_id>/bai-tap/<int:assignment_id>/xoa/', coding_classroom_views.api_coding_classroom_remove_question, name='api_coding_classroom_remove_question'),
+    path('api/luyen-code/lop-hoc/<int:classroom_id>/bai-tap/<int:assignment_id>/chuyen-nhom/', coding_classroom_views.api_coding_classroom_move_question, name='api_coding_classroom_move_question'),
+    path('api/luyen-code/lop-hoc/<int:classroom_id>/hoc-sinh/<int:user_id>/bai-lam/', coding_classroom_views.api_coding_classroom_student_detail, name='api_coding_classroom_student_detail'),
+    path('api/luyen-code/lop-hoc/<int:classroom_id>/bai-tap/<int:question_id>/hoc-sinh/', coding_classroom_views.api_coding_classroom_question_detail, name='api_coding_classroom_question_detail'),
+
     path('luyen-code/<str:question_code>/', coding_views.coding_detail_view, name='coding_detail'),
     path('luyen-code/<str:question_code>/binh-luan/', coding_views.add_coding_comment, name='add_coding_comment'),
     path('api/luyen-code/<str:question_code>/submit/', coding_views.submit_code_api, name='submit_code_api'),

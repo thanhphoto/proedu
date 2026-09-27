@@ -345,6 +345,49 @@ def toggle_user_status(request, user_id):
     return redirect('user_management')
 
 
+@admin_required
+def admin_reset_user_password(request, user_id):
+    """API / Action cho phép Quản trị viên đổi / reset mật khẩu mới cho người dùng"""
+    if request.method != 'POST':
+        return JsonResponse({'status': 'error', 'message': 'Phương thức không được hỗ trợ.'}, status=405)
+
+    target_user = get_object_or_404(User, pk=user_id)
+
+    # Lấy mật khẩu mới từ POST form hoặc JSON body
+    new_password = request.POST.get('new_password', '').strip()
+    if not new_password and request.content_type == 'application/json':
+        try:
+            data = json.loads(request.body)
+            new_password = data.get('new_password', '').strip()
+        except Exception:
+            pass
+
+    if not new_password:
+        return JsonResponse({'status': 'error', 'message': 'Vui lòng nhập mật khẩu mới!'}, status=400)
+
+    if len(new_password) < 6:
+        return JsonResponse({'status': 'error', 'message': 'Mật khẩu mới phải có ít nhất 6 ký tự!'}, status=400)
+
+    target_user.set_password(new_password)
+    target_user.save()
+
+    # Nếu tự đổi mật khẩu cho chính mình, duy trì session không bị out
+    if target_user.id == request.user.id:
+        update_session_auth_hash(request, target_user)
+
+    msg = f"Đã đặt lại mật khẩu mới cho tài khoản '{target_user.username}' thành công!"
+
+    is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.content_type == 'application/json'
+    if not is_ajax and not request.POST.get('is_ajax'):
+        messages.success(request, msg)
+        return redirect('user_management')
+
+    return JsonResponse({
+        'status': 'success',
+        'message': msg
+    })
+
+
 # =====================================================================
 # QUẢN LÝ NGÂN HÀNG ĐỀ & THÊM CÂU HỎI THỦ CÔNG (DÀNH CHO QUẢN LÝ & ADMIN)
 # =====================================================================
