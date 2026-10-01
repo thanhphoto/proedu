@@ -2725,7 +2725,7 @@ def api_get_grading_record_detail(request, record_id):
             'max_score': record.max_score,
             'correct_count': record.correct_count,
             'percent': round(percent, 1),
-            'graded_at': record.created_at.strftime('%d/%m/%Y %H:%M'),
+            'graded_at': timezone.localtime(record.created_at).strftime('%d/%m/%Y %H:%M'),
             'graded_by': record.graded_by.username if record.graded_by else 'Hệ thống',
             'student_answers': record.student_answers or {},
             'details': record.grading_details,

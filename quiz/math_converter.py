@@ -36,14 +36,25 @@ YÊU CẦU BẮT BUỘC:
 """
 
 def get_gemini_api_key(user_api_key=None):
-    """Lấy API Key từ user truyền vào hoặc biến môi trường hoặc settings."""
+    """Lấy API Key từ user truyền vào, hoặc từ cấu hình hệ thống (SystemSetting), hoặc biến môi trường / settings."""
     if user_api_key and user_api_key.strip():
         return user_api_key.strip()
     
+    # 1. Lấy từ CSDL SystemSetting (được cài đặt tại /quan-tri/cai-dat/)
+    try:
+        from .models import SystemSetting
+        sys_settings = SystemSetting.get_settings()
+        if sys_settings and sys_settings.gemini_api_key and sys_settings.gemini_api_key.strip():
+            return sys_settings.gemini_api_key.strip()
+    except Exception:
+        pass
+
+    # 2. Biến môi trường
     env_key = os.environ.get("GEMINI_API_KEY", "").strip()
     if env_key:
         return env_key
         
+    # 3. Cấu hình Django settings
     settings_key = getattr(settings, "GEMINI_API_KEY", "").strip()
     if settings_key:
         return settings_key

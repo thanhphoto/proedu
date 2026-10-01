@@ -70,14 +70,14 @@
                                 <td class="text-center">
                                     {% if exam_ended and qs.submission_id %}
                                         <a href="#" class="view-code-btn text-decoration-none" data-url="{% url 'api_get_submission_code' qs.submission_id %}">
-                                            {{ qs.score }}
+                                            {{ qs.score|floatformat:2 }}
                                         </a>
                                     {% else %}
-                                        {{ qs.score }}
+                                        {{ qs.score|floatformat:2 }}
                                     {% endif %}
                                 </td>
                             {% endfor %}
-                            <td class="text-center fw-bold text-primary">{{ attempt.total_score }}</td>
+                            <td class="text-center fw-bold text-primary">{{ attempt.total_score|floatformat:2 }}</td>
                             <td class="text-center">{{ attempt.time_taken_str }}</td>
                             <td class="text-center">{{ attempt.start_time|date:"d/m/Y H:i" }}</td>
                         </tr>

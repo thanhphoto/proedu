@@ -835,7 +835,7 @@ def api_coding_classroom_student_detail(request, classroom_id, user_id):
             'status': sub.status if sub else 'Chưa làm',
             'score': round(sub.score, 2) if sub else 0.0,
             'submission_id': sub.id if sub else None,
-            'submitted_at': sub.created_at.strftime('%d/%m/%Y %H:%M') if sub else None,
+            'submitted_at': timezone.localtime(sub.created_at).strftime('%d/%m/%Y %H:%M') if sub else None,
             'language': sub.language if sub else None,
         })
 
@@ -897,7 +897,7 @@ def api_coding_classroom_question_detail(request, classroom_id, question_id):
             'status': sub.status if sub else 'Chưa làm',
             'score': round(sub.score, 2) if sub else 0.0,
             'submission_id': sub.id if sub else None,
-            'submitted_at': sub.created_at.strftime('%d/%m/%Y %H:%M') if sub else None,
+            'submitted_at': timezone.localtime(sub.created_at).strftime('%d/%m/%Y %H:%M') if sub else None,
             'language': sub.language if sub else None
         })
 

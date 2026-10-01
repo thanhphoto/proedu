@@ -135,6 +135,8 @@ urlpatterns = [
     path('luyen-code/testcase/<int:testcase_id>/xoa/', coding_views.coding_delete_testcase, name='coding_delete_testcase'),
     path('luyen-code/testcase/<int:testcase_id>/cap-nhat-loai/', coding_views.coding_update_testcase_type, name='coding_update_testcase_type'),
     path('luyen-code/<int:question_id>/testcase/cap-nhat-loai-hang-loat/', coding_views.coding_bulk_update_testcase_type, name='coding_bulk_update_testcase_type'),
+    path('luyen-code/testcase/<int:testcase_id>/chay-lai/', coding_views.coding_rerun_testcase, name='coding_rerun_testcase'),
+    path('luyen-code/<int:question_id>/testcase/chay-lai-hang-loat/', coding_views.coding_bulk_rerun_testcases, name='coding_bulk_rerun_testcases'),
     # LỚP HỌC LUYỆN CODE (GÓI GIÁO VIÊN & KHẢO THÍ)
     path('lop-hoc/<str:code>/', coding_classroom_views.coding_classroom_join_or_view, name='coding_classroom_join_or_view'),
     path('luyen-code/lop-hoc/', coding_classroom_views.coding_classroom_list, name='coding_classroom_list'),

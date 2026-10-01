@@ -108,7 +108,7 @@ class CodingExamForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         from django.utils import timezone
         if not self.instance.pk and 'start_time' not in self.initial:
-            self.initial['start_time'] = timezone.now().strftime('%Y-%m-%dT%H:%M')
+            self.initial['start_time'] = timezone.localtime(timezone.now()).strftime('%Y-%m-%dT%H:%M')
 
 from django.utils import timezone
 
@@ -213,6 +213,11 @@ def coding_exam_detail(request, exam_id):
                     
             if not attempt:
                 attempt = CodingExamAttempt.objects.create(user=request.user, exam=exam)
+            
+            first_q = questions.first()
+            if first_q:
+                from django.urls import reverse
+                return redirect(f"{reverse('coding_detail', kwargs={'question_code': first_q.code or first_q.id})}?exam_id={exam.id}")
             return redirect('coding_exam_detail', exam_id=exam.id)
             
     solved_questions = set()
@@ -363,7 +368,7 @@ def api_get_submission_code(request, submission_id):
         'status': submission.status,
         'score': submission.score,
         'details': submission.details,
-        'created_at': submission.created_at.strftime('%d/%m/%Y %H:%M')
+        'created_at': timezone.localtime(submission.created_at).strftime('%d/%m/%Y %H:%M')
     })
 
 @login_required
@@ -410,7 +415,7 @@ def coding_exam_results(request, exam_id):
             if q_subs.exists():
                 max_score_sub = q_subs.order_by('-score', '-created_at').first()
                 attempt.question_scores.append({
-                    'score': max_score_sub.score,
+                    'score': round(float(max_score_sub.score), 2),
                     'submission_id': max_score_sub.id
                 })
                 latest_sub = q_subs.order_by('-created_at').first()
@@ -419,6 +424,7 @@ def coding_exam_results(request, exam_id):
             else:
                 attempt.question_scores.append({'score': 0, 'submission_id': None})
                 
+        attempt.total_score = round(float(attempt.total_score), 2)
         if last_submission_time and last_submission_time > attempt.start_time:
             delta = last_submission_time - attempt.start_time
             attempt.time_taken_seconds = delta.total_seconds()
@@ -452,7 +458,7 @@ def coding_exam_results(request, exam_id):
         ws.append(headers)
         
         for idx, attempt in enumerate(attempts_list, start=1):
-            start_time_str = attempt.start_time.strftime("%d/%m/%Y %H:%M:%S") if attempt.start_time else ""
+            start_time_str = timezone.localtime(attempt.start_time).strftime("%d/%m/%Y %H:%M:%S") if attempt.start_time else ""
             full_name = attempt.user.get_full_name() or attempt.user.username
             student_code = attempt.user.profile.student_code if hasattr(attempt.user, 'profile') else ''
             row = [
@@ -461,8 +467,8 @@ def coding_exam_results(request, exam_id):
                 full_name,
             ]
             for qs in attempt.question_scores:
-                row.append(qs['score'])
-            row.extend([attempt.total_score, attempt.time_taken_str, start_time_str])
+                row.append(round(float(qs['score']), 2) if qs['score'] is not None else 0)
+            row.extend([round(float(attempt.total_score), 2), attempt.time_taken_str, start_time_str])
             ws.append(row)
             
         wb.save(response)
@@ -506,7 +512,7 @@ def coding_exam_results(request, exam_id):
         data = [headers]
         for idx, attempt in enumerate(attempts_list, start=1):
             full_name = strip_accents(attempt.user.get_full_name() or attempt.user.username)
-            start_time_str = attempt.start_time.strftime("%d/%m/%Y %H:%M") if attempt.start_time else ""
+            start_time_str = timezone.localtime(attempt.start_time).strftime("%d/%m/%Y %H:%M") if attempt.start_time else ""
             student_code = str(attempt.user.profile.student_code) if hasattr(attempt.user, 'profile') else ''
             row = [
                 str(idx),
@@ -514,8 +520,8 @@ def coding_exam_results(request, exam_id):
                 full_name,
             ]
             for qs in attempt.question_scores:
-                row.append(str(qs['score']))
-            row.extend([str(attempt.total_score), str(attempt.time_taken_str), start_time_str])
+                row.append(f"{float(qs['score']):.2f}" if qs['score'] is not None else "0.00")
+            row.extend([f"{float(attempt.total_score):.2f}", str(attempt.time_taken_str), start_time_str])
             data.append(row)
             
         table = Table(data, colWidths=col_widths)
@@ -1254,6 +1260,8 @@ def submit_code_api(request, question_code):
             })
             break # Stop executing if system error
 
+    total_score = round(total_score, 2)
+
     # Save submission if user is logged in
     submission = None
     if request.user.is_authenticated:
@@ -1274,7 +1282,7 @@ def submit_code_api(request, question_code):
                 student=request.user, 
                 question__exam=exam
             ).values('question').annotate(max_score=Max('score'))
-            attempt.total_score = sum(item['max_score'] for item in exam_scores)
+            attempt.total_score = round(sum(item['max_score'] for item in exam_scores), 2)
             attempt.save()
 
     return JsonResponse({
@@ -1407,6 +1415,118 @@ def coding_bulk_update_testcase_type(request, question_id):
         target_tcs.update(is_sample=False, is_hidden=False)
 
     return JsonResponse({'success': True, 'count': target_tcs.count(), 'message': f'Đã cập nhật {target_tcs.count()} testcase thành công!'})
+
+@login_required
+@require_POST
+def coding_rerun_testcase(request, testcase_id):
+    if not hasattr(request.user, 'profile') or not request.user.profile.is_coding_contributor():
+        raise PermissionDenied("Bạn không có quyền quản lý bài tập lập trình.")
+        
+    tc = get_object_or_404(TestCase, id=testcase_id)
+    question = tc.question
+    
+    is_exam_creator = question.exam and question.exam.created_by == request.user
+    if question.created_by != request.user and not is_exam_creator and not request.user.is_superuser:
+        raise PermissionDenied("Bạn chỉ có thể sửa bài do chính mình tạo.")
+        
+    language = request.POST.get('language', 'cpp').strip().lower()
+    solution_code = request.POST.get('solution_code', '').strip()
+    
+    if language not in ['cpp', 'python']:
+        return JsonResponse({'error': 'Ngôn ngữ không được hỗ trợ (chỉ hỗ trợ C++ và Python).'}, status=400)
+        
+    if not solution_code:
+        if language == 'python':
+            solution_code = question.solution_code_python or ""
+        else:
+            solution_code = question.solution_code_cpp or ""
+            
+    if not solution_code.strip():
+        lang_name = "C++" if language == 'cpp' else "Python"
+        return JsonResponse({'error': f'Chưa có mã nguồn đáp án chuẩn cho {lang_name}. Vui lòng nhập đáp án chuẩn trước.'}, status=400)
+        
+    timeout_sec = question.time_limit if question.time_limit and question.time_limit > 0 else 5.0
+    res_data = execute_code_locally(language, solution_code, tc.input_data or "", timeout_sec)
+    
+    if res_data.get('status') == 'Accepted':
+        new_output = res_data.get('output', '').strip()
+        tc.expected_output = new_output
+        tc.save()
+        return JsonResponse({
+            'success': True,
+            'testcase_id': tc.id,
+            'expected_output': new_output,
+            'time': res_data.get('time', 0),
+            'memory': res_data.get('memory', 0),
+            'message': 'Đã chạy lại testcase thành công!'
+        })
+    else:
+        err_detail = res_data.get('error') or res_data.get('output') or res_data.get('status')
+        return JsonResponse({
+            'success': False,
+            'error': f"Chạy thất bại ({res_data.get('status')}): {err_detail}"
+        }, status=400)
+
+@login_required
+@require_POST
+def coding_bulk_rerun_testcases(request, question_id):
+    if not hasattr(request.user, 'profile') or not request.user.profile.is_coding_contributor():
+        raise PermissionDenied("Bạn không có quyền quản lý bài tập lập trình.")
+        
+    question = get_object_or_404(CodingQuestion, id=question_id)
+    is_exam_creator = question.exam and question.exam.created_by == request.user
+    if question.created_by != request.user and not is_exam_creator and not request.user.is_superuser:
+        raise PermissionDenied("Bạn chỉ có thể sửa bài do chính mình tạo.")
+        
+    language = request.POST.get('language', 'cpp').strip().lower()
+    solution_code = request.POST.get('solution_code', '').strip()
+    tc_ids_raw = request.POST.get('tc_ids', '')
+    
+    if language not in ['cpp', 'python']:
+        return JsonResponse({'error': 'Ngôn ngữ không được hỗ trợ (chỉ hỗ trợ C++ và Python).'}, status=400)
+        
+    if not solution_code:
+        if language == 'python':
+            solution_code = question.solution_code_python or ""
+        else:
+            solution_code = question.solution_code_cpp or ""
+            
+    if not solution_code.strip():
+        lang_name = "C++" if language == 'cpp' else "Python"
+        return JsonResponse({'error': f'Chưa có mã nguồn đáp án chuẩn cho {lang_name}. Vui lòng nhập đáp án chuẩn trước.'}, status=400)
+        
+    if tc_ids_raw:
+        try:
+            tc_ids = [int(i.strip()) for i in tc_ids_raw.split(',') if i.strip()]
+            testcases = question.testcases.filter(id__in=tc_ids)
+        except ValueError:
+            testcases = question.testcases.all()
+    else:
+        testcases = question.testcases.all()
+        
+    timeout_sec = question.time_limit if question.time_limit and question.time_limit > 0 else 5.0
+    updated_items = []
+    failed_items = []
+    
+    for tc in testcases:
+        res_data = execute_code_locally(language, solution_code, tc.input_data or "", timeout_sec)
+        if res_data.get('status') == 'Accepted':
+            new_output = res_data.get('output', '').strip()
+            tc.expected_output = new_output
+            tc.save()
+            updated_items.append({'id': tc.id, 'expected_output': new_output})
+        else:
+            err_detail = res_data.get('error') or res_data.get('output') or res_data.get('status')
+            failed_items.append({'id': tc.id, 'error': err_detail})
+            
+    return JsonResponse({
+        'success': True,
+        'updated_count': len(updated_items),
+        'failed_count': len(failed_items),
+        'updated_items': updated_items,
+        'failed_items': failed_items,
+        'message': f"Đã chạy lại {len(updated_items)} testcase thành công!" + (f" ({len(failed_items)} lỗi)" if failed_items else "")
+    })
 
 @login_required
 def coding_toggle_attr(request, question_id):

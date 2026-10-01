@@ -278,8 +278,18 @@
                 <div class="card-body p-0">
                     {% if form.instance.testcases.all %}
                     <div class="p-3 bg-light border-bottom d-flex align-items-center justify-content-between flex-wrap gap-2">
-                        <div class="d-flex align-items-center gap-2">
+                        <div class="d-flex align-items-center gap-2 flex-wrap">
                             <button class="btn btn-sm btn-danger" id="btnDeleteSelectedTc"><i class="fas fa-trash-alt me-1"></i> Xóa đã chọn</button>
+                            <div class="dropdown">
+                                <button class="btn btn-sm btn-outline-success dropdown-toggle" type="button" id="bulkRerunDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                                    <i class="fas fa-play me-1"></i> Chạy lại đã chọn
+                                </button>
+                                <ul class="dropdown-menu shadow-sm" aria-labelledby="bulkRerunDropdown">
+                                    <li><h6 class="dropdown-header small text-muted">Chọn ngôn ngữ đáp án chuẩn:</h6></li>
+                                    <li><a class="dropdown-item bulk-rerun-btn" href="#" data-lang="cpp"><i class="fas fa-code text-primary me-2"></i>Chạy lại với <strong>C++</strong></a></li>
+                                    <li><a class="dropdown-item bulk-rerun-btn" href="#" data-lang="python"><i class="fab fa-python text-warning me-2"></i>Chạy lại với <strong>Python</strong></a></li>
+                                </ul>
+                            </div>
                             <div class="dropdown">
                                 <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" id="bulkTypeDropdown" data-bs-toggle="dropdown" aria-expanded="false">
                                     <i class="fas fa-tags me-1"></i> Đặt loại đã chọn
@@ -303,11 +313,11 @@
                                 <tr>
                                     <th width="4%"><input type="checkbox" id="selectAllTc" class="form-check-input"></th>
                                     <th width="4%">#</th>
-                                    <th width="28%">Dữ liệu đầu vào (Input)</th>
+                                    <th width="26%">Dữ liệu đầu vào (Input)</th>
                                     <th width="24%">Kết quả mong đợi (Expected Output)</th>
-                                    <th width="22%">Loại Testcase</th>
+                                    <th width="20%">Loại Testcase</th>
                                     <th width="8%">Điểm</th>
-                                    <th width="10%" class="text-end">Thao tác</th>
+                                    <th width="14%" class="text-end">Thao tác</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -315,7 +325,7 @@
                                 <tr id="tc-row-{{ tc.id }}">
                                     <td><input type="checkbox" class="tc-checkbox form-check-input" value="{{ tc.id }}"></td>
                                     <td>{{ forloop.counter }}</td>
-                                    <td><pre class="mb-0 small text-truncate" style="max-width: 200px; font-family: monospace;">{{ tc.input_data }}</pre></td>
+                                    <td><pre class="mb-0 small text-truncate" style="max-width: 180px; font-family: monospace;">{{ tc.input_data }}</pre></td>
                                     <td><pre class="mb-0 small text-truncate" style="max-width: 180px; font-family: monospace;">{{ tc.expected_output }}</pre></td>
                                     <td>
                                         <select class="form-select form-select-sm tc-type-select fw-semibold" data-id="{{ tc.id }}" style="font-size: 0.82rem;">
@@ -328,8 +338,26 @@
                                         <input type="number" class="form-control form-control-sm tc-point-input" data-id="{{ tc.id }}" value="{{ tc.points }}" step="0.1" min="0" style="width: 70px;">
                                     </td>
                                     <td class="text-end text-nowrap">
+                                        <div class="btn-group me-1">
+                                            <button type="button" class="btn btn-sm btn-outline-success dropdown-toggle btn-rerun-tc" data-bs-toggle="dropdown" aria-expanded="false" title="Chạy lại testcase từ đáp án chuẩn">
+                                                <i class="fas fa-play me-1"></i> Chạy lại
+                                            </button>
+                                            <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                                                <li><h6 class="dropdown-header small text-muted">Ngôn ngữ đáp án chuẩn:</h6></li>
+                                                <li>
+                                                    <a class="dropdown-item run-tc-lang" href="#" data-id="{{ tc.id }}" data-lang="cpp">
+                                                        <i class="fas fa-code text-primary me-2"></i> Chạy lại với <strong>C++</strong>
+                                                    </a>
+                                                </li>
+                                                <li>
+                                                    <a class="dropdown-item run-tc-lang" href="#" data-id="{{ tc.id }}" data-lang="python">
+                                                        <i class="fab fa-python text-warning me-2"></i> Chạy lại với <strong>Python</strong>
+                                                    </a>
+                                                </li>
+                                            </ul>
+                                        </div>
                                         <button type="button" class="btn btn-sm btn-outline-primary btn-view-tc me-1" data-id="{{ tc.id }}" data-index="{{ forloop.counter }}" data-points="{{ tc.points }}" data-type="{{ tc.testcase_type }}" title="Xem chi tiết testcase">
-                                            <i class="fas fa-eye me-1"></i> Xem
+                                            <i class="fas fa-eye"></i>
                                         </button>
                                         <button type="button" class="btn btn-sm btn-outline-danger btn-delete-tc" data-id="{{ tc.id }}" title="Xóa testcase">
                                             <i class="fas fa-trash-alt"></i>
@@ -976,6 +1004,152 @@ document.querySelectorAll('.bulk-set-type').forEach(item => {
         .catch(err => {
             console.error(err);
             Toast.fire({ icon: 'error', title: 'Lỗi kết nối khi cập nhật loại testcase hàng loạt.' });
+        });
+    });
+});
+
+// Chạy lại testcase đơn lẻ
+document.querySelectorAll('.run-tc-lang').forEach(btn => {
+    btn.addEventListener('click', function(e) {
+        e.preventDefault();
+        const tcId = this.dataset.id;
+        const lang = this.dataset.lang;
+        const row = document.getElementById('tc-row-' + tcId);
+        const groupBtn = this.closest('.btn-group').querySelector('.btn-rerun-tc');
+        const originalHtml = groupBtn.innerHTML;
+        
+        // Lấy mã nguồn từ form nếu người dùng vừa gõ sửa đổi
+        let solutionCode = '';
+        if (lang === 'python') {
+            solutionCode = document.getElementById('id_solution_code_python')?.value || '';
+        } else {
+            solutionCode = document.getElementById('id_solution_code_cpp')?.value || '';
+        }
+
+        groupBtn.disabled = true;
+        groupBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Chạy...';
+
+        const formData = new FormData();
+        formData.append('language', lang);
+        formData.append('solution_code', solutionCode);
+
+        fetch(`/luyen-code/testcase/${tcId}/chay-lai/`, {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(res => res.json())
+        .then(data => {
+            groupBtn.disabled = false;
+            groupBtn.innerHTML = originalHtml;
+            if (data.success) {
+                // Cập nhật text output trên bảng
+                const outputPre = row.querySelector('td:nth-child(4) pre');
+                if (outputPre) {
+                    outputPre.textContent = data.expected_output;
+                }
+                const rawOutput = document.getElementById('tc-raw-output-' + tcId);
+                if (rawOutput) {
+                    rawOutput.value = data.expected_output;
+                }
+                row.classList.add('table-success');
+                setTimeout(() => { row.classList.remove('table-success'); }, 2000);
+                Toast.fire({
+                    icon: 'success',
+                    title: `Chạy lại Testcase thành công (${data.time}s)!`
+                });
+            } else {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Lỗi thực thi testcase',
+                    html: `<pre class="text-start bg-light p-3 border rounded small text-danger" style="max-height: 250px; overflow-y: auto; white-space: pre-wrap; word-break: break-all;">${escapeHtml(data.error || 'Unknown error')}</pre>`
+                });
+            }
+        })
+        .catch(err => {
+            groupBtn.disabled = false;
+            groupBtn.innerHTML = originalHtml;
+            console.error(err);
+            Toast.fire({ icon: 'error', title: 'Lỗi kết nối khi chạy lại testcase.' });
+        });
+    });
+});
+
+// Chạy lại testcase hàng loạt
+document.querySelectorAll('.bulk-rerun-btn').forEach(btn => {
+    btn.addEventListener('click', function(e) {
+        e.preventDefault();
+        const lang = this.dataset.lang;
+        const selected = Array.from(document.querySelectorAll('.tc-checkbox:checked')).map(cb => cb.value);
+        if (selected.length === 0) {
+            Toast.fire({ icon: 'warning', title: 'Vui lòng chọn ít nhất 1 testcase để chạy lại.' });
+            return;
+        }
+
+        let solutionCode = '';
+        if (lang === 'python') {
+            solutionCode = document.getElementById('id_solution_code_python')?.value || '';
+        } else {
+            solutionCode = document.getElementById('id_solution_code_cpp')?.value || '';
+        }
+
+        Swal.fire({
+            title: 'Đang chạy lại testcase...',
+            html: `Hệ thống đang thực thi ${selected.length} testcase với <b>${lang.toUpperCase()}</b>. Vui lòng chờ...`,
+            allowOutsideClick: false,
+            didOpen: () => {
+                Swal.showLoading();
+            }
+        });
+
+        const formData = new FormData();
+        formData.append('language', lang);
+        formData.append('solution_code', solutionCode);
+        formData.append('tc_ids', selected.join(','));
+
+        fetch(`{% url 'coding_bulk_rerun_testcases' form.instance.pk %}`, {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                if (data.updated_items) {
+                    data.updated_items.forEach(item => {
+                        const row = document.getElementById('tc-row-' + item.id);
+                        if (row) {
+                            const outputPre = row.querySelector('td:nth-child(4) pre');
+                            if (outputPre) outputPre.textContent = item.expected_output;
+                            const rawOutput = document.getElementById('tc-raw-output-' + item.id);
+                            if (rawOutput) rawOutput.value = item.expected_output;
+                            row.classList.add('table-success');
+                            setTimeout(() => { row.classList.remove('table-success'); }, 2000);
+                        }
+                    });
+                }
+                Swal.fire({
+                    icon: data.failed_count > 0 ? 'warning' : 'success',
+                    title: 'Hoàn tất chạy lại testcase',
+                    text: data.message
+                });
+            } else {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Lỗi',
+                    text: data.error || 'Có lỗi xảy ra'
+                });
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            Swal.fire({ icon: 'error', title: 'Lỗi kết nối', text: 'Không thể kết nối đến máy chủ.' });
         });
     });
 });

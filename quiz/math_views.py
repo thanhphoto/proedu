@@ -206,7 +206,7 @@ def api_convert_math_doc(request):
             'id': conversion.id,
             'filename': orig_name,
             'file_type': file_type,
-            'created_at': conversion.created_at.strftime('%H:%M %d/%m/%Y'),
+            'created_at': timezone.localtime(conversion.created_at).strftime('%H:%M %d/%m/%Y'),
             'docx_url': f"/chuyen-doi-tai-lieu/tai-ve/{conversion.id}/",
             'extracted_latex': extracted_latex,
             'message': 'Chuyển đổi thành công sang file Word!'
@@ -242,7 +242,7 @@ def get_conversion_detail(request, conversion_id):
         'filename': conversion.original_filename,
         'file_type': conversion.file_type,
         'status': conversion.status,
-        'created_at': conversion.created_at.strftime('%H:%M %d/%m/%Y'),
+        'created_at': timezone.localtime(conversion.created_at).strftime('%H:%M %d/%m/%Y'),
         'extracted_latex': conversion.extracted_latex,
         'error_message': conversion.error_message,
         'has_docx': bool(conversion.output_docx)

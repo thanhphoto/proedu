@@ -1390,7 +1390,7 @@ def export_matrix_word(request, quiz_id):
     doc.add_paragraph(f'Môn thi: {quiz.subject.name}')
     doc.add_paragraph(f'Thời gian: {quiz.duration} phút')
     if quiz.deadline:
-        doc.add_paragraph(f'Hạn nộp: {quiz.deadline.strftime("%d/%m/%Y %H:%M")}')
+        doc.add_paragraph(f'Hạn nộp: {timezone.localtime(quiz.deadline).strftime("%d/%m/%Y %H:%M")}')
     doc.add_paragraph(f'Điểm: TN={quiz.score_single} | Đ/S={quiz.score_tf} | Số={quiz.score_numeric}')
     doc.add_paragraph()
 
@@ -1547,7 +1547,7 @@ def export_matrix_excel(request, quiz_id):
     ws['A4'] = f'Thời gian: {quiz.duration} phút'
     ws['A5'] = f'Điểm: TN={quiz.score_single} | Đ/S={quiz.score_tf} | Số={quiz.score_numeric}'
     if quiz.deadline:
-        ws['A6'] = f'Hạn nộp: {quiz.deadline.strftime("%d/%m/%Y %H:%M")}'
+        ws['A6'] = f'Hạn nộp: {timezone.localtime(quiz.deadline).strftime("%d/%m/%Y %H:%M")}'
 
     start_row = 8
 
@@ -1922,8 +1922,8 @@ def exam_detail(request, quiz_id):
         'avail_counts_json': json.dumps(avail_counts, ensure_ascii=False),
         'current_matrix_json': json.dumps(current_matrix, ensure_ascii=False),
         'current_specs_json': json.dumps(current_specs, ensure_ascii=False),
-        'start_time_formatted': quiz.start_time.strftime('%Y-%m-%dT%H:%M') if quiz.start_time else '',
-        'deadline_formatted': quiz.deadline.strftime('%Y-%m-%dT%H:%M') if quiz.deadline else '',
+        'start_time_formatted': timezone.localtime(quiz.start_time).strftime('%Y-%m-%dT%H:%M') if quiz.start_time else '',
+        'deadline_formatted': timezone.localtime(quiz.deadline).strftime('%Y-%m-%dT%H:%M') if quiz.deadline else '',
         'exam_results': exam_results,
         'total_results': exam_results.count(),
     }
